@@ -16,8 +16,11 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage"
   },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.36.3",
+    "@google/generative-ai": "^0.21.0",
     "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
