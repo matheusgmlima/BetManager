@@ -74,6 +74,16 @@ model CombinedBetGroup {
 
 // ─── Apostas ──────────────────────────────────────────────────────────────────
 
+model BettingProfile {
+  id            Int       @id @default(autoincrement())
+  name          String    @db.VarChar(100)
+  active        Boolean   @default(true)
+  created_at    DateTime  @default(now()) @map("created_at")
+  bets Bet[]
+
+  @@map("betting_profiles")
+}
+
 model Bet {
   id            Int       @id @default(autoincrement())
 
@@ -83,6 +93,9 @@ model Bet {
 
   bookmakerId   Int       @map("bookmaker_id")
   bookmaker     Bookmaker @relation(fields: [bookmakerId], references: [id])
+
+  bettingProfileId  Int?              @map("betting_profile_id")
+  bettingProfile    BettingProfile?   @relation(fields: [bettingProfileId], references: [id])
 
   combinedId    Int?      @map("combined_id")
   combined      CombinedBetGroup? @relation(fields: [combinedId], references: [id])
@@ -113,6 +126,7 @@ model Bet {
   @@index([bookmakerId])
   @@index([betType])
   @@map("bets")
+  @@index([bettingProfileId])
 }
 
 // ─── Metas ────────────────────────────────────────────────────────────────────

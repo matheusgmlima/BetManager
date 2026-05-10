@@ -36,6 +36,16 @@ async function main() {
     ],
   })
 
+  // Betting Profiles
+  await prisma.bettingProfile.createMany({
+    skipDuplicates: true,
+    data: [
+      { name: 'Vip Extraordinário' },
+      { name: 'Vip Herculano' },
+      { name: 'Apostas Próprias' }, 
+    ],
+  })
+
   console.log('Seed completed!')
 }
 
