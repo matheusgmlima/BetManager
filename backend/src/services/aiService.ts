@@ -1,4 +1,4 @@
-import { genai, AI_MODELS, AiModel } from '../lib/gemini'
+import { groq, AI_MODELS, AiModel } from '../lib/groq'
 import { prisma } from '../lib/prisma'
 import { parseDDMM } from '../utils/dateUtils'
 import { AiExtractedBet, AiExtractionResponse } from '../types/api.types'
@@ -65,33 +65,40 @@ export async function extractBetsFromImage(
   model: AiModel = 'fast'
 ): Promise<AiExtractionResponse> {
   const modelId = AI_MODELS[model]
-  const base64 = imageBuffer.toString('base64')
+  const base64  = imageBuffer.toString('base64')
 
-  let inputTokens = 0
+  let inputTokens  = 0
   let outputTokens = 0
-  let rawResponse = ''
+  let rawResponse  = ''
 
   try {
-    const geminiModel = genai.getGenerativeModel({ model: modelId })
-
-    const result = await geminiModel.generateContent([
-      {
-        inlineData: {
-          mimeType: mimeType as 'image/png' | 'image/jpeg' | 'image/webp',
-          data: base64,
+    const response = await groq.chat.completions.create({
+      model: modelId,
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image_url',
+              image_url: { url: `data:${mimeType};base64,${base64}` },
+            },
+            {
+              type: 'text',
+              text: EXTRACT_PROMPT,
+            },
+          ],
         },
-      },
-      { text: EXTRACT_PROMPT },
-    ])
+      ],
+    })
 
-    rawResponse = result.response.text()
-    const usage = result.response.usageMetadata
-    inputTokens = usage?.promptTokenCount ?? 0
-    outputTokens = usage?.candidatesTokenCount ?? 0
+    rawResponse  = response.choices[0]?.message?.content ?? ''
+    inputTokens  = response.usage?.prompt_tokens     ?? 0
+    outputTokens = response.usage?.completion_tokens ?? 0
   } catch (err: any) {
     const msg = err?.message ?? String(err)
     await logExtraction(modelId, 0, 0, 0, 0, false, msg)
-    throw new Error(`Gemini API error (model: ${modelId}): ${msg}`)
+    throw new Error(`Groq API error (model: ${modelId}): ${msg}`)
   }
 
   // Remove possíveis blocos de markdown que o modelo insira
@@ -130,7 +137,6 @@ export async function extractBetsFromImage(
       if (d) parsedDate = d.toISOString().split('T')[0]
     }
 
-    // Se odd não veio mas temos valor e retorno, calcula
     let odd = a.odd ?? null
     if (!odd && a.valor_apostado && a.retorno_total && a.valor_apostado > 0) {
       odd = parseFloat((a.retorno_total / a.valor_apostado).toFixed(4))
@@ -140,15 +146,15 @@ export async function extractBetsFromImage(
       a.tipo === 'combinada' ? 'combined' : 'simple'
 
     return {
-      date: parsedDate ?? null,
-      match: a.jogo ?? null,
-      market: a.mercado ?? null,
-      bookmaker: a.casa ?? null,
-      bookmakerId: foundBookmaker?.id ?? null,
+      date:          parsedDate ?? null,
+      match:         a.jogo ?? null,
+      market:        a.mercado ?? null,
+      bookmaker:     a.casa ?? null,
+      bookmakerId:   foundBookmaker?.id ?? null,
       amountWagered: a.valor_apostado ?? null,
-      odds: odd,
-      payout: a.retorno_total ?? null,
-      result: a.resultado ?? 'pending',
+      odds:          odd,
+      payout:        a.retorno_total ?? null,
+      result:        a.resultado ?? 'pending',
       confidence,
       betType,
     }
@@ -158,7 +164,7 @@ export async function extractBetsFromImage(
 
   return {
     extractionId: log.id,
-    modelUsed: modelId,
+    modelUsed:    modelId,
     betsDetected: bets.length,
     bets,
     warnings,
@@ -168,17 +174,17 @@ export async function extractBetsFromImage(
 export async function confirmExtraction(extractionId: number, confirmedCount: number) {
   return prisma.aiExtractionLog.update({
     where: { id: extractionId },
-    data: { betsConfirmed: confirmedCount },
+    data:  { betsConfirmed: confirmedCount },
   })
 }
 
 async function logExtraction(
-  modelUsed: string,
-  betsDetected: number,
+  modelUsed:     string,
+  betsDetected:  number,
   betsConfirmed: number,
-  inputTokens: number,
-  outputTokens: number,
-  success: boolean,
+  inputTokens:   number,
+  outputTokens:  number,
+  success:       boolean,
   errorMessage?: string
 ) {
   return prisma.aiExtractionLog.create({

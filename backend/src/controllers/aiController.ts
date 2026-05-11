@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
 import * as aiService from '../services/aiService'
-import { AiModel } from '../lib/gemini'
+import { AiModel } from '../lib/groq'
 
 export async function extract(req: Request, res: Response, next: NextFunction) {
   try {
