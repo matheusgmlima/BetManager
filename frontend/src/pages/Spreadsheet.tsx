@@ -1,0 +1,517 @@
+import { useState, useMemo } from 'react'
+import { useBets } from '../hooks/useBets'
+import { useSports, useBookmakers, useProfiles } from '../hooks/useConfig'
+import { BetResult, BetType, Bet } from '../types/bet.types'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+const RESULT_LABELS: Record<BetResult, string> = {
+  won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente',
+}
+
+const RESULT_STYLES: Record<BetResult, { bg: string; color: string; border: string; dot: string }> = {
+  won:     { bg: 'rgba(34,197,94,0.10)',  color: '#22c55e', border: 'rgba(34,197,94,0.25)',  dot: '#22c55e' },
+  lost:    { bg: 'rgba(239,68,68,0.10)',  color: '#ef4444', border: 'rgba(239,68,68,0.25)',  dot: '#ef4444' },
+  void:    { bg: 'rgba(90,90,120,0.15)',  color: '#7070a0', border: 'rgba(90,90,120,0.30)',  dot: '#7070a0' },
+  pending: { bg: 'rgba(234,179,8,0.10)',  color: '#eab308', border: 'rgba(234,179,8,0.25)',  dot: '#eab308' },
+}
+
+// Cores únicas por perfil (cycling se tiver mais de 4)
+const PROFILE_COLORS = ['#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#34d399', '#60a5fa']
+
+function ResultBadge({ result }: { result: BetResult }) {
+  const s = RESULT_STYLES[result]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '3px 9px', borderRadius: 999,
+      background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+    }}>
+      <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+      {RESULT_LABELS[result]}
+    </span>
+  )
+}
+
+function fmtBRL(n: number) {
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+function fmtDate(iso: string) {
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
+}
+
+// ─── Section header ───────────────────────────────────────────────────────────
+
+function Section({ label, children, icon = '◈' }: { label: string; children: React.ReactNode; icon?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{ fontSize: 14, color: '#8b5cf6', filter: 'drop-shadow(0 0 6px #8b5cf6)', lineHeight: 1 }}>{icon}</span>
+        <span style={{
+          fontSize: 11, fontWeight: 800, letterSpacing: '0.18em', textTransform: 'uppercase',
+          background: 'linear-gradient(90deg, #a78bfa, #c4b5fd, #a78bfa)',
+          backgroundSize: '200% auto', WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+          animation: 'shimmer 4s linear infinite',
+        }}>{label}</span>
+        <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(139,92,246,0.4), rgba(139,92,246,0.05), transparent)' }} />
+        <span style={{ fontSize: 14, color: '#8b5cf6', filter: 'drop-shadow(0 0 6px #8b5cf6)', lineHeight: 1 }}>{icon}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ─── Sort ─────────────────────────────────────────────────────────────────────
+
+type SortKey = 'date' | 'description' | 'odds' | 'amountWagered' | 'payout' | 'profit' | 'result'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 1, marginLeft: 4, opacity: active ? 1 : 0.3 }}>
+      <span style={{ fontSize: 7, lineHeight: 1, color: active && dir === 'asc'  ? '#a78bfa' : '#5a5a78' }}>▲</span>
+      <span style={{ fontSize: 7, lineHeight: 1, color: active && dir === 'desc' ? '#a78bfa' : '#5a5a78' }}>▼</span>
+    </span>
+  )
+}
+
+// ─── Skeleton ─────────────────────────────────────────────────────────────────
+
+function SkeletonRow() {
+  return (
+    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+      {Array.from({ length: 9 }).map((_, i) => (
+        <td key={i} style={{ padding: '12px 14px' }}>
+          <div style={{
+            height: 13, borderRadius: 6,
+            background: 'linear-gradient(90deg, #1a1a2e 25%, #23233a 50%, #1a1a2e 75%)',
+            backgroundSize: '200% auto', animation: 'shimmer 1.5s linear infinite',
+            width: i === 1 ? '80%' : i === 0 ? 70 : '60%',
+          }} />
+        </td>
+      ))}
+    </tr>
+  )
+}
+
+// ─── Summary cards ────────────────────────────────────────────────────────────
+
+function SummaryCard({ label, value, sub, color = '#8b5cf6' }: { label: string; value: string; sub?: string; color?: string }) {
+  return (
+    <div
+      className="anim-slide-up"
+      style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 14, padding: '14px 18px',
+        position: 'relative', overflow: 'hidden',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = color; e.currentTarget.style.boxShadow = `0 0 16px ${color}33` }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      <div style={{ position: 'absolute', top: -16, right: -16, width: 60, height: 60, borderRadius: '50%', background: `radial-gradient(circle, ${color}22 0%, transparent 70%)`, pointerEvents: 'none' }} />
+      <p style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
+      <p style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)', lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</p>}
+    </div>
+  )
+}
+
+// ─── Pag button ───────────────────────────────────────────────────────────────
+
+function PagBtn({ label, onClick, disabled = false, active = false }: {
+  label: string; onClick: () => void; disabled?: boolean; active?: boolean
+}) {
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 8, padding: '7px 10px', fontSize: 12,
+    color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
+  }
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        minWidth: 30, height: 30, borderRadius: 7, fontSize: 12, fontWeight: 600,
+        cursor: disabled ? 'default' : 'pointer', transition: 'all 0.15s',
+        background: active ? 'linear-gradient(135deg, #6d28d9, #7c3aed)' : 'var(--bg-card)',
+        border: `1px solid ${active ? '#7c3aed' : 'var(--border)'}`,
+        color: active ? '#fff' : disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
+        boxShadow: active ? '0 0 12px rgba(124,58,237,0.35)' : 'none',
+        opacity: disabled ? 0.4 : 1, padding: '0 6px',
+      }}
+      onMouseEnter={e => { if (!disabled && !active) e.currentTarget.style.borderColor = '#7c3aed' }}
+      onMouseLeave={e => { if (!disabled && !active) e.currentTarget.style.borderColor = 'var(--border)' }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ─── Bet Row ──────────────────────────────────────────────────────────────────
+
+function BetRow({ bet, odd }: { bet: Bet; odd: boolean }) {
+  const [hovered, setHovered] = useState(false)
+  const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
+
+  return (
+    <tr
+      style={{
+        borderBottom: '1px solid var(--border)',
+        background: hovered ? 'rgba(124,58,237,0.05)' : odd ? 'rgba(255,255,255,0.013)' : 'transparent',
+        transition: 'background 0.12s',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <td style={{ ...td, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
+        {fmtDate(bet.date)}
+      </td>
+      <td style={{ ...td, color: 'var(--text-primary)', maxWidth: 240 }}>
+        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {bet.description}
+        </span>
+        {bet.isCombined && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}>combinada</span>}
+        {bet.source === 'ai_extract' && <span style={{ fontSize: 9, fontWeight: 700, color: '#c084fc', marginLeft: bet.isCombined ? 6 : 0 }}>✦ IA</span>}
+      </td>
+      <td style={{ ...td, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+        {bet.sport ? `${bet.sport.icon ?? ''} ${bet.sport.name}`.trim() : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td style={{ ...td, whiteSpace: 'nowrap' }}>
+        <span style={{
+          display: 'inline-block', padding: '2px 8px', borderRadius: 6,
+          background: `${bet.bookmaker.color ?? '#6d28d9'}18`,
+          border: `1px solid ${bet.bookmaker.color ?? '#6d28d9'}33`,
+          color: bet.bookmaker.color ?? '#a78bfa', fontSize: 11, fontWeight: 700,
+        }}>
+          {bet.bookmaker.name}
+        </span>
+      </td>
+      <td style={{ ...td, textAlign: 'right', color: '#eab308', fontWeight: 700, fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+        {bet.odds != null ? bet.odds.toFixed(2) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+      </td>
+      <td style={{ ...td, textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+        R$ {fmtBRL(bet.amountWagered)}
+      </td>
+      <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+        R$ {fmtBRL(bet.payout)}
+      </td>
+      <td style={{ ...td, whiteSpace: 'nowrap' }}>
+        <ResultBadge result={bet.result} />
+      </td>
+      <td style={{
+        ...td, textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', whiteSpace: 'nowrap',
+        color: bet.profit > 0 ? '#22c55e' : bet.profit < 0 ? '#ef4444' : 'var(--text-muted)',
+      }}>
+        {bet.profit > 0 ? '+' : bet.profit < 0 ? '−' : ''}
+        {bet.profit !== 0 ? `R$ ${fmtBRL(Math.abs(bet.profit))}` : '—'}
+      </td>
+    </tr>
+  )
+}
+
+// ─── BetTable (tabela + paginação — reutilizada por cada tab) ─────────────────
+
+const PAGE_SIZES = [10, 25, 50]
+
+function BetTable({ profileId, accentColor }: { profileId: number | null; accentColor: string }) {
+  const [search,     setSearch]     = useState('')
+  const [resultF,    setResultF]    = useState<BetResult | ''>('')
+  const [betTypeF,   setBetTypeF]   = useState<BetType | ''>('')
+  const [sportIdF,   setSportIdF]   = useState<number | ''>('')
+  const [bookmakerF, setBookmakerF] = useState<number | ''>('')
+  const [dateFrom,   setDateFrom]   = useState('')
+  const [dateTo,     setDateTo]     = useState('')
+  const [page,       setPage]       = useState(1)
+  const [perPage,    setPerPage]    = useState(10)
+  const [showFilters, setShowFilters] = useState(false)
+  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  const { data, isLoading, isError } = useBets({
+    page, perPage,
+    search:           search      || undefined,
+    result:           resultF     || undefined,
+    betType:          betTypeF    || undefined,
+    sportId:          sportIdF    || undefined,
+    bookmakerId:      bookmakerF  || undefined,
+    dateFrom:         dateFrom    || undefined,
+    dateTo:           dateTo      || undefined,
+    bettingProfileId: profileId   ?? undefined,
+  })
+
+  const { data: sports     = [] } = useSports()
+  const { data: bookmakers = [] } = useBookmakers()
+
+  const bets       = data?.data ?? []
+  const pagination = data?.pagination
+  const summary    = data?.summary
+  const totalPages = pagination?.totalPages ?? 1
+  const hasFilters = !!(search || resultF || betTypeF || sportIdF || bookmakerF || dateFrom || dateTo)
+
+  const sorted = useMemo(() => {
+    const rows = [...bets]
+    rows.sort((a, b) => {
+      let va: string | number, vb: string | number
+      if (sortKey === 'description') { va = a.description; vb = b.description }
+      else if (sortKey === 'result') { va = a.result; vb = b.result }
+      else { va = (a[sortKey] as number) ?? 0; vb = (b[sortKey] as number) ?? 0 }
+      if (va < vb) return sortDir === 'asc' ? -1 : 1
+      if (va > vb) return sortDir === 'asc' ?  1 : -1
+      return 0
+    })
+    return rows
+  }, [bets, sortKey, sortDir])
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('asc') }
+  }
+
+  function resetFilters() {
+    setSearch(''); setResultF(''); setBetTypeF('')
+    setSportIdF(''); setBookmakerF(''); setDateFrom(''); setDateTo('')
+    setPage(1)
+  }
+
+  const inputStyle: React.CSSProperties = {
+    background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 8, padding: '7px 10px', fontSize: 12,
+    color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
+  }
+
+  const thBase: React.CSSProperties = {
+    padding: '11px 14px', textAlign: 'left', fontSize: 10, fontWeight: 800,
+    letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)',
+    borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+    userSelect: 'none', background: 'rgba(9,9,15,0.6)',
+  }
+  const thSortable: React.CSSProperties = { ...thBase, cursor: 'pointer' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Summary cards */}
+      {summary && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+          <SummaryCard label="Total apostado"    value={`R$ ${fmtBRL(summary.totalWagered)}`} color={accentColor} />
+          <SummaryCard
+            label="Lucro total"
+            value={`${summary.totalProfit >= 0 ? '+' : ''}R$ ${fmtBRL(summary.totalProfit)}`}
+            color={summary.totalProfit >= 0 ? '#22c55e' : '#ef4444'}
+          />
+          <SummaryCard label="Taxa de acerto" value={summary.hitRatePct != null ? `${summary.hitRatePct.toFixed(1)}%` : '—'} color="#a78bfa" />
+          <SummaryCard label="Apostas" value={String(summary.totalBets)} sub={pagination ? `Pág. ${pagination.page}/${pagination.totalPages}` : ''} color="#c084fc" />
+        </div>
+      )}
+
+      {/* Filtros toggle */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => setShowFilters(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+            cursor: 'pointer', transition: 'all 0.15s',
+            background: showFilters ? `${accentColor}20` : 'var(--bg-card)',
+            border: `1px solid ${showFilters ? accentColor + '60' : 'var(--border)'}`,
+            color: showFilters ? accentColor : 'var(--text-secondary)',
+          }}
+        >
+          ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
+        </button>
+      </div>
+
+      {/* Filtros */}
+      {showFilters && (
+        <div className="anim-slide-up" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px' }}>
+              <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Busca</label>
+              <input style={inputStyle} placeholder="Descrição..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} />
+            </div>
+            {[
+              { label: 'Resultado', node: <select style={inputStyle} value={resultF} onChange={e => { setResultF(e.target.value as BetResult | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="won">Ganhou</option><option value="lost">Perdeu</option><option value="pending">Pendente</option><option value="void">Void</option></select> },
+              { label: 'Tipo', node: <select style={inputStyle} value={betTypeF} onChange={e => { setBetTypeF(e.target.value as BetType | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="simple">Simples</option><option value="combined">Combinada</option></select> },
+              { label: 'Esporte', node: <select style={inputStyle} value={sportIdF} onChange={e => { setSportIdF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
+              { label: 'Casa', node: <select style={inputStyle} value={bookmakerF} onChange={e => { setBookmakerF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todas</option>{bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select> },
+              { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+              { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+            ].map(({ label, node }) => (
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
+                {node}
+              </div>
+            ))}
+            {hasFilters && (
+              <button onClick={resetFilters} style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444', cursor: 'pointer', alignSelf: 'flex-end' }}>✕ Limpar</button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tabela */}
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+            <thead>
+              <tr>
+                <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, minWidth: 200 }} onClick={() => handleSort('description')}>Descrição <SortIcon active={sortKey === 'description'} dir={sortDir} /></th>
+                <th style={thBase}>Esporte</th>
+                <th style={thBase}>Casa</th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('odds')}>Odd <SortIcon active={sortKey === 'odds'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('amountWagered')}>Apostado <SortIcon active={sortKey === 'amountWagered'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
+                <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+              {isError && (
+                <tr><td colSpan={9} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
+              )}
+              {!isLoading && !isError && sorted.length === 0 && (
+                <tr><td colSpan={9} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
+              )}
+              {!isLoading && sorted.map((bet: Bet, i: number) => (
+                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} />
+              ))}
+            </tbody>
+            {summary && !isLoading && sorted.length > 0 && (
+              <tfoot>
+                <tr style={{ borderTop: '2px solid var(--border-purple)' }}>
+                  <td colSpan={4} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>
+                    Totais ({summary.totalBets} apostas)
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>R$ {fmtBRL(summary.totalWagered)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                  <td style={{ padding: '10px 14px', background: 'rgba(9,9,15,0.5)' }}>
+                    {summary.hitRatePct != null && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600 }}>{summary.hitRatePct.toFixed(1)}% acerto</span>}
+                  </td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, whiteSpace: 'nowrap', background: 'rgba(9,9,15,0.5)', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
+                    {summary.totalProfit >= 0 ? '+' : ''}R$ {fmtBRL(summary.totalProfit)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Paginação */}
+      {pagination && totalPages > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Linhas por página:</span>
+            <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }} style={{ ...inputStyle, padding: '5px 8px', fontSize: 12 }}>
+              {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>
+              {(page - 1) * perPage + 1}–{Math.min(page * perPage, pagination.total)} de {pagination.total}
+            </span>
+            <PagBtn label="«" disabled={page === 1} onClick={() => setPage(1)} />
+            <PagBtn label="‹" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
+              return <PagBtn key={p} label={String(p)} active={p === page} onClick={() => setPage(p)} />
+            })}
+            <PagBtn label="›" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} />
+            <PagBtn label="»" disabled={page === totalPages} onClick={() => setPage(totalPages)} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function Spreadsheet() {
+  const { data: profiles = [], isLoading: loadingProfiles } = useProfiles()
+  const [activeTab, setActiveTab] = useState<number | null>(null) // null = Todas
+
+  // Tabs: "Todas" + uma por perfil
+  const tabs = [
+    { id: null, label: 'Todas', color: '#8b5cf6' },
+    ...profiles.map((p, i) => ({ id: p.id, label: p.name, color: PROFILE_COLORS[i % PROFILE_COLORS.length] })),
+  ]
+
+  const activeColor = tabs.find(t => t.id === activeTab)?.color ?? '#8b5cf6'
+
+  return (
+    <div style={{ padding: '28px 32px', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
+
+      {/* ── HEADER ── */}
+      <div>
+        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', margin: 0 }}>
+          Planilha de Apostas
+        </h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+          Filtre por perfil de apostas nas abas abaixo
+        </p>
+      </div>
+
+      {/* ── TABS ── */}
+      <Section label="Perfis de apostas" icon="◈">
+        <div style={{
+          display: 'flex', gap: 8, flexWrap: 'wrap',
+          borderBottom: '1px solid var(--border)', paddingBottom: 0,
+        }}>
+          {loadingProfiles
+            ? Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} style={{ width: 120, height: 40, borderRadius: '8px 8px 0 0', background: 'linear-gradient(90deg, #1a1a2e 25%, #23233a 50%, #1a1a2e 75%)', backgroundSize: '200% auto', animation: 'shimmer 1.5s linear infinite' }} />
+              ))
+            : tabs.map(tab => {
+                const isActive = tab.id === activeTab
+                return (
+                  <button
+                    key={String(tab.id)}
+                    onClick={() => setActiveTab(tab.id)}
+                    style={{
+                      padding: '10px 20px', fontSize: 13, fontWeight: 700,
+                      borderRadius: '8px 8px 0 0', cursor: 'pointer',
+                      transition: 'all 0.15s', border: 'none', outline: 'none',
+                      position: 'relative', marginBottom: -1,
+                      background: isActive ? 'var(--bg-card)' : 'transparent',
+                      color: isActive ? tab.color : 'var(--text-muted)',
+                      borderTop: isActive ? `2px solid ${tab.color}` : '2px solid transparent',
+                      borderLeft: isActive ? `1px solid var(--border)` : '1px solid transparent',
+                      borderRight: isActive ? `1px solid var(--border)` : '1px solid transparent',
+                      borderBottom: isActive ? '1px solid var(--bg-card)' : '1px solid transparent',
+                      boxShadow: isActive ? `0 -4px 12px ${tab.color}20` : 'none',
+                    }}
+                    onMouseEnter={e => { if (!isActive) { e.currentTarget.style.color = tab.color; e.currentTarget.style.background = `${tab.color}10` } }}
+                    onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' } }}
+                  >
+                    {tab.id === null
+                      ? <span>⊞ {tab.label}</span>
+                      : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: tab.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${tab.color}` : 'none' }} />
+                          {tab.label}
+                        </span>
+                      )
+                    }
+                  </button>
+                )
+              })
+          }
+        </div>
+
+        {/* ── Conteúdo da tab ativa ── */}
+        <div style={{ paddingTop: 4 }}>
+          <BetTable key={String(activeTab)} profileId={activeTab} accentColor={activeColor} />
+        </div>
+      </Section>
+
+    </div>
+  )
+}

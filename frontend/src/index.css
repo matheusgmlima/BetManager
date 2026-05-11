@@ -1,0 +1,138 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-primary:    #09090f;
+  --bg-secondary:  #0f0f1a;
+  --bg-card:       #13131f;
+  --bg-card-hover: #1a1a2e;
+  --border:        #1e1e30;
+  --border-purple: #2d1f5e;
+  --purple-900:    #3b0764;
+  --purple-700:    #6d28d9;
+  --purple-600:    #7c3aed;
+  --purple-500:    #8b5cf6;
+  --purple-400:    #a78bfa;
+  --purple-300:    #c4b5fd;
+  --purple-glow:   rgba(124, 58, 237, 0.25);
+  --text-primary:  #f0f0ff;
+  --text-secondary:#a0a0c0;
+  --text-muted:    #5a5a78;
+  --green:         #22c55e;
+  --red:           #ef4444;
+  --yellow:        #eab308;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-purple);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--purple-700);
+}
+
+/* Card glow effect */
+.card-glow:hover {
+  box-shadow: 0 0 20px var(--purple-glow);
+  border-color: var(--purple-700) !important;
+  transition: all 0.2s ease;
+}
+
+/* Purple gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, var(--purple-400), var(--purple-300));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sidebar nav active glow */
+.nav-active {
+  background: linear-gradient(135deg, var(--purple-700), var(--purple-600));
+  box-shadow: 0 0 12px var(--purple-glow);
+}
+
+/* ── Animations ─────────────────────────────────────────── */
+
+/* Floating orb */
+@keyframes floatOrb {
+  0%   { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+  33%  { transform: translateY(-40px) translateX(20px) scale(1.05); opacity: 0.18; }
+  66%  { transform: translateY(-20px) translateX(-15px) scale(0.97); opacity: 0.14; }
+  100% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+}
+
+/* Card slide-up entrance */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(22px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade in */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Pulse glow on logo */
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(124,58,237,0.4); }
+  50%       { box-shadow: 0 0 22px rgba(124,58,237,0.75), 0 0 40px rgba(124,58,237,0.25); }
+}
+
+/* Shimmer sweep */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+/* Particle drift */
+@keyframes drift {
+  0%   { transform: translateY(100vh) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-100px) translateX(60px) rotate(360deg); opacity: 0; }
+}
+
+/* Helpers */
+.anim-slide-up {
+  animation: slideUp 0.45s ease both;
+}
+.anim-fade-in {
+  animation: fadeIn 0.6s ease both;
+}
+.logo-pulse {
+  animation: logoPulse 3s ease-in-out infinite;
+}
+.shimmer-text {
+  background: linear-gradient(90deg,
+    var(--purple-400) 0%,
+    var(--purple-200, #ddd6fe) 40%,
+    var(--purple-400) 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
