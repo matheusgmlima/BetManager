@@ -385,7 +385,7 @@ export default function Dashboard() {
 
               {/* Lucro acumulado */}
               <ChartCard title="📈  Lucro acumulado" delay={80}>
-                {profitChart.length > 1 ? (
+                {profitChart.length >= 1 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <LineChart data={profitChart}>
                       <defs>

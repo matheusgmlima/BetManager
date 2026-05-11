@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useBets } from '../hooks/useBets'
+import { useBets, useUpdateBet, useDeleteBet } from '../hooks/useBets'
 import { useSports, useBookmakers, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
 
@@ -83,7 +83,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 function SkeletonRow() {
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      {Array.from({ length: 9 }).map((_, i) => (
+      {Array.from({ length: 10 }).map((_, i) => (
         <td key={i} style={{ padding: '12px 14px' }}>
           <div style={{
             height: 13, borderRadius: 6,
@@ -151,9 +151,236 @@ function PagBtn({ label, onClick, disabled = false, active = false }: {
   )
 }
 
+// ─── Edit Modal ───────────────────────────────────────────────────────────────
+
+function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
+  const { data: sports     = [] } = useSports()
+  const { data: bookmakers = [] } = useBookmakers()
+  const { data: profiles   = [] } = useProfiles()
+  const updateBet = useUpdateBet()
+
+  function today() { return new Date().toISOString().split('T')[0] }
+
+  const [form, setForm] = useState({
+    date:            bet.date.split('T')[0],
+    match:           bet.match ?? '',
+    market:          bet.market,
+    sportId:         String(bet.sport?.id ?? ''),
+    bookmakerId:     String(bet.bookmaker.id),
+    betType:         bet.betType as BetType,
+    odds:            bet.odds != null ? String(bet.odds) : '',
+    amountWagered:   String(bet.amountWagered),
+    payout:          String(bet.payout),
+    result:          bet.result as BetResult,
+    notes:           bet.notes ?? '',
+    bettingProfileId: String((bet as any).bettingProfileId ?? ''),
+  })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr]       = useState('')
+
+  const inp: React.CSSProperties = {
+    width: '100%', background: '#0d0d1a', border: '1px solid #2d1f5e',
+    borderRadius: 8, padding: '8px 11px', color: '#e0e0ff', fontSize: 13,
+    outline: 'none', transition: 'border-color 0.15s',
+  }
+  const lbl: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: '#6d5a9a', marginBottom: 4, display: 'block',
+  }
+
+  const set = (k: string, v: string) => {
+    setForm(f => {
+      const next: any = { ...f, [k]: v }
+      if (k === 'odds' || k === 'amountWagered') {
+        const amt = parseFloat(k === 'amountWagered' ? v : f.amountWagered)
+        const odd = parseFloat(k === 'odds' ? v : f.odds)
+        if (!isNaN(amt) && !isNaN(odd) && odd >= 1 && amt > 0) next.payout = (amt * odd).toFixed(2)
+      }
+      if (k === 'result') {
+        const amt = parseFloat(f.amountWagered)
+        const odd = parseFloat(f.odds)
+        if (v === 'lost') next.payout = '0'
+        else if (v === 'void' && !isNaN(amt)) next.payout = amt.toFixed(2)
+        else if (v === 'won' && !isNaN(amt) && !isNaN(odd)) next.payout = (amt * odd).toFixed(2)
+      }
+      return next
+    })
+  }
+
+  const handleSave = async () => {
+    if (!form.market || !form.bookmakerId || !form.amountWagered) { setErr('Preencha os campos obrigatórios'); return }
+    setSaving(true)
+    try {
+      await updateBet.mutateAsync({
+        id: bet.id,
+        data: {
+          date:            form.date,
+          match:           form.match || null,
+          market:          form.market,
+          sportId:         form.sportId ? Number(form.sportId) : undefined,
+          bookmakerId:     Number(form.bookmakerId),
+          betType:         form.betType,
+          odds:            form.odds ? parseFloat(form.odds) : null,
+          amountWagered:   parseFloat(form.amountWagered),
+          payout:          parseFloat(form.payout),
+          result:          form.result,
+          notes:           form.notes || undefined,
+          bettingProfileId: form.bettingProfileId ? Number(form.bettingProfileId) : null,
+        },
+      })
+      onClose()
+    } catch { setErr('Erro ao salvar. Tente novamente.') }
+    finally { setSaving(false) }
+  }
+
+  const RESULT_OPTS: { value: BetResult; label: string; color: string }[] = [
+    { value: 'won',     label: '✓ Ganhou',   color: '#22c55e' },
+    { value: 'lost',    label: '✗ Perdeu',   color: '#ef4444' },
+    { value: 'pending', label: '◷ Pendente', color: '#eab308' },
+    { value: 'void',    label: '∅ Void',     color: '#7070a0' },
+  ]
+
+  return (
+    <div
+      style={{
+        position: 'fixed', inset: 0, zIndex: 1000,
+        background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+      }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{
+        width: '100%', maxWidth: 620, background: '#0a0a14',
+        border: '1px solid #2d1f5e', borderRadius: 20, padding: '28px 28px 24px',
+        boxShadow: '0 0 60px rgba(124,58,237,0.2)',
+        maxHeight: '90vh', overflowY: 'auto',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0 }}>Editar Aposta</p>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6d5a9a', fontSize: 20, cursor: 'pointer', padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          {/* Data */}
+          <div><label style={lbl}>Data *</label><input type="date" style={inp} value={form.date} max={today()} onChange={e => set('date', e.target.value)} /></div>
+          {/* Perfil */}
+          <div>
+            <label style={lbl}>Perfil *</label>
+            <select style={inp} value={form.bettingProfileId} onChange={e => set('bettingProfileId', e.target.value)}>
+              <option value="">Selecionar…</option>
+              {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {/* Jogo */}
+          <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Jogo (opcional)</label><input style={inp} placeholder="Ex: Sport x Flamengo" value={form.match} onChange={e => set('match', e.target.value)} /></div>
+          {/* Mercado */}
+          <div style={{ gridColumn: '1/-1' }}><label style={lbl}>Mercado *</label><input style={inp} placeholder="Ex: +2.5 gols" value={form.market} onChange={e => set('market', e.target.value)} /></div>
+          {/* Esporte */}
+          <div>
+            <label style={lbl}>Esporte</label>
+            <select style={inp} value={form.sportId} onChange={e => set('sportId', e.target.value)}>
+              <option value="">—</option>
+              {sports.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+            </select>
+          </div>
+          {/* Casa */}
+          <div>
+            <label style={lbl}>Casa *</label>
+            <select style={inp} value={form.bookmakerId} onChange={e => set('bookmakerId', e.target.value)}>
+              <option value="">Selecionar…</option>
+              {bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          {/* Tipo */}
+          <div>
+            <label style={lbl}>Tipo</label>
+            <select style={inp} value={form.betType} onChange={e => set('betType', e.target.value)}>
+              <option value="simple">Simples</option>
+              <option value="combined">Combinada</option>
+            </select>
+          </div>
+          {/* Odd */}
+          <div><label style={lbl}>Odd</label><input type="number" style={inp} step="0.01" min="1" placeholder="1.80" value={form.odds} onChange={e => set('odds', e.target.value)} /></div>
+          {/* Apostado */}
+          <div><label style={lbl}>Apostado (R$) *</label><input type="number" style={inp} step="0.01" min="0.01" placeholder="0.00" value={form.amountWagered} onChange={e => set('amountWagered', e.target.value)} /></div>
+          {/* Retorno */}
+          <div><label style={lbl}>Retorno (R$)</label><input type="number" style={inp} step="0.01" min="0" placeholder="0.00" value={form.payout} onChange={e => set('payout', e.target.value)} /></div>
+          {/* Resultado */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Resultado</label>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {RESULT_OPTS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set('result', opt.value)}
+                  style={{
+                    flex: '1 1 auto', padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                    cursor: 'pointer', transition: 'all 0.15s',
+                    background: form.result === opt.value ? `${opt.color}22` : '#0d0d1a',
+                    border: `1px solid ${form.result === opt.value ? opt.color : '#2d1f5e'}`,
+                    color: form.result === opt.value ? opt.color : '#6d5a9a',
+                    boxShadow: form.result === opt.value ? `0 0 12px ${opt.color}40` : 'none',
+                  }}
+                >{opt.label}</button>
+              ))}
+            </div>
+          </div>
+          {/* Notas */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Notas</label>
+            <textarea style={{ ...inp, resize: 'vertical', minHeight: 60 }} placeholder="Observações…" value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
+        </div>
+
+        {err && <p style={{ color: '#ef4444', fontSize: 12, marginTop: 12 }}>{err}</p>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 20, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, background: 'none', border: '1px solid #2d1f5e', color: '#6d5a9a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '9px 24px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+              border: '1px solid #7c3aed', color: '#fff', cursor: saving ? 'wait' : 'pointer',
+              opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s',
+            }}
+          >{saving ? 'Salvando…' : '✓ Salvar'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Delete Confirm ───────────────────────────────────────────────────────────
+
+function DeleteConfirm({ bet, onClose, onConfirm }: { bet: Bet; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ width: '100%', maxWidth: 380, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 16, padding: '28px 24px', boxShadow: '0 0 40px rgba(239,68,68,0.15)', textAlign: 'center' }}>
+        <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+        <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>Excluir aposta?</p>
+        <p style={{ fontSize: 12, color: '#6d5a9a', margin: '0 0 8px' }}>
+          {bet.match ? <><strong style={{ color: '#a78bfa' }}>{bet.match}</strong><br /></> : null}
+          <span>{bet.market}</span>
+        </p>
+        <p style={{ fontSize: 11, color: '#ef444480', marginBottom: 20 }}>Esta ação não pode ser desfeita.</p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, background: 'none', border: '1px solid #2d1f5e', color: '#6d5a9a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onConfirm} style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Excluir</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Bet Row ──────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd }: { bet: Bet; odd: boolean }) {
+function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
   const [hovered, setHovered] = useState(false)
   const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
 
@@ -220,6 +447,34 @@ function BetRow({ bet, odd }: { bet: Bet; odd: boolean }) {
         {bet.profit > 0 ? '+' : bet.profit < 0 ? '−' : ''}
         {bet.profit !== 0 ? `R$ ${fmtBRL(Math.abs(bet.profit))}` : '—'}
       </td>
+      <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+          <button
+            onClick={() => onEdit(bet)}
+            title="Editar"
+            style={{
+              width: 28, height: 28, borderRadius: 7, fontSize: 13, cursor: 'pointer',
+              background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.3)',
+              color: '#a78bfa', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.25)'; e.currentTarget.style.borderColor = '#7c3aed' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)' }}
+          >✏</button>
+          <button
+            onClick={() => onDelete(bet)}
+            title="Excluir"
+            style={{
+              width: 28, height: 28, borderRadius: 7, fontSize: 13, cursor: 'pointer',
+              background: 'rgba(239,68,68,0.10)', border: '1px solid rgba(239,68,68,0.25)',
+              color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.22)'; e.currentTarget.style.borderColor = '#ef4444' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.10)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)' }}
+          >🗑</button>
+        </div>
+      </td>
     </tr>
   )
 }
@@ -241,6 +496,9 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
   const [showFilters, setShowFilters] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [editingBet, setEditingBet] = useState<Bet | null>(null)
+  const [deletingBet, setDeletingBet] = useState<Bet | null>(null)
+  const deleteBet = useDeleteBet()
 
   const { data, isLoading, isError } = useBets({
     page, perPage,
@@ -267,7 +525,7 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
     const rows = [...bets]
     rows.sort((a, b) => {
       let va: string | number, vb: string | number
-      if (sortKey === 'description') { va = a.description; vb = b.description }
+      if (sortKey === 'description') { va = a.market; vb = b.market }
       else if (sortKey === 'result') { va = a.result; vb = b.result }
       else { va = (a[sortKey] as number) ?? 0; vb = (b[sortKey] as number) ?? 0 }
       if (va < vb) return sortDir === 'asc' ? -1 : 1
@@ -304,6 +562,14 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {editingBet && <EditModal bet={editingBet} onClose={() => setEditingBet(null)} />}
+      {deletingBet && (
+        <DeleteConfirm
+          bet={deletingBet}
+          onClose={() => setDeletingBet(null)}
+          onConfirm={async () => { await deleteBet.mutateAsync(deletingBet.id); setDeletingBet(null) }}
+        />
+      )}
 
       {/* Summary cards */}
       {summary && (
@@ -367,7 +633,7 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
       {/* Tabela */}
       <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
             <thead>
               <tr>
                 <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
@@ -379,18 +645,19 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
                 <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
                 <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
                 <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Ações</th>
               </tr>
             </thead>
             <tbody>
               {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
               {isError && (
-                <tr><td colSpan={9} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
+                <tr><td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
               )}
               {!isLoading && !isError && sorted.length === 0 && (
-                <tr><td colSpan={9} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
+                <tr><td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
               )}
               {!isLoading && sorted.map((bet: Bet, i: number) => (
-                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} />
+                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} onEdit={setEditingBet} onDelete={setDeletingBet} />
               ))}
             </tbody>
             {summary && !isLoading && sorted.length > 0 && (
@@ -399,6 +666,7 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
                   <td colSpan={4} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>
                     Totais ({summary.totalBets} apostas)
                   </td>
+
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>R$ {fmtBRL(summary.totalWagered)}</td>
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
@@ -408,6 +676,7 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, whiteSpace: 'nowrap', background: 'rgba(9,9,15,0.5)', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
                     {summary.totalProfit >= 0 ? '+' : ''}R$ {fmtBRL(summary.totalProfit)}
                   </td>
+                  <td style={{ background: 'rgba(9,9,15,0.5)' }} />
                 </tr>
               </tfoot>
             )}

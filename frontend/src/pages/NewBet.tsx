@@ -198,9 +198,10 @@ function ManualTab() {
 
   const validate = () => {
     const e: typeof errors = {}
-    if (!form.date)        e.date        = 'Obrigatório'
-    if (!form.market)      e.market      = 'Obrigatório'
-    if (!form.bookmakerId) e.bookmakerId = 'Obrigatório'
+    if (!form.date)              e.date             = 'Obrigatório'
+    if (!form.market)            e.market           = 'Obrigatório'
+    if (!form.bookmakerId)       e.bookmakerId      = 'Obrigatório'
+    if (!form.bettingProfileId)  e.bettingProfileId = 'Obrigatório'
     if (!form.amountWagered || parseFloat(form.amountWagered) <= 0)
       e.amountWagered = 'Deve ser > 0'
     if (form.payout === '' || parseFloat(form.payout) < 0)
@@ -318,17 +319,18 @@ function ManualTab() {
           </div>
         </Field>
 
-        <Field label="Perfil VIP">
+        <Field label="Perfil *">
           <select
             value={form.bettingProfileId} onChange={(e) => set('bettingProfileId', e.target.value)}
             onFocus={inputFocus} onBlur={inputBlur}
-            style={inputStyle}
+            style={{ ...inputStyle, borderColor: errors.bettingProfileId ? 'var(--red)' : 'var(--border)' }}
           >
-            <option value="">Nenhum / Própria</option>
+            <option value="">Selecionar perfil…</option>
             {profiles.filter(p => p.active).map(p => (
               <option key={p.id} value={p.id}>{p.name}</option>
             ))}
           </select>
+          {errors.bettingProfileId && <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.bettingProfileId}</span>}
         </Field>
       </div>
 
