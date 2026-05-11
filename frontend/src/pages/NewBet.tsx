@@ -653,7 +653,7 @@ function AiTab() {
       match:            b.matchEdit || null,
       market:           b.marketEdit || 'Sem mercado',
       bookmakerId:      b.bookmakerId ?? bookmakers[0]?.id ?? 1,
-      betType:          'simple',
+      betType:          b.betType ?? 'simple',
       amountWagered:    parseFloat(b.amountWageredEdit) || 0,
       odds:             b.oddsEdit ? parseFloat(b.oddsEdit) : null,
       payout:           parseFloat(b.payoutEdit) || 0,
@@ -768,7 +768,12 @@ function AiTab() {
           background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)',
           color: '#ef4444', fontSize: 13,
         }}>
-          Erro ao processar imagem. Tente novamente com outra foto.
+          <strong>Erro ao processar imagem.</strong>
+          {extractBets.error instanceof Error && (
+            <p style={{ marginTop: 6, fontSize: 11, opacity: 0.8, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {(extractBets.error as any)?.response?.data?.detail ?? extractBets.error.message}
+            </p>
+          )}
         </div>
       )}
 

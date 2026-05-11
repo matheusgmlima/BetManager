@@ -103,6 +103,7 @@ export async function createBet(data: CreateBetInput): Promise<BetWithRelations>
       sportId: data.sportId,
       bookmakerId: data.bookmakerId,
       betType: data.betType,
+      isCombined: data.betType === 'combined',
       amountWagered: data.amountWagered,
       odds: data.odds,
       payout: data.payout,

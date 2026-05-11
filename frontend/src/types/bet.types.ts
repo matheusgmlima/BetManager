@@ -95,6 +95,7 @@ export interface AiExtractedBet {
   payout: number | null
   result: BetResult | null
   confidence: 'high' | 'medium' | 'low'
+  betType: BetType
 }
 
 export interface AiExtractionResponse {

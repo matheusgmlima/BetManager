@@ -20,6 +20,7 @@ export interface AiExtractedBet {
   payout: number | null
   result: 'won' | 'lost' | 'void' | 'pending' | null
   confidence: 'high' | 'medium' | 'low'
+  betType: 'simple' | 'combined'
 }
 
 export interface AiExtractionResponse {
