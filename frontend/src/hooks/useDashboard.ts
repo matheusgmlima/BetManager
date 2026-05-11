@@ -18,6 +18,10 @@ export function useBookmakerStats(dateFrom?: string, dateTo?: string) {
   )
 }
 
+export function useProfileStats() {
+  return useQuery(['stats', 'profiles'], () => dashboardService.getProfileStats())
+}
+
 export function useBetTypeStats() {
   return useQuery(['stats', 'bet-types'], () => dashboardService.getBetTypeStats())
 }

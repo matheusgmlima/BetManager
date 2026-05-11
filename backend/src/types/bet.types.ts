@@ -4,7 +4,8 @@ export type { BetResult, BetType, BetSource }
 
 export interface BetCreateInput {
   date: string
-  description: string
+  match?: string | null
+  market: string
   sportId?: number
   bookmakerId: number
   betType: BetType
@@ -41,7 +42,8 @@ export interface BetFilters {
 export interface BetWithRelations {
   id: number
   date: Date
-  description: string
+  match: string | null
+  market: string
   sport: { id: number; name: string; icon: string | null } | null
   bookmaker: { id: number; name: string; color: string }
   betType: BetType

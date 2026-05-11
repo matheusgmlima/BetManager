@@ -32,7 +32,10 @@ export async function getStatsBySport(filters: DateFilter): Promise<SportStat[]>
     const won = sb.filter((b) => b.result === 'won').length
     const lost = sb.filter((b) => b.result === 'lost').length
     const totalWagered = sb.reduce((s, b) => s + Number(b.amountWagered), 0)
-    const totalProfit = sb.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit = sb.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
     return {
       sport: sport.name,
       icon: sport.icon,
@@ -64,7 +67,10 @@ export async function getStatsByBookmaker(filters: DateFilter): Promise<Bookmake
     const won = bb.filter((b) => b.result === 'won').length
     const lost = bb.filter((b) => b.result === 'lost').length
     const totalWagered = bb.reduce((s, b) => s + Number(b.amountWagered), 0)
-    const totalProfit = bb.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit = bb.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
     return {
       bookmaker: bookmaker.name,
       color: bookmaker.color,
@@ -88,7 +94,10 @@ export async function getStatsByBetType(filters: DateFilter): Promise<{ data: Be
     const won = typeBets.filter((b) => b.result === 'won').length
     const lost = typeBets.filter((b) => b.result === 'lost').length
     const totalWagered = typeBets.reduce((s, b) => s + Number(b.amountWagered), 0)
-    const totalProfit = typeBets.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit = typeBets.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
     return {
       betType,
       totalBets: typeBets.length,
@@ -110,6 +119,52 @@ export async function getStatsByBetType(filters: DateFilter): Promise<{ data: Be
   }
 
   return { data, recommendation }
+}
+
+export async function getStatsByProfile(filters: DateFilter) {
+  const allBets = await prisma.bet.findMany({
+    where: buildDateWhere(filters),
+    include: { bettingProfile: true },
+  })
+  // Also count total per profile (including pending) for total bets count
+  const totalBetsPerProfile = await prisma.bet.findMany({
+    where: filters.dateFrom || filters.dateTo ? {
+      ...(filters.dateFrom ? { date: { gte: new Date(filters.dateFrom) } } : {}),
+      ...(filters.dateTo   ? { date: { lte: new Date(filters.dateTo)   } } : {}),
+    } : {},
+    include: { bettingProfile: true },
+  })
+
+  const grouped = new Map<string, { profile: any; resolved: typeof allBets; total: typeof allBets }>()
+
+  for (const bet of totalBetsPerProfile) {
+    const key = bet.bettingProfile?.name ?? 'Sem perfil'
+    const entry = grouped.get(key) ?? { profile: bet.bettingProfile, resolved: [], total: [] }
+    entry.total.push(bet)
+    grouped.set(key, entry)
+  }
+  for (const bet of allBets) {
+    const key = bet.bettingProfile?.name ?? 'Sem perfil'
+    const entry = grouped.get(key)
+    if (entry) entry.resolved.push(bet)
+  }
+
+  return Array.from(grouped.entries()).map(([name, { profile, resolved, total }]) => {
+    const won = resolved.filter((b) => b.result === 'won').length
+    const lost = resolved.filter((b) => b.result === 'lost').length
+    const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
+    const totalProfit = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    return {
+      profile: name,
+      profileId: profile?.id ?? null,
+      totalBets: total.length,
+      won,
+      lost,
+      hitRatePct: calculateHitRate(won, lost),
+      totalWagered: parseFloat(totalWagered.toFixed(2)),
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
+    }
+  }).sort((a, b) => b.totalProfit - a.totalProfit)
 }
 
 export async function getMonthlyStats(): Promise<MonthlyStats[]> {

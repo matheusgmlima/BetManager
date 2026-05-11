@@ -170,12 +170,23 @@ function BetRow({ bet, odd }: { bet: Bet; odd: boolean }) {
       <td style={{ ...td, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
         {fmtDate(bet.date)}
       </td>
-      <td style={{ ...td, color: 'var(--text-primary)', maxWidth: 240 }}>
-        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {bet.description}
+      <td style={{ ...td, color: 'var(--text-primary)', maxWidth: 260 }}>
+        {bet.match && (
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12 }}>
+            {bet.match}
+          </span>
+        )}
+        <span style={{
+          display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          color: bet.match ? 'var(--text-secondary)' : 'var(--text-primary)',
+          fontSize: bet.match ? 11 : 12,
+        }}>
+          {bet.market}
         </span>
-        {bet.isCombined && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}>combinada</span>}
-        {bet.source === 'ai_extract' && <span style={{ fontSize: 9, fontWeight: 700, color: '#c084fc', marginLeft: bet.isCombined ? 6 : 0 }}>✦ IA</span>}
+        <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
+          {bet.isCombined && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}>combinada</span>}
+          {bet.source === 'ai_extract' && <span style={{ fontSize: 9, fontWeight: 700, color: '#c084fc' }}>✦ IA</span>}
+        </div>
       </td>
       <td style={{ ...td, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
         {bet.sport ? `${bet.sport.icon ?? ''} ${bet.sport.name}`.trim() : <span style={{ color: 'var(--text-muted)' }}>—</span>}

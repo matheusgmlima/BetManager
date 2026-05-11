@@ -111,7 +111,8 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 
 interface ManualFormState {
   date: string
-  description: string
+  match: string
+  market: string
   sportId: string
   bookmakerId: string
   betType: BetType
@@ -132,7 +133,8 @@ function ManualTab() {
 
   const [form, setForm] = useState<ManualFormState>({
     date: today(),
-    description: '',
+    match: '',
+    market: '',
     sportId: '',
     bookmakerId: '',
     betType: 'simple',
@@ -146,17 +148,32 @@ function ManualTab() {
 
   const [errors, setErrors] = useState<Partial<Record<keyof ManualFormState, string>>>({})
   const [success, setSuccess] = useState(false)
+  // Lista de jogos para aposta múltipla
+  const [multiMatches, setMultiMatches] = useState<string[]>(['', ''])
 
-  const set = (k: keyof ManualFormState, v: string) => {
+  const set = (k: keyof ManualFormState, v: string | BetType | BetResult) => {
     setErrors((e) => ({ ...e, [k]: undefined }))
     setForm((f) => {
       const next = { ...f, [k]: v }
 
       // auto-calc payout from odds × amountWagered
       if (k === 'odds' || k === 'amountWagered') {
-        const amount = parseFloat(k === 'amountWagered' ? v : f.amountWagered)
-        const odds   = parseFloat(k === 'odds' ? v : f.odds)
+        const amount = parseFloat(k === 'amountWagered' ? String(v) : f.amountWagered)
+        const odds   = parseFloat(k === 'odds'          ? String(v) : f.odds)
         if (!isNaN(amount) && !isNaN(odds) && odds >= 1 && amount > 0) {
+          next.payout = (amount * odds).toFixed(2)
+        }
+      }
+
+      // resultado → ajusta retorno automaticamente
+      if (k === 'result') {
+        const amount = parseFloat(f.amountWagered)
+        const odds   = parseFloat(f.odds)
+        if (v === 'lost') {
+          next.payout = '0'
+        } else if (v === 'void' && !isNaN(amount) && amount > 0) {
+          next.payout = amount.toFixed(2)
+        } else if (v === 'won' && !isNaN(amount) && !isNaN(odds) && odds >= 1 && amount > 0) {
           next.payout = (amount * odds).toFixed(2)
         }
       }
@@ -165,13 +182,24 @@ function ManualTab() {
     })
   }
 
-  const profit =
-    parseFloat(form.payout || '0') - parseFloat(form.amountWagered || '0')
+  // Valor de match computado: simples = campo direto, múltipla = joins dos jogos
+  const computedMatch = form.betType === 'combined'
+    ? multiMatches.filter(m => m.trim()).join(' + ') || null
+    : (form.match || null)
+
+  const addMatch   = () => setMultiMatches(prev => [...prev, ''])
+  const removeMatch = (i: number) => setMultiMatches(prev => prev.filter((_, idx) => idx !== i))
+  const updateMatch = (i: number, v: string) =>
+    setMultiMatches(prev => prev.map((m, idx) => idx === i ? v : m))
+
+  const profit = form.result === 'lost'
+    ? -(parseFloat(form.amountWagered || '0'))
+    : parseFloat(form.payout || '0') - parseFloat(form.amountWagered || '0')
 
   const validate = () => {
     const e: typeof errors = {}
     if (!form.date)        e.date        = 'Obrigatório'
-    if (!form.description) e.description = 'Obrigatório'
+    if (!form.market)      e.market      = 'Obrigatório'
     if (!form.bookmakerId) e.bookmakerId = 'Obrigatório'
     if (!form.amountWagered || parseFloat(form.amountWagered) <= 0)
       e.amountWagered = 'Deve ser > 0'
@@ -187,7 +215,8 @@ function ManualTab() {
 
     const payload: BetCreateInput = {
       date:            form.date,
-      description:     form.description,
+      match:           computedMatch,
+      market:          form.market,
       bookmakerId:     Number(form.bookmakerId),
       betType:         form.betType,
       amountWagered:   parseFloat(form.amountWagered),
@@ -267,16 +296,7 @@ function ManualTab() {
         </Field>
       </div>
 
-      <Field label="Descrição *">
-        <input
-          type="text" value={form.description} placeholder="Ex: Real Madrid vs Barcelona — mais de 2.5 gols"
-          onChange={(e) => set('description', e.target.value)}
-          onFocus={inputFocus} onBlur={inputBlur}
-          style={{ ...inputStyle, borderColor: errors.description ? 'var(--red)' : 'var(--border)' }}
-        />
-        {errors.description && <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.description}</span>}
-      </Field>
-
+      {/* Tipo + Perfil */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Field label="Tipo de Aposta">
           <div style={{ display: 'flex', gap: 8 }}>
@@ -292,7 +312,7 @@ function ManualTab() {
                   color: form.betType === t ? 'var(--purple-300)' : 'var(--text-secondary)',
                 }}
               >
-                {t === 'simple' ? '⚡ Simples' : '🔗 Combinada'}
+                {t === 'simple' ? '⚡ Simples' : '🔗 Múltipla'}
               </button>
             ))}
           </div>
@@ -311,6 +331,111 @@ function ManualTab() {
           </select>
         </Field>
       </div>
+
+      {/* ── Jogos ────────────────────────────────────────────────── */}
+      {form.betType === 'simple' ? (
+        /* Simples: jogo único + mercado */
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <Field label="Jogo">
+            <input
+              type="text" value={form.match} placeholder="Ex: Flamengo x Vasco"
+              onChange={(e) => set('match', e.target.value)}
+              onFocus={inputFocus} onBlur={inputBlur}
+              style={inputStyle}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Opcional — times ou evento</span>
+          </Field>
+          <Field label="Mercado *">
+            <input
+              type="text" value={form.market} placeholder="Ex: +2.5 gols, 1X2, BTTS Sim"
+              onChange={(e) => set('market', e.target.value)}
+              onFocus={inputFocus} onBlur={inputBlur}
+              style={{ ...inputStyle, borderColor: errors.market ? 'var(--red)' : 'var(--border)' }}
+            />
+            {errors.market && <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.market}</span>}
+          </Field>
+        </div>
+      ) : (
+        /* Múltipla: lista dinâmica de jogos + mercado global */
+        <div style={{
+          borderRadius: 10, border: '1px solid var(--border-purple)',
+          background: 'rgba(45,31,94,0.08)', padding: '18px',
+          display: 'flex', flexDirection: 'column', gap: 12,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--purple-300)' }}>🔗 Jogos da Múltipla</span>
+            <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right, rgba(139,92,246,0.3), transparent)' }} />
+          </div>
+
+          {multiMatches.map((m, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 700, minWidth: 20, textAlign: 'right' }}>
+                {i + 1}.
+              </span>
+              <input
+                type="text"
+                value={m}
+                placeholder={`Ex: Flamengo x Vasco`}
+                onChange={(e) => updateMatch(i, e.target.value)}
+                onFocus={inputFocus} onBlur={inputBlur}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              {multiMatches.length > 2 && (
+                <button
+                  type="button"
+                  onClick={() => removeMatch(i)}
+                  style={{
+                    width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)',
+                    background: 'var(--bg-secondary)', color: 'var(--red)',
+                    fontSize: 16, cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--red)'; e.currentTarget.style.background = 'rgba(239,68,68,0.1)' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.background = 'var(--bg-secondary)' }}
+                  title="Remover jogo"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          ))}
+
+          <button
+            type="button" onClick={addMatch}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center',
+              padding: '8px', borderRadius: 8, border: '1px dashed var(--border-purple)',
+              background: 'transparent', color: 'var(--purple-400)',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.08)'; e.currentTarget.style.borderColor = 'var(--purple-500)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--border-purple)' }}
+          >
+            + Adicionar jogo
+          </button>
+
+          {/* Preview dos jogos */}
+          {multiMatches.some(m => m.trim()) && (
+            <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 700 }}>Combinação: </span>
+              <span style={{ fontSize: 12, color: 'var(--purple-300)', fontWeight: 600 }}>{computedMatch}</span>
+            </div>
+          )}
+
+          {/* Mercado da múltipla */}
+          <Field label="Mercado *">
+            <input
+              type="text" value={form.market} placeholder="Ex: Todos ganham, BTTS Sim em todos"
+              onChange={(e) => set('market', e.target.value)}
+              onFocus={inputFocus} onBlur={inputBlur}
+              style={{ ...inputStyle, borderColor: errors.market ? 'var(--red)' : 'var(--border)' }}
+            />
+            {errors.market && <span style={{ color: 'var(--red)', fontSize: 11, marginTop: 4 }}>{errors.market}</span>}
+          </Field>
+        </div>
+      )}
 
       {/* ── Bloco 2: Financeiro ───────────────────────────────── */}
       <Section label="Valores & Resultado" />
@@ -454,7 +579,8 @@ function ManualTab() {
 interface ExtractedBetEdit extends AiExtractedBet {
   selected: boolean
   dateEdit: string
-  descriptionEdit: string
+  matchEdit: string
+  marketEdit: string
   amountWageredEdit: string
   oddsEdit: string
   payoutEdit: string
@@ -492,7 +618,8 @@ function AiTab() {
       ...b,
       selected: true,
       dateEdit: b.date ?? today(),
-      descriptionEdit: b.description ?? '',
+      matchEdit: b.match ?? '',
+      marketEdit: b.market ?? '',
       amountWageredEdit: String(b.amountWagered ?? ''),
       oddsEdit: String(b.odds ?? ''),
       payoutEdit: String(b.payout ?? ''),
@@ -521,7 +648,8 @@ function AiTab() {
 
     const payload: BetCreateInput[] = selectedBets.map(b => ({
       date:             b.dateEdit || today(),
-      description:      b.descriptionEdit || 'Sem descrição',
+      match:            b.matchEdit || null,
+      market:           b.marketEdit || 'Sem mercado',
       bookmakerId:      b.bookmakerId ?? bookmakers[0]?.id ?? 1,
       betType:          'simple',
       amountWagered:    parseFloat(b.amountWageredEdit) || 0,
@@ -716,10 +844,19 @@ function AiTab() {
 
                 {/* Fields */}
                 <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                  <Field label="Descrição">
+                  <Field label="Jogo">
                     <input
-                      value={bet.descriptionEdit}
-                      onChange={(e) => updateBet(i, { descriptionEdit: e.target.value })}
+                      value={bet.matchEdit}
+                      placeholder="Ex: Flamengo x Vasco"
+                      onChange={(e) => updateBet(i, { matchEdit: e.target.value })}
+                      style={inputStyle}
+                    />
+                  </Field>
+                  <Field label="Mercado *">
+                    <input
+                      value={bet.marketEdit}
+                      placeholder="Ex: +2.5 gols"
+                      onChange={(e) => updateBet(i, { marketEdit: e.target.value })}
                       style={inputStyle}
                     />
                   </Field>

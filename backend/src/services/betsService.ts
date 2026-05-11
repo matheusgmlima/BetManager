@@ -13,7 +13,8 @@ import {
 const betSelect = {
   id: true,
   date: true,
-  description: true,
+  match: true,
+  market: true,
   sport: { select: { id: true, name: true, icon: true } },
   bookmaker: { select: { id: true, name: true, color: true } },
   betType: true,
@@ -28,12 +29,19 @@ const betSelect = {
 }
 
 function formatBet(bet: any): BetWithRelations {
+  const amount = Number(bet.amountWagered)
+  const payout = Number(bet.payout)
+  // Lucro ciente do resultado: lost = -stake, void/pending = 0, won = payout - stake
+  const profit = bet.result === 'lost'    ? parseFloat((-amount).toFixed(2))
+               : bet.result === 'void'    ? 0
+               : bet.result === 'pending' ? 0
+               : calculateProfit(payout, amount) // won
   return {
     ...bet,
-    amountWagered: Number(bet.amountWagered),
+    amountWagered: amount,
     odds: bet.odds ? Number(bet.odds) : null,
-    payout: Number(bet.payout),
-    profit: calculateProfit(Number(bet.payout), Number(bet.amountWagered)),
+    payout,
+    profit,
   }
 }
 
@@ -48,7 +56,10 @@ export async function listBets(filters: BetFiltersInput): Promise<PaginatedBets>
   if (bookmakerId) where.bookmakerId = bookmakerId
   if (betType) where.betType = betType
   if (bettingProfileId) where.bettingProfileId = bettingProfileId
-  if (search) where.description = { contains: search, mode: 'insensitive' }
+  if (search) where.OR = [
+    { market: { contains: search, mode: 'insensitive' } },
+    { match:  { contains: search, mode: 'insensitive' } },
+  ]
 
   const [total, bets] = await Promise.all([
     prisma.bet.count({ where }),
@@ -87,7 +98,8 @@ export async function createBet(data: CreateBetInput): Promise<BetWithRelations>
   const bet = await prisma.bet.create({
     data: {
       date: new Date(data.date),
-      description: data.description,
+      match: data.match ?? null,
+      market: data.market,
       sportId: data.sportId,
       bookmakerId: data.bookmakerId,
       betType: data.betType,
@@ -115,7 +127,8 @@ export async function updateBet(id: number, data: UpdateBetInput): Promise<BetWi
     where: { id },
     data: {
       ...(data.date && { date: new Date(data.date) }),
-      ...(data.description && { description: data.description }),
+      ...(data.match !== undefined && { match: data.match }),
+      ...(data.market && { market: data.market }),
       ...(data.sportId !== undefined && { sportId: data.sportId }),
       ...(data.bookmakerId && { bookmakerId: data.bookmakerId }),
       ...(data.betType && { betType: data.betType }),

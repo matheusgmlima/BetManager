@@ -33,9 +33,9 @@ export interface DashboardData {
   period: DashboardPeriod
   summary: DashboardSummary
   profitChart: ProfitChartPoint[]
-  pendingBets: Array<{ id: number; date: string; description: string; bookmaker: string; amountWagered: number }>
+  pendingBets: Array<{ id: number; date: string; match: string | null; market: string; bookmaker: string; amountWagered: number }>
   goal: GoalProgress | null
-  recentBets: Array<{ id: number; date: string; description: string; bookmaker: string; profit: number; result: string }>
+  recentBets: Array<{ id: number; date: string; match: string | null; market: string; bookmaker: string; profit: number; result: string }>
 }
 
 export interface SportStat {
@@ -71,6 +71,17 @@ export interface BetTypeStat {
   totalWagered: number
   totalProfit: number
   roiPct: number
+}
+
+export interface ProfileStat {
+  profile: string
+  profileId: number | null
+  totalBets: number
+  won: number
+  lost: number
+  hitRatePct: number | null
+  totalWagered: number
+  totalProfit: number
 }
 
 export interface Goal {

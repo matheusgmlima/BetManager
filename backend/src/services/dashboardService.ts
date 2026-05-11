@@ -19,8 +19,11 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
   const pending = bets.filter((b) => b.result === 'pending').length
 
   const totalWagered = bets.reduce((s, b) => s + Number(b.amountWagered), 0)
-  const totalPayout = bets.reduce((s, b) => s + Number(b.payout), 0)
-  const totalProfit = calculateProfit(totalPayout, totalWagered)
+  const totalPayout  = bets.reduce((s, b) => s + Number(b.payout), 0)
+  const totalProfit  = resolved.reduce((s, b) => {
+    const amount = Number(b.amountWagered)
+    return s + (b.result === 'lost' ? -amount : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), amount))
+  }, 0)
   const avgOdds = resolved.length > 0
     ? resolved.reduce((s, b) => s + (b.odds ? Number(b.odds) : 0), 0) / resolved.filter((b) => b.odds).length
     : null
@@ -28,8 +31,11 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
   // Profit chart — agrupado por dia
   const profitByDay = new Map<string, number>()
   for (const bet of resolved) {
-    const key = toDateString(bet.date)
-    const profit = calculateProfit(Number(bet.payout), Number(bet.amountWagered))
+    const key    = toDateString(bet.date)
+    const amount = Number(bet.amountWagered)
+    const profit = bet.result === 'lost' ? -amount
+                 : bet.result === 'void' ? 0
+                 : calculateProfit(Number(bet.payout), amount)
     profitByDay.set(key, (profitByDay.get(key) ?? 0) + profit)
   }
 
@@ -47,7 +53,8 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
     .map((b) => ({
       id: b.id,
       date: toDateString(b.date),
-      description: b.description,
+      match: b.match ?? null,
+      market: b.market,
       bookmaker: b.bookmaker.name,
       amountWagered: Number(b.amountWagered),
     }))
@@ -91,7 +98,8 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
     .map((b) => ({
       id: b.id,
       date: toDateString(b.date),
-      description: b.description,
+      match: b.match ?? null,
+      market: b.market,
       bookmaker: b.bookmaker.name,
       profit: calculateProfit(Number(b.payout), Number(b.amountWagered)),
       result: b.result,

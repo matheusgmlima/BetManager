@@ -22,7 +22,8 @@ export interface ProfitChartPoint {
 export interface PendingBet {
   id: number
   date: string
-  description: string
+  match: string | null
+  market: string
   bookmaker: string
   amountWagered: number
 }
@@ -46,7 +47,8 @@ export interface DashboardData {
   recentBets: Array<{
     id: number
     date: string
-    description: string
+    match: string | null
+    market: string
     bookmaker: string
     profit: number
     result: string

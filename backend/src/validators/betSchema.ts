@@ -5,7 +5,8 @@ export const createBetSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD')
     .refine((d) => new Date(d) <= new Date(), { message: 'Data não pode ser futura' }),
-  description: z.string().min(1, 'Descrição é obrigatória').max(500),
+  match: z.string().max(200).optional().nullable(),
+  market: z.string().min(1, 'Mercado é obrigatório').max(500),
   sportId: z.number().int().positive().optional(),
   bookmakerId: z.number().int().positive({ message: 'Casa de apostas é obrigatória' }),
   betType: z.enum(['simple', 'combined']),

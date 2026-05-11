@@ -102,7 +102,8 @@ model Bet {
 
   // Dados da aposta
   date          DateTime  @db.Date
-  description   String    @db.VarChar(500)
+  match         String?   @db.VarChar(200)
+  market        String    @db.VarChar(500)
   betType       BetType   @default(simple) @map("bet_type")
   isCombined    Boolean   @default(false) @map("is_combined")
 

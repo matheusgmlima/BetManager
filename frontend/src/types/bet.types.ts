@@ -24,7 +24,8 @@ export interface BettingProfile {
 export interface Bet {
   id: number
   date: string
-  description: string
+  match: string | null
+  market: string
   sport: { id: number; name: string; icon: string | null } | null
   bookmaker: { id: number; name: string; color: string }
   betType: BetType
@@ -41,7 +42,8 @@ export interface Bet {
 
 export interface BetCreateInput {
   date: string
-  description: string
+  match?: string | null
+  market: string
   sportId?: number
   bookmakerId: number
   betType: BetType
@@ -84,7 +86,8 @@ export interface PaginatedBets {
 
 export interface AiExtractedBet {
   date: string | null
-  description: string | null
+  match: string | null
+  market: string | null
   bookmaker: string | null
   bookmakerId: number | null
   amountWagered: number | null

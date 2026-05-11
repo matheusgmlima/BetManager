@@ -12,7 +12,8 @@ Formato obrigatório:
   "apostas": [
     {
       "data": "DD/MM ou null",
-      "descricao": "nome da aposta",
+      "jogo": "Time A x Time B ou null",
+      "mercado": "Descrição do mercado/seleção ex: +2.5 gols, 1X2, BTTS",
       "valor_apostado": 20.00,
       "casa": "Bet365|Superbet|...",
       "odd": 1.75,
@@ -24,6 +25,8 @@ Formato obrigatório:
 
 Regras:
 - Use null para campos não identificáveis
+- "jogo": apenas os times/evento (ex: "Flamengo x Vasco"), null se não identificável
+- "mercado": o tipo de aposta/seleção (ex: "+2.5 gols", "1X2 - Flamengo", "BTTS Sim")
 - Valores monetários como números (não string)
 - resultado: "won"=ganhou, "lost"=perdeu, "void"=nula, "pending"=sem resultado ainda
 - Se a odd não aparecer, calcule: odd = retorno_total / valor_apostado`
@@ -100,7 +103,8 @@ export async function extractBetsFromImage(
 
     return {
       date: parsedDate ?? null,
-      description: a.descricao ?? null,
+      match: a.jogo ?? null,
+      market: a.mercado ?? a.descricao ?? null,
       bookmaker: a.casa ?? null,
       bookmakerId: foundBookmaker?.id ?? null,
       amountWagered: a.valor_apostado ?? null,

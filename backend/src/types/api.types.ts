@@ -11,7 +11,8 @@ export interface ApiError {
 
 export interface AiExtractedBet {
   date: string | null
-  description: string | null
+  match: string | null
+  market: string | null
   bookmaker: string | null
   bookmakerId: number | null
   amountWagered: number | null
