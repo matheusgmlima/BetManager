@@ -15,6 +15,7 @@ export const createBetSchema = z.object({
   result: z.enum(['won', 'lost', 'void', 'pending']),
   notes: z.string().max(1000).optional().nullable(),
   combinedId: z.number().int().positive().optional().nullable(),
+  bettingProfileId: z.number().int().positive().optional().nullable(),
 })
 
 export const updateBetSchema = createBetSchema.partial()

@@ -50,6 +50,7 @@ export interface BetCreateInput {
   payout: number
   result: BetResult
   notes?: string
+  bettingProfileId?: number | null
 }
 
 export interface BetFilters {

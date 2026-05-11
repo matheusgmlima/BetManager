@@ -97,6 +97,7 @@ export async function createBet(data: CreateBetInput): Promise<BetWithRelations>
       result: data.result,
       notes: data.notes,
       combinedId: data.combinedId,
+      bettingProfileId: data.bettingProfileId,
     },
     select: betSelect,
   })

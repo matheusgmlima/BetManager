@@ -14,6 +14,7 @@ export interface BetCreateInput {
   result: BetResult
   notes?: string
   combinedId?: number
+  bettingProfileId?: number | null
 }
 
 export interface BetUpdateInput extends Partial<BetCreateInput> {}
