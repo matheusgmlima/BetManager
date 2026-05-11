@@ -1,5 +1,8 @@
 import { useEffect, useRef } from 'react'
 
+// ─── Pixel-art mascot banner ──────────────────────────────────────────────────
+// Chunky pixel snake that glides around and wraps through walls (Pac-Man style)
+
 export default function SnakeBanner({ width, height }: { width: number; height: number }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -15,184 +18,202 @@ export default function SnakeBanner({ width, height }: { width: number; height: 
     canvas.style.width  = `${width}px`
     canvas.style.height = `${height}px`
     ctx.scale(DPR, DPR)
+    ctx.imageSmoothingEnabled = false
 
     const W = width
     const H = height
 
-    const NUM_SEGS = 28
-    const SEG_GAP  = 11      // distance between segment centers
-    const HEAD_R   = 11      // head radius
-    const SPEED    = 1.9
-    const MARGIN   = HEAD_R + 20
+    // ── Constants ────────────────────────────────────────────────────────────
+    const P        = 3          // logical pixel size (3 canvas px per "pixel")
+    const NUM_SEGS = 12         // body segment count
+    const SEG_DIST = P * 6      // pixels between segment centers (18px)
+    const SPEED    = 0.9        // px per frame
+    const MAX_HIST = NUM_SEGS * SEG_DIST * 2 + 10
 
-    // Body segments
-    const sx = new Float32Array(NUM_SEGS)
-    const sy = new Float32Array(NUM_SEGS)
-    for (let i = 0; i < NUM_SEGS; i++) {
-      sx[i] = W * 0.25 - i * SEG_GAP
-      sy[i] = H * 0.5
-    }
+    // Head sprite dimensions (in logical pixels)
+    const HW = 8 * P  // head width  (40px)
+    const HH = 6 * P  // head height (30px)
 
-    let headX = W * 0.25
-    let headY = H * 0.5
-    let vx = SPEED, vy = 0.3
-    let t = 0
-    let tongueTimer = 0
-    let tongueOut   = 0
-    let animId: number
+    // Body segment dimensions
+    const BW = 4 * P  // 20px
 
-    // Segment colors: head → tail (purple palette, clean)
-    const COLORS = [
-      '#a78bfa', '#9d7ff5', '#9373f0', '#8967eb',
-      '#7f5be6', '#7c3aed', '#7235d8', '#6830c3',
-      '#5e2bae', '#542699', '#4a2184', '#401c6f',
+    // ── Colors ───────────────────────────────────────────────────────────────
+    const C_BORDER  = '#1e0a3c'
+    const C_BODY    = '#7c3aed'
+    const C_LIGHT   = '#a78bfa'
+    const C_DARK    = '#2d1f5e'
+    const C_WHITE   = '#f0f0ff'
+    const C_PUPIL   = '#0a001a'
+    const C_TONGUE  = '#f472b6'
+
+    const BODY_COLORS = [
+      '#9d7ff5','#9373f0','#8967eb','#7f5be6',
+      '#7c3aed','#7235d8','#6830c3','#5e2bae',
+      '#542699','#4a2184','#401c6f','#3b1a60',
+      '#341757','#2d1f5e',
     ]
 
-    function segColor(i: number) {
-      const idx = Math.floor((i / NUM_SEGS) * (COLORS.length - 1))
-      return COLORS[Math.min(idx, COLORS.length - 1)]
+    // ── State ────────────────────────────────────────────────────────────────
+    // Store absolute positions (can grow beyond canvas — we wrap on render)
+    const history: { x: number; y: number }[] = []
+
+    let hx = W * 0.25, hy = H * 0.5
+    let vx = SPEED, vy = 0.5
+    let t = 0
+    let tongueT = 0, tongueOut = false
+    let blinkT = 0, blinking = false
+    let animId: number
+
+    // Pre-fill history so body appears immediately
+    for (let i = 0; i < MAX_HIST; i++) {
+      history.push({ x: hx - i * (SPEED * 0.8), y: hy })
     }
 
-    function segRadius(i: number) {
-      const ratio = 1 - i / NUM_SEGS
-      // slither.io style: head is biggest, tapers to tail
-      return HEAD_R * (0.38 + ratio * 0.62)
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    const snap = (v: number) => Math.round(v / P) * P
+
+    // Wrap render coordinate to canvas
+    const wrapX = (x: number) => ((x % W) + W) % W
+    const wrapY = (y: number) => ((y % H) + H) % H
+
+    // Quantize velocity to 4 directions for head sprite
+    function getDir(vx: number, vy: number): 'R' | 'L' | 'U' | 'D' {
+      if (Math.abs(vx) >= Math.abs(vy)) return vx >= 0 ? 'R' : 'L'
+      return vy >= 0 ? 'D' : 'U'
     }
 
+    // ── Draw body segment ────────────────────────────────────────────────────
+    function drawSegment(ax: number, ay: number, idx: number) {
+      const rx = snap(wrapX(ax))
+      const ry = snap(wrapY(ay))
+      const half = BW / 2
+
+      // Border
+      ctx.fillStyle = C_BORDER
+      ctx.fillRect(rx - half, ry - half, BW, BW)
+
+      // Fill
+      ctx.fillStyle = BODY_COLORS[Math.min(idx, BODY_COLORS.length - 1)]
+      ctx.fillRect(rx - half + P, ry - half + P, BW - 2 * P, BW - 2 * P)
+
+      // Shine
+      ctx.fillStyle = 'rgba(255,255,255,0.22)'
+      ctx.fillRect(rx - half + P, ry - half + P, P, P)
+    }
+
+    // ── Draw head ─────────────────────────────────────────────────────────────
+    // Always designed facing RIGHT, then rotated via ctx transform
+    function drawHead(ax: number, ay: number, dir: 'R' | 'L' | 'U' | 'D', tongue: boolean, blink: boolean) {
+      const rx = snap(wrapX(ax))
+      const ry = snap(wrapY(ay))
+
+      ctx.save()
+      ctx.translate(rx, ry)
+      if      (dir === 'L') ctx.rotate(Math.PI)
+      else if (dir === 'U') ctx.rotate(-Math.PI / 2)
+      else if (dir === 'D') ctx.rotate(Math.PI / 2)
+      // 'R' = no rotation
+
+      // All coords below are relative to (0,0) = head center, facing right
+      const left = -HW / 2
+      const top  = -HH / 2
+
+      // ── Border ──────────────────────────────────────────────────────
+      ctx.fillStyle = C_BORDER
+      ctx.fillRect(left, top, HW, HH)
+
+      // ── Body fill ────────────────────────────────────────────────────
+      ctx.fillStyle = C_BODY
+      ctx.fillRect(left + P, top + P, HW - 2 * P, HH - 2 * P)
+
+      // ── Highlight strip ──────────────────────────────────────────────
+      ctx.fillStyle = C_LIGHT
+      ctx.fillRect(left + P, top + P, HW - 2 * P, P)
+
+      // ── Scale dots ───────────────────────────────────────────────────
+      ctx.fillStyle = C_DARK
+      ctx.fillRect(left + 2 * P, top + 3 * P, P, P)
+      ctx.fillRect(left + 2 * P, top + 4 * P, P, P)
+
+      // ── Eyes (right half of head = front) ───────────────────────────
+      for (let s = 0; s < 2; s++) {
+        const eyeX = left + (s === 0 ? 4 : 4) * P  // both centered
+        const eyeY = top + (s === 0 ? P : 3 * P)
+
+        if (blink) {
+          // Closed = dark line
+          ctx.fillStyle = C_DARK
+          ctx.fillRect(eyeX, eyeY + P, 2 * P, P)
+        } else {
+          // White
+          ctx.fillStyle = C_WHITE
+          ctx.fillRect(eyeX, eyeY, 2 * P, 2 * P)
+          // Pupil (offset toward front = right)
+          ctx.fillStyle = C_PUPIL
+          ctx.fillRect(eyeX + P, eyeY, P, P)
+          // Shine
+          ctx.fillStyle = 'rgba(255,255,255,0.85)'
+          ctx.fillRect(eyeX, eyeY, Math.ceil(P * 0.5), Math.ceil(P * 0.5))
+        }
+      }
+
+      // ── Tongue (extends from right/front edge) ───────────────────────
+      if (tongue) {
+        const tx = left + HW
+        const ty = top + HH / 2 - P / 2
+        ctx.fillStyle = C_TONGUE
+        ctx.fillRect(tx,           ty,       2 * P, P)   // stem
+        ctx.fillRect(tx + 2 * P,   ty - P,   P,     P)   // fork top
+        ctx.fillRect(tx + 2 * P,   ty + P,   P,     P)   // fork bottom
+      }
+
+      ctx.restore()
+    }
+
+    // ── Main loop ─────────────────────────────────────────────────────────────
     const draw = () => {
       ctx.clearRect(0, 0, W, H)
-      t += 0.02
+      t += 0.018
 
-      // ── Move head ────────────────────────────────────────────
-      if (headX < MARGIN)     { vx =  Math.abs(vx); vy += (Math.random() - 0.5) * 0.5 }
-      if (headX > W - MARGIN) { vx = -Math.abs(vx); vy += (Math.random() - 0.5) * 0.5 }
-      if (headY < MARGIN)     { vy =  Math.abs(vy); vx += (Math.random() - 0.5) * 0.5 }
-      if (headY > H - MARGIN) { vy = -Math.abs(vy); vx += (Math.random() - 0.5) * 0.5 }
+      // ── Steering — organic sinusoidal drift ─────────────────────────
+      vx += Math.sin(t * 1.1) * 0.03
+      vy += Math.cos(t * 0.85) * 0.028
 
-      vx += Math.sin(t * 1.1) * 0.06
-      vy += Math.cos(t * 0.9) * 0.06
-
+      // Speed clamp
       const spd = Math.sqrt(vx * vx + vy * vy)
-      if (spd > SPEED * 1.6) { vx = vx / spd * SPEED * 1.6; vy = vy / spd * SPEED * 1.6 }
-      if (spd < SPEED * 0.7) { vx = vx / spd * SPEED * 0.7; vy = vy / spd * SPEED * 0.7 }
+      if (spd > SPEED * 1.5) { vx = (vx / spd) * SPEED * 1.5; vy = (vy / spd) * SPEED * 1.5 }
+      if (spd < SPEED * 0.6) { vx = (vx / spd) * SPEED * 0.6; vy = (vy / spd) * SPEED * 0.6 }
 
-      headX += vx; headY += vy
+      // Move head (absolute coords, no modulo yet)
+      hx += vx; hy += vy
 
-      // Shift body
-      for (let i = NUM_SEGS - 1; i > 0; i--) { sx[i] = sx[i - 1]; sy[i] = sy[i - 1] }
-      sx[0] = headX; sy[0] = headY
+      // Prevent absolute coords from drifting to infinity (mod every 20 canvas lengths)
+      if (Math.abs(hx) > W * 20) hx -= W * 20 * Math.sign(hx)
+      if (Math.abs(hy) > H * 20) hy -= H * 20 * Math.sign(hy)
 
-      // ── Draw body (tail → head so head is on top) ─────────────
+      // ── Trail ────────────────────────────────────────────────────────
+      history.unshift({ x: hx, y: hy })
+      if (history.length > MAX_HIST) history.pop()
+
+      // ── Tongue & blink timers ─────────────────────────────────────────
+      tongueT++
+      if (tongueT > 100 && tongueT < 118) tongueOut = true
+      else { tongueOut = false; if (tongueT > 140) tongueT = 0 }
+
+      blinkT++
+      if (blinkT > 150) blinking = true
+      if (blinkT > 157) { blinking = false; blinkT = 0 }
+
+      // ── Draw body segments (tail → head) ─────────────────────────────
       for (let i = NUM_SEGS - 1; i >= 1; i--) {
-        const r     = segRadius(i)
-        const color = segColor(i)
-
-        // Soft shadow under segment
-        ctx.save()
-        ctx.shadowColor = color
-        ctx.shadowBlur  = r * 0.9
-
-        ctx.beginPath()
-        ctx.arc(sx[i], sy[i], r, 0, Math.PI * 2)
-        ctx.fillStyle = color
-        ctx.fill()
-
-        ctx.restore()
-
-        // Top shine
-        ctx.beginPath()
-        ctx.arc(sx[i] - r * 0.28, sy[i] - r * 0.28, r * 0.38, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,255,255,0.22)'
-        ctx.fill()
+        const histIdx = i * Math.floor(SEG_DIST / SPEED)
+        if (histIdx < history.length) {
+          drawSegment(history[histIdx].x, history[histIdx].y, i)
+        }
       }
 
-      // ── Head ────────────────────────────────────────────────────
-      const angle = Math.atan2(vy, vx)
-
-      // Head glow
-      ctx.save()
-      ctx.shadowColor = '#c4b5fd'
-      ctx.shadowBlur  = HEAD_R * 2
-
-      ctx.beginPath()
-      ctx.arc(headX, headY, HEAD_R, 0, Math.PI * 2)
-      ctx.fillStyle = '#a78bfa'
-      ctx.fill()
-      ctx.restore()
-
-      // Head shine
-      ctx.beginPath()
-      ctx.arc(headX - HEAD_R * 0.28, headY - HEAD_R * 0.28, HEAD_R * 0.4, 0, Math.PI * 2)
-      ctx.fillStyle = 'rgba(255,255,255,0.3)'
-      ctx.fill()
-
-      // ── Eyes ────────────────────────────────────────────────────
-      const perpX = -Math.sin(angle)
-      const perpY =  Math.cos(angle)
-      const fwdX  =  Math.cos(angle)
-      const fwdY  =  Math.sin(angle)
-      const EYE_R = HEAD_R * 0.42
-      const EYE_D = HEAD_R * 0.52  // distance from center
-
-      for (const side of [-1, 1]) {
-        const ex = headX + fwdX * HEAD_R * 0.42 + perpX * side * EYE_D
-        const ey = headY + fwdY * HEAD_R * 0.42 + perpY * side * EYE_D
-
-        // White
-        ctx.beginPath()
-        ctx.arc(ex, ey, EYE_R, 0, Math.PI * 2)
-        ctx.fillStyle = '#ffffff'
-        ctx.fill()
-
-        // Pupil — slightly offset toward direction of movement
-        const px = ex + fwdX * EYE_R * 0.22
-        const py = ey + fwdY * EYE_R * 0.22
-        ctx.beginPath()
-        ctx.arc(px, py, EYE_R * 0.52, 0, Math.PI * 2)
-        ctx.fillStyle = '#1a0030'
-        ctx.fill()
-
-        // Shine
-        ctx.beginPath()
-        ctx.arc(ex - EYE_R * 0.2, ey - EYE_R * 0.2, EYE_R * 0.22, 0, Math.PI * 2)
-        ctx.fillStyle = 'rgba(255,255,255,0.9)'
-        ctx.fill()
-      }
-
-      // ── Tongue ───────────────────────────────────────────────
-      tongueTimer++
-      if (tongueTimer > 70)  tongueOut = Math.min(tongueOut + 0.18, 1)
-      if (tongueTimer > 88)  tongueOut = Math.max(tongueOut - 0.22, 0)
-      if (tongueTimer > 100) tongueTimer = 0
-
-      if (tongueOut > 0.01) {
-        const len   = HEAD_R * 2.8 * tongueOut
-        const fkLen = HEAD_R * 1.2 * tongueOut
-        const tx0   = headX + fwdX * HEAD_R * 0.95
-        const ty0   = headY + fwdY * HEAD_R * 0.95
-        const tx1   = tx0 + fwdX * len
-        const ty1   = ty0 + fwdY * len
-
-        ctx.save()
-        ctx.globalAlpha = tongueOut
-        ctx.strokeStyle = '#f9a8d4'
-        ctx.lineWidth   = 2
-        ctx.lineCap     = 'round'
-        ctx.shadowColor = '#f472b6'
-        ctx.shadowBlur  = 5
-
-        ctx.beginPath(); ctx.moveTo(tx0, ty0); ctx.lineTo(tx1, ty1); ctx.stroke()
-
-        ctx.beginPath(); ctx.moveTo(tx1, ty1)
-        ctx.lineTo(tx1 + fwdX * fkLen + perpX *  0.5 * fkLen, ty1 + fwdY * fkLen + perpY *  0.5 * fkLen)
-        ctx.stroke()
-
-        ctx.beginPath(); ctx.moveTo(tx1, ty1)
-        ctx.lineTo(tx1 + fwdX * fkLen + perpX * -0.5 * fkLen, ty1 + fwdY * fkLen + perpY * -0.5 * fkLen)
-        ctx.stroke()
-
-        ctx.restore()
-      }
+      // ── Draw head ─────────────────────────────────────────────────────
+      drawHead(hx, hy, getDir(vx, vy), tongueOut, blinking)
 
       animId = requestAnimationFrame(draw)
     }
@@ -205,13 +226,11 @@ export default function SnakeBanner({ width, height }: { width: number; height: 
     <canvas
       ref={canvasRef}
       style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: '100%',
-        pointerEvents: 'none',
-        zIndex: 2,
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
+        pointerEvents: 'none', zIndex: 0,
         borderRadius: 20,
+        imageRendering: 'pixelated',
       }}
     />
   )

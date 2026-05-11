@@ -1,4 +1,5 @@
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import SnakeLogo from './components/SnakeLogo'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import Dashboard from './pages/Dashboard'
@@ -17,13 +18,115 @@ const queryClient = new QueryClient({
 
 const navItems = [
   { to: '/',              label: 'Dashboard',    icon: '▦' },
-  { to: '/apostas',       label: 'Histórico',    icon: '≡' },
-  { to: '/apostas/nova',  label: 'Nova Aposta',  icon: '+' },
-  { to: '/estatisticas',  label: 'Estatísticas', icon: '↗' },
+  { to: '/planilha',      label: 'Planilha',     icon: '⊞' },
   { to: '/metas',         label: 'Metas',        icon: '◎' },
-  { to: '/planilha',      label: 'Planilha',      icon: '⊞' },
   { to: '/configuracoes', label: 'Configurações', icon: '⚙' },
 ]
+
+// ─── Floating New Bet FAB ─────────────────────────────────────────────────────
+function FloatingNewBet() {
+  const navigate = useNavigate()
+  const [collapsed, setCollapsed] = useState(false)
+  const [hidden, setHidden]       = useState(false)
+
+  if (hidden) {
+    return (
+      <button
+        onClick={() => setHidden(false)}
+        title="Mostrar botão Nova Aposta"
+        style={{
+          position: 'fixed', bottom: 24, right: 24, zIndex: 50,
+          width: 36, height: 36, borderRadius: '50%',
+          background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.4)',
+          color: '#a78bfa', fontSize: 18, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(8px)',
+          transition: 'all 0.2s ease',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.32)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.18)' }}
+      >
+        +
+      </button>
+    )
+  }
+
+  return (
+    <div
+      style={{
+        position: 'fixed', bottom: 24, right: 24, zIndex: 50,
+        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10,
+      }}
+    >
+      {/* Controls row */}
+      <div className="flex gap-2 items-center">
+        {/* Hide button */}
+        <button
+          onClick={() => setHidden(true)}
+          title="Ocultar"
+          style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'rgba(20,10,40,0.85)',
+            border: '1px solid rgba(124,58,237,0.25)',
+            color: '#5a5a78', fontSize: 12, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#5a5a78'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.25)' }}
+        >
+          ✕
+        </button>
+
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCollapsed(c => !c)}
+          title={collapsed ? 'Expandir' : 'Recolher'}
+          style={{
+            width: 28, height: 28, borderRadius: '50%',
+            background: 'rgba(20,10,40,0.85)',
+            border: '1px solid rgba(124,58,237,0.25)',
+            color: '#5a5a78', fontSize: 12, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(8px)',
+            transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#5a5a78'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.25)' }}
+        >
+          {collapsed ? '‹' : '›'}
+        </button>
+      </div>
+
+      {/* Main FAB */}
+      <button
+        onClick={() => navigate('/apostas/nova')}
+        className="fab-pulse"
+        style={{
+          display: 'flex', alignItems: 'center', gap: collapsed ? 0 : 10,
+          padding: collapsed ? '0' : '0 22px',
+          width: collapsed ? 52 : 'auto',
+          height: 52,
+          borderRadius: collapsed ? '50%' : 26,
+          background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+          border: 'none', color: '#fff',
+          fontSize: collapsed ? 22 : 14, fontWeight: 700,
+          cursor: 'pointer',
+          justifyContent: 'center',
+          overflow: 'hidden',
+          whiteSpace: 'nowrap',
+          transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed, #8b5cf6)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #6d28d9, #7c3aed)' }}
+      >
+        <span style={{ fontSize: collapsed ? 22 : 18, lineHeight: 1 }}>+</span>
+        {!collapsed && <span>Nova Aposta</span>}
+      </button>
+    </div>
+  )
+}
 
 function Layout({ children }: { children: React.ReactNode }) {
   return (
@@ -118,6 +221,9 @@ function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 ml-60 overflow-auto" style={{ minHeight: '100vh' }}>
         {children}
       </main>
+
+      {/* Floating button */}
+      <FloatingNewBet />
     </div>
   )
 }

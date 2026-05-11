@@ -2,6 +2,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 import FloatingParticles from '../components/FloatingParticles'
 import SnakeBanner from '../components/SnakeBanner'
 import { useCountUp } from '../hooks/useCountUp'
@@ -208,6 +209,7 @@ function ChartCard({ title, children, delay = 0 }: { title: string; children: Re
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const navigate    = useNavigate()
   const lucroTotal  = useCountUp(210,    1500, 2)
   const saldo       = useCountUp(1210,   1400, 2)
   const roi         = useCountUp(21,     1200, 1)
@@ -221,7 +223,7 @@ export default function Dashboard() {
     <>
       <FloatingParticles />
 
-      <div style={{ padding: '28px 32px', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }} className="space-y-10 anim-fade-in">
+      <div style={{ padding: '28px 32px', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }} className="space-y-10 anim-scale-in">
 
         {/* ── HEADER ─────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
@@ -254,9 +256,10 @@ export default function Dashboard() {
           <div style={{ position: 'absolute', top: -60, right: -40, width: 220, height: 220, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,58,237,0.18) 0%, transparent 70%)', pointerEvents: 'none' }} />
           <div style={{ position: 'absolute', bottom: -40, left: 100, width: 160, height: 160, borderRadius: '50%', background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-          {/* Cobra animada */}
+          {/* Cobra animada — fica atrás do conteúdo */}
           <SnakeBanner width={900} height={200} />
 
+          <div style={{ position: 'relative', zIndex: 1 }}>
           <div className="flex items-end justify-between">
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.15em', color: '#6d5a9a', textTransform: 'uppercase', marginBottom: 8 }}>
@@ -287,27 +290,62 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Pills rápidas */}
-          <div className="flex gap-4 mt-6">
-            {[
-              { label: 'ROI',       value: `${roi.toFixed(1)}%`,       color: '#22c55e' },
-              { label: 'Win Rate',  value: `${winRate.toFixed(1)}%`,    color: '#a78bfa' },
-              { label: 'Apostas',   value: '54',                        color: '#818cf8' },
-              { label: 'Yield',     value: '4.8%',                      color: '#c084fc' },
-            ].map(p => (
-              <div key={p.label} style={{
-                padding: '8px 16px', borderRadius: 10,
-                background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.07)',
-              }}>
-                <p style={{ fontSize: 10, color: '#6d5a9a', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{p.label}</p>
-                <p style={{ fontSize: 18, fontWeight: 800, color: p.color, lineHeight: 1.2, marginTop: 2 }}>{p.value}</p>
-              </div>
-            ))}
+          {/* Pills rápidas + botão planilha */}
+          <div className="flex items-center justify-between mt-6">
+            <div className="flex gap-3">
+              {[
+                { label: 'ROI',       value: `${roi.toFixed(1)}%`,       color: '#22c55e' },
+                { label: 'Win Rate',  value: `${winRate.toFixed(1)}%`,    color: '#a78bfa' },
+                { label: 'Apostas',   value: '54',                        color: '#818cf8' },
+                { label: 'Yield',     value: '4.8%',                      color: '#c084fc' },
+              ].map(p => (
+                <div key={p.label} style={{
+                  padding: '8px 16px', borderRadius: 10,
+                  background: 'rgba(255,255,255,0.04)',
+                  border: '1px solid rgba(255,255,255,0.07)',
+                }}>
+                  <p style={{ fontSize: 10, color: '#6d5a9a', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{p.label}</p>
+                  <p style={{ fontSize: 18, fontWeight: 800, color: p.color, lineHeight: 1.2, marginTop: 2 }}>{p.value}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Botão Planilha */}
+            <button
+              onClick={() => navigate('/planilha')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))',
+                border: '1px solid rgba(124,58,237,0.45)',
+                color: '#c4b5fd', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', backdropFilter: 'blur(8px)',
+                transition: 'all 0.2s cubic-bezier(0.16,1,0.3,1)',
+                letterSpacing: '0.02em',
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.38), rgba(99,102,241,0.28))'
+                e.currentTarget.style.borderColor = 'rgba(124,58,237,0.8)'
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(124,58,237,0.3)'
+                e.currentTarget.style.color = '#fff'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'
+                e.currentTarget.style.borderColor = 'rgba(124,58,237,0.45)'
+                e.currentTarget.style.boxShadow = 'none'
+                e.currentTarget.style.color = '#c4b5fd'
+              }}
+            >
+              <span style={{ fontSize: 16 }}>⊞</span>
+              Ver Planilha
+              <span style={{ fontSize: 12, opacity: 0.6 }}>→</span>
+            </button>
           </div>
+          </div>{/* end zIndex wrapper */}
         </div>
 
         {/* ── KPIs ────────────────────────────────────────────── */}
+        <div className="anim-slide-up" style={{ animationDelay: '80ms' }}>
         <Section label="Métricas do período">
           <div className="grid grid-cols-4 gap-4">
             <KpiCard icon="💰" label="Lucro Hoje"         rawValue={25}   prefix="R$ " trend={12}  sub="3 apostas hoje"           delay={0}   accent="#22c55e" />
@@ -317,7 +355,10 @@ export default function Dashboard() {
           </div>
         </Section>
 
+        </div>
+
         {/* ── PERFIS ──────────────────────────────────────────── */}
+        <div className="anim-slide-up" style={{ animationDelay: '160ms' }}>
         <Section label="Desempenho por perfil">
           <div className="grid grid-cols-3 gap-4">
             {perfis.map((p, i) => {
@@ -378,7 +419,10 @@ export default function Dashboard() {
           </div>
         </Section>
 
+        </div>
+
         {/* ── GRÁFICOS ─────────────────────────────────────────── */}
+        <div className="anim-slide-up" style={{ animationDelay: '240ms' }}>
         <Section label="Análise gráfica">
           <div className="grid grid-cols-2 gap-4">
 
@@ -461,6 +505,7 @@ export default function Dashboard() {
 
           </div>
         </Section>
+        </div>
 
       </div>
     </>
