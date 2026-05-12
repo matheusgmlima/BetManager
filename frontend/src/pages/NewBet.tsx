@@ -554,7 +554,8 @@ function ManualTab() {
 interface ExtractedBetEdit extends AiExtractedBet {
   selected: boolean; dateEdit: string; matchEdit: string; marketEdit: string
   amountWageredEdit: string; oddsEdit: string; payoutEdit: string
-  resultEdit: BetResult; bookmakerId: number | null; bettingProfileId: number | null; expanded: boolean
+  resultEdit: BetResult; bookmakerId: number | null; bettingProfileId: number | null
+  sportId: number | null; expanded: boolean
 }
 
 // Scanning steps animation
@@ -602,6 +603,7 @@ function AiTab() {
   const isMobile   = useMobile()
   const { data: bookmakers = [] } = useBookmakers()
   const { data: profiles   = [] } = useProfiles()
+  const { data: sports     = [] } = useSports()
   const extractBets  = useExtractBets()
   const createBatch  = useCreateBetsBatch()
 
@@ -627,7 +629,7 @@ function AiTab() {
       dateEdit: b.date ?? today(), matchEdit: b.match ?? '',
       marketEdit: b.market ?? '', amountWageredEdit: String(b.amountWagered ?? ''),
       oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
-      resultEdit: b.result ?? 'pending', bookmakerId: b.bookmakerId, bettingProfileId: null,
+      resultEdit: b.result ?? 'pending', bookmakerId: b.bookmakerId, bettingProfileId: null, sportId: null,
     })))
   }, [model, extractBets])
 
@@ -672,6 +674,7 @@ function AiTab() {
       payout: parseFloat(b.payoutEdit) || 0,
       result: b.resultEdit,
       bettingProfileId: b.bettingProfileId,
+      sportId: b.sportId ?? undefined,
     }))
     await createBatch.mutateAsync(payload)
     await betsService.confirmExtraction(extraction.extractionId, selectedBets.length)
@@ -692,139 +695,157 @@ function AiTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── Model info strip ────────────────────────────────────── */}
+      {/* ── Drop zone card ───────────────────────────────────────── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
-        borderRadius: 12, background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)',
+        borderRadius: 20,
+        border: `1.5px solid ${dragging ? 'rgba(124,58,237,0.6)' : 'rgba(124,58,237,0.18)'}`,
+        background: dragging
+          ? 'rgba(124,58,237,0.07)'
+          : 'linear-gradient(160deg, rgba(124,58,237,0.05) 0%, rgba(10,5,25,0.0) 60%)',
+        transition: 'all 0.2s',
+        overflow: 'hidden',
+        position: 'relative',
       }}>
-        <span style={{ fontSize: 16 }}>⚡</span>
-        <div style={{ flex: 1 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#c4b5fd' }}>Llama 4 Scout</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>meta-llama/llama-4-scout-17b-16e-instruct</span>
-        </div>
-        <span style={{
-          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-          background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)',
-        }}>via Groq · gratuito</span>
-      </div>
 
-      {/* ── Dropzone ─────────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 16, overflow: 'hidden',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 20px', borderBottom: '1px solid var(--border)', background: 'rgba(124,58,237,0.04)' }}>
-          <span style={{ fontSize: 16 }}>📸</span>
-          <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.15em', textTransform: 'uppercase', color: '#a78bfa' }}>Screenshot</span>
-          {preview && !extractBets.isLoading && (
-            <button type="button" onClick={() => { setPreview(null); setFileName(null); setExtraction(null); setBets([]) }}
-              style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 7, padding: '3px 10px', cursor: 'pointer', fontWeight: 600 }}>
-              Trocar imagem
-            </button>
-          )}
-        </div>
+        {/* Glow top edge */}
+        <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(124,58,237,0.5), transparent)', pointerEvents: 'none' }} />
 
-        <div style={{ padding: '20px' }}>
-          <div
-            onDragOver={e => { e.preventDefault(); setDragging(true) }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={onDrop}
-            onClick={() => !preview && inputRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragging ? '#7c3aed' : preview ? 'rgba(124,58,237,0.2)' : 'rgba(124,58,237,0.3)'}`,
-              borderRadius: 14,
-              padding: preview ? '12px' : isMobile ? '40px 20px' : '52px 24px',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14,
-              cursor: preview ? 'default' : 'pointer',
-              transition: 'all 0.2s',
-              background: dragging
-                ? 'rgba(124,58,237,0.06)'
-                : preview
-                  ? 'rgba(0,0,0,0.2)'
-                  : 'linear-gradient(160deg, rgba(124,58,237,0.03) 0%, rgba(0,0,0,0) 60%)',
-              position: 'relative', overflow: 'hidden',
-            }}
-          >
-            {dragging && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(124,58,237,0.08)', zIndex: 2 }}>
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 32 }}>📥</div>
-                  <p style={{ margin: '8px 0 0', color: '#a78bfa', fontWeight: 700, fontSize: 14 }}>Solte aqui</p>
-                </div>
-              </div>
-            )}
+        <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }}
+          onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
+        />
 
-            <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }}
-              onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
-            />
-
-            {preview ? (
-              <div style={{ width: '100%', textAlign: 'center' }}>
-                <img src={preview} alt="preview" style={{ maxHeight: 280, maxWidth: '100%', borderRadius: 10, objectFit: 'contain', display: 'block', margin: '0 auto' }} />
-                {fileName && (
-                  <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-                    📄 {fileName}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <>
-                <div style={{
-                  width: 72, height: 72, borderRadius: 20,
-                  background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(99,102,241,0.08))',
-                  border: '1px solid rgba(124,58,237,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32,
-                }}>
-                  📱
-                </div>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ color: 'var(--text-primary)', fontWeight: 700, margin: 0, fontSize: 15 }}>
-                    Arraste o screenshot aqui
-                  </p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 12, margin: '6px 0 0' }}>
-                    ou <span style={{ color: '#a78bfa', fontWeight: 600, textDecoration: 'underline', cursor: 'pointer' }}
-                      onClick={e => { e.stopPropagation(); inputRef.current?.click() }}
-                    >clique para selecionar</span>
-                  </p>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11, margin: '4px 0 0', opacity: 0.7 }}>
-                    PNG · JPG · WEBP
-                  </p>
-                </div>
-              </>
-            )}
+        {/* Top bar */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '14px 20px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 8,
+              background: 'linear-gradient(135deg, #4c1d95, #6d28d9)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 13, boxShadow: '0 0 12px rgba(109,40,217,0.4)',
+            }}>⚡</div>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Llama 4 Scout</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>via Groq</span>
           </div>
-
-          {/* Loading state */}
-          {extractBets.isLoading && <ScanningAnimation />}
-
-          {/* Error */}
-          {extractBets.isError && (
-            <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)', marginTop: 14 }}>
-              <span style={{ fontSize: 18, flexShrink: 0, marginTop: 1 }}>⚠️</span>
-              <div>
-                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#ef4444' }}>Falha ao processar imagem</p>
-                {extractBets.error instanceof Error && (
-                  <p style={{ margin: '4px 0 0', fontSize: 11, color: '#ef444488', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                    {(extractBets.error as any)?.response?.data?.detail ?? extractBets.error.message}
-                  </p>
-                )}
-                <button onClick={() => preview && inputRef.current?.click()} style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#a78bfa', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                  Tentar novamente →
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Warnings */}
-          {extraction?.warnings && extraction.warnings.length > 0 && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10, background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)', marginTop: 14 }}>
-              <span style={{ fontSize: 16, flexShrink: 0 }}>⚠</span>
-              <div style={{ fontSize: 12, color: '#eab308', lineHeight: 1.5 }}>
-                {extraction.warnings.map((w, i) => <p key={i} style={{ margin: 0 }}>{w}</p>)}
-              </div>
-            </div>
+          {preview && !extractBets.isLoading ? (
+            <button type="button"
+              onClick={() => { setPreview(null); setFileName(null); setExtraction(null); setBets([]) }}
+              style={{
+                fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
+                background: 'transparent', border: '1px solid var(--border)',
+                borderRadius: 8, padding: '4px 12px', cursor: 'pointer',
+              }}>
+              ↩ Trocar
+            </button>
+          ) : (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
+              background: 'rgba(34,197,94,0.1)', color: '#22c55e',
+              border: '1px solid rgba(34,197,94,0.2)', letterSpacing: '0.05em',
+            }}>gratuito</span>
           )}
         </div>
+
+        {/* Drop area */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragging(true) }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={onDrop}
+          onClick={() => !preview && inputRef.current?.click()}
+          style={{
+            margin: '0 16px 16px',
+            borderRadius: 14,
+            border: `1.5px dashed ${dragging ? '#7c3aed' : preview ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.22)'}`,
+            padding: preview ? '14px' : isMobile ? '44px 20px' : '56px 24px',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+            cursor: preview ? 'default' : 'pointer',
+            background: preview ? 'rgba(0,0,0,0.15)' : 'transparent',
+            transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
+          }}
+        >
+          {dragging && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(109,40,217,0.1)', zIndex: 2, gap: 8 }}>
+              <div style={{ fontSize: 36 }}>📥</div>
+              <p style={{ margin: 0, color: '#a78bfa', fontWeight: 700, fontSize: 14 }}>Solte para analisar</p>
+            </div>
+          )}
+
+          {preview ? (
+            <div style={{ width: '100%', textAlign: 'center' }}>
+              <img src={preview} alt="preview" style={{ maxHeight: 300, maxWidth: '100%', borderRadius: 10, objectFit: 'contain', display: 'block', margin: '0 auto', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
+              {fileName && <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>📄 {fileName}</p>}
+            </div>
+          ) : (
+            <>
+              {/* Icon */}
+              <div style={{
+                width: 80, height: 80, borderRadius: 24,
+                background: 'linear-gradient(135deg, rgba(109,40,217,0.2), rgba(99,102,241,0.1))',
+                border: '1px solid rgba(124,58,237,0.25)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 0 32px rgba(109,40,217,0.15)',
+              }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+              </div>
+              <div style={{ textAlign: 'center', lineHeight: 1 }}>
+                <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+                  Arraste o screenshot aqui
+                </p>
+                <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
+                  ou{' '}
+                  <span
+                    style={{ color: '#a78bfa', fontWeight: 600, cursor: 'pointer', borderBottom: '1px solid rgba(167,139,250,0.4)' }}
+                    onClick={e => { e.stopPropagation(); inputRef.current?.click() }}
+                  >clique para selecionar</span>
+                </p>
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--text-muted)', opacity: 0.5, letterSpacing: '0.08em' }}>
+                  PNG · JPG · WEBP
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Loading */}
+        {extractBets.isLoading && (
+          <div style={{ padding: '0 16px 16px' }}>
+            <ScanningAnimation />
+          </div>
+        )}
+
+        {/* Error */}
+        {extractBets.isError && (
+          <div style={{ margin: '0 16px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+            <div>
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#ef4444' }}>Falha ao processar imagem</p>
+              {extractBets.error instanceof Error && (
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#ef444488', fontFamily: 'monospace', wordBreak: 'break-all' }}>
+                  {(extractBets.error as any)?.response?.data?.detail ?? extractBets.error.message}
+                </p>
+              )}
+              <button onClick={() => inputRef.current?.click()} style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#a78bfa', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
+                Tentar novamente →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Warnings */}
+        {extraction?.warnings && extraction.warnings.length > 0 && (
+          <div style={{ margin: '0 16px 16px', display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10, background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)' }}>
+            <span style={{ fontSize: 15, flexShrink: 0 }}>⚠</span>
+            <div style={{ fontSize: 12, color: '#eab308', lineHeight: 1.6 }}>
+              {extraction.warnings.map((w, i) => <p key={i} style={{ margin: 0 }}>{w}</p>)}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Extracted bets ────────────────────────────────────────── */}
@@ -957,8 +978,8 @@ function AiTab() {
                           />
                         </Field>
                       </div>
-                      {/* Required fields: Casa + Perfil */}
-                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
+                      {/* Required fields: Casa + Perfil + Esporte */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
                         <Field label="Casa de Apostas *" error={hasError && betErrors.includes('casa') ? 'Obrigatório' : undefined}>
                           <select
                             value={bet.bookmakerId ?? ''}
@@ -998,6 +1019,19 @@ function AiTab() {
                             <option value="">Selecionar perfil...</option>
                             {profiles.filter(p => p.active).map(p => (
                               <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Esporte">
+                          <select
+                            value={bet.sportId ?? ''}
+                            onChange={e => updateBet(i, { sportId: e.target.value ? Number(e.target.value) : null })}
+                            onFocus={focus} onBlur={blur}
+                            style={inp}
+                          >
+                            <option value="">— opcional —</option>
+                            {sports.filter(s => s.active).map(s => (
+                              <option key={s.id} value={s.id}>{s.icon ? `${s.icon} ` : ''}{s.name}</option>
                             ))}
                           </select>
                         </Field>
@@ -1107,46 +1141,71 @@ function AiTab() {
 
 export default function NewBet() {
   const isMobile = useMobile()
-  const [tab, setTab] = useState<'manual' | 'ai'>('manual')
+  const [showManual, setShowManual] = useState(false)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 24px' : '32px 40px' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{
-          margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 900,
-          background: 'linear-gradient(135deg, var(--purple-400), var(--purple-300))',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+            <h1 style={{
+              margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 900,
+              background: 'linear-gradient(135deg, var(--purple-400), var(--purple-300))',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+            }}>
+              Nova Aposta
+            </h1>
+            <span style={{
+              fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', padding: '3px 8px',
+              borderRadius: 999, background: 'rgba(124,58,237,0.15)',
+              border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', textTransform: 'uppercase',
+            }}>✦ IA</span>
+          </div>
+          <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
+            Envie um screenshot e a IA extrai os dados automaticamente
+          </p>
+        </div>
+
+        <button
+          onClick={() => setShowManual(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 7,
+            padding: '8px 16px', borderRadius: 10, cursor: 'pointer',
+            border: showManual ? '1px solid rgba(124,58,237,0.5)' : '1px solid var(--border)',
+            background: showManual ? 'rgba(124,58,237,0.1)' : 'var(--bg-card)',
+            color: showManual ? '#a78bfa' : 'var(--text-muted)',
+            fontSize: 13, fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
+          }}
+        >
+          <span style={{ fontSize: 15 }}>✎</span>
+          {showManual ? 'Ocultar manual' : 'Inserir manualmente'}
+        </button>
+      </div>
+
+      {/* ── Manual (collapsible) ── */}
+      {showManual && (
+        <div style={{
+          marginBottom: 24, borderRadius: 16,
+          border: '1px solid rgba(124,58,237,0.2)',
+          background: 'rgba(124,58,237,0.04)',
+          overflow: 'hidden',
         }}>
-          Nova Aposta
-        </h1>
-        <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
-          Registre manualmente ou extraia automaticamente de um screenshot
-        </p>
-      </div>
-
-      <div style={{
-        display: 'inline-flex', gap: 4, marginBottom: 24,
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 12, padding: 4,
-      }}>
-        {[
-          { key: 'manual', label: 'Manual' },
-          { key: 'ai',     label: 'Extracao por IA' },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key as any)} style={{
-            padding: '8px 20px', borderRadius: 9, border: 'none',
-            background: tab === t.key ? 'linear-gradient(135deg, var(--purple-700), var(--purple-600))' : 'transparent',
-            color: tab === t.key ? '#fff' : 'var(--text-muted)',
-            fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            transition: 'all 0.15s',
-            boxShadow: tab === t.key ? '0 0 12px var(--purple-glow)' : 'none',
+          <div style={{
+            padding: '12px 20px', borderBottom: '1px solid rgba(124,58,237,0.12)',
+            display: 'flex', alignItems: 'center', gap: 8,
           }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Inserção manual</span>
+          </div>
+          <div style={{ padding: '20px' }}>
+            <ManualTab />
+          </div>
+        </div>
+      )}
 
-      {tab === 'manual' ? <ManualTab /> : <AiTab />}
+      {/* ── AI (always visible) ── */}
+      <AiTab />
     </div>
   )
 }

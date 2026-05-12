@@ -55,16 +55,18 @@ INDICADORES DE APOSTA COMBINADA (quando presentes, SEMPRE tratar como uma única
 "jogo" (combinada): APENAS os nomes dos confrontos separados por ; sem nenhuma seleção — ex: "Sada Cruzeiro - Minas TC; Toronto Raptors - Cleveland Cavaliers"
 "mercado" (simples): a seleção — ex: "+2.5 gols", "Sport Recife para ganhar"
 "mercado" (combinada): OBRIGATÓRIO usar o formato "Jogo {Seleção}; Jogo2 {Seleção2}". Associe cada jogo às suas seleções. NÃO use ponto-e-vírgula dentro das chaves — use vírgula para múltiplas seleções do mesmo jogo. NÃO inclua odds (@ 1.55) nas seleções.
+  ⚠️ CRÍTICO: O nome do jogo antes de { DEVE ser o confronto COMPLETO com AMBOS os times (ex: "Sport Recife x ASA", NUNCA apenas "Sport Recife"). Use exatamente o mesmo nome que está no campo "jogo".
   EXEMPLO — se a tela mostra:
     Sada Cruzeiro - Minas TC → Total de Sets - Mais de 3.5
     Toronto Raptors - Cleveland Cavaliers → Assistências 1X2 - 1
   O campo "mercado" DEVE ser:
     "Sada Cruzeiro - Minas TC {Total de Sets - Mais de 3.5}; Toronto Raptors - Cleveland Cavaliers {Assistências 1X2 - 1}"
   OUTRO EXEMPLO:
-    Fluxo FC - Furia FC → Resultado Final - 2
-    Dibrados FC - Loud SC → Resultado Final - 1
+    Sport Recife x ASA → Resultado Final - Sport Recife
+    MIN Timberwolves x SA Spurs → Para Ganhar - SA Spurs
   O campo "mercado" DEVE ser:
-    "Fluxo FC - Furia FC {Resultado Final - 2}; Dibrados FC - Loud SC {Resultado Final - 1}"
+    "Sport Recife x ASA {Resultado Final - Sport Recife}; MIN Timberwolves x SA Spurs {Para Ganhar - SA Spurs}"
+  ERRADO (nunca fazer): "Sport Recife {Resultado Final}; SA Spurs {Para Ganhar}" ← falta o time adversário!
 "odd": a odd TOTAL do bilhete. Prioridade: (1) valor total mostrado na tela, (2) multiplique as odds individuais (odds_multiplas), (3) calcule retorno_total / valor_apostado. Nunca deixe null se houver como calcular.
 "odds_multiplas": array com cada odd individual visível na combinada (ex: [1.85, 1.60, 1.40]). null para apostas simples ou se não visíveis.
 "valor_apostado": valor total apostado (número, não string)

@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import SnakeLogo from './components/SnakeLogo'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { useMobile } from './hooks/useMobile'
@@ -25,111 +25,113 @@ const navItems = [
   { to: '/configuracoes', label: 'Configurações', icon: '⚙' },
 ]
 
-// ─── Floating New Bet FAB ─────────────────────────────────────────────────────
-function FloatingNewBet() {
-  const navigate = useNavigate()
-  const isMobile = useMobile()
-  const [collapsed, setCollapsed] = useState(false)
-  const [hidden, setHidden]       = useState(false)
+// ─── Floating New Bet FAB (draggable) ─────────────────────────────────────────
+const FAB_KEY = 'fab-position'
 
-  if (hidden) {
-    return (
-      <button
-        onClick={() => setHidden(false)}
-        title="Mostrar botão Nova Aposta"
-        style={{
-          position: 'fixed',
-          bottom: isMobile ? 16 : 24,
-          right: isMobile ? 16 : 24,
-          zIndex: 50,
-          width: 36, height: 36, borderRadius: '50%',
-          background: 'rgba(124,58,237,0.18)', border: '1px solid rgba(124,58,237,0.4)',
-          color: '#a78bfa', fontSize: 18, cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(8px)',
-          transition: 'all 0.2s ease',
-        }}
-      >
-        +
-      </button>
-    )
+function FloatingNewBet() {
+  const navigate  = useNavigate()
+  const isMobile  = useMobile()
+
+  const getDefault = useCallback(() => ({
+    x: window.innerWidth  - (isMobile ? 80  : 172),
+    y: window.innerHeight - (isMobile ? 80  : 80),
+  }), [isMobile])
+
+  const [pos,     setPos]     = useState<{ x: number; y: number }>(() => {
+    try {
+      const s = localStorage.getItem(FAB_KEY)
+      if (s) return JSON.parse(s)
+    } catch {}
+    return { x: window.innerWidth - 172, y: window.innerHeight - 80 }
+  })
+  const [dragging, setDragging] = useState(false)
+  const dragRef   = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null)
+  const fabRef    = useRef<HTMLDivElement>(null)
+
+  // Clamp inside viewport on resize
+  useEffect(() => {
+    const onResize = () => {
+      setPos(p => ({
+        x: Math.min(p.x, window.innerWidth  - (fabRef.current?.offsetWidth  ?? 56) - 8),
+        y: Math.min(p.y, window.innerHeight - (fabRef.current?.offsetHeight ?? 56) - 8),
+      }))
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  const onPointerDown = (e: React.PointerEvent) => {
+    // Only drag on the container div, not child buttons
+    if ((e.target as HTMLElement).tagName === 'BUTTON') return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y, moved: false }
+    setDragging(true)
+  }
+
+  const onPointerMove = (e: React.PointerEvent) => {
+    if (!dragRef.current) return
+    const dx = e.clientX - dragRef.current.startX
+    const dy = e.clientY - dragRef.current.startY
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragRef.current.moved = true
+    const w = fabRef.current?.offsetWidth  ?? 56
+    const h = fabRef.current?.offsetHeight ?? 56
+    const newX = Math.max(8, Math.min(window.innerWidth  - w - 8, dragRef.current.originX + dx))
+    const newY = Math.max(8, Math.min(window.innerHeight - h - 8, dragRef.current.originY + dy))
+    setPos({ x: newX, y: newY })
+  }
+
+  const onPointerUp = (e: React.PointerEvent) => {
+    if (!dragRef.current) return
+    const moved = dragRef.current.moved
+    dragRef.current = null
+    setDragging(false)
+    if (!moved) {
+      // it was a click — navigate
+      navigate('/apostas/nova')
+    } else {
+      // save position
+      setPos(p => { localStorage.setItem(FAB_KEY, JSON.stringify(p)); return p })
+    }
   }
 
   return (
     <div
+      ref={fabRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
       style={{
         position: 'fixed',
-        bottom: isMobile ? 16 : 24,
-        right: isMobile ? 16 : 24,
+        left: pos.x,
+        top:  pos.y,
         zIndex: 50,
-        display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 10,
+        display: 'flex', alignItems: 'center',
+        cursor: dragging ? 'grabbing' : 'grab',
+        userSelect: 'none',
+        touchAction: 'none',
       }}
     >
-      {/* Controls — hidden on mobile to save space */}
-      {!isMobile && (
-        <div className="flex gap-2 items-center">
-          <button
-            onClick={() => setHidden(true)}
-            title="Ocultar"
-            style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: 'rgba(20,10,40,0.85)',
-              border: '1px solid rgba(124,58,237,0.25)',
-              color: '#5a5a78', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backdropFilter: 'blur(8px)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#5a5a78'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.25)' }}
-          >
-            ✕
-          </button>
-          <button
-            onClick={() => setCollapsed(c => !c)}
-            title={collapsed ? 'Expandir' : 'Recolher'}
-            style={{
-              width: 28, height: 28, borderRadius: '50%',
-              background: 'rgba(20,10,40,0.85)',
-              border: '1px solid rgba(124,58,237,0.25)',
-              color: '#5a5a78', fontSize: 12, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              backdropFilter: 'blur(8px)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = '#a78bfa'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.6)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = '#5a5a78'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.25)' }}
-          >
-            {collapsed ? '‹' : '›'}
-          </button>
-        </div>
-      )}
-
-      {/* Main FAB */}
       <button
-        onClick={() => navigate('/apostas/nova')}
         className="fab-pulse"
         style={{
-          display: 'flex', alignItems: 'center',
-          gap: (collapsed && !isMobile) ? 0 : 10,
-          padding: (collapsed && !isMobile) ? '0' : (isMobile ? '0 18px' : '0 22px'),
-          width: (collapsed && !isMobile) ? 52 : 'auto',
-          height: isMobile ? 46 : 52,
-          borderRadius: (collapsed && !isMobile) ? '50%' : 26,
+          display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 10,
+          padding: isMobile ? '0' : '0 22px',
+          width:   isMobile ? 52 : 'auto',
+          height:  isMobile ? 52 : 52,
+          borderRadius: isMobile ? '50%' : 26,
           background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
           border: 'none', color: '#fff',
-          fontSize: (collapsed && !isMobile) ? 22 : 14, fontWeight: 700,
-          cursor: 'pointer',
+          fontSize: isMobile ? 22 : 14, fontWeight: 700,
+          cursor: dragging ? 'grabbing' : 'pointer',
           justifyContent: 'center',
-          overflow: 'hidden',
           whiteSpace: 'nowrap',
-          transition: 'all 0.25s cubic-bezier(0.16,1,0.3,1)',
+          pointerEvents: 'none', // delegated to parent div
+          transition: dragging ? 'none' : 'box-shadow 0.2s',
+          boxShadow: dragging ? '0 8px 32px rgba(124,58,237,0.5)' : '0 4px 20px rgba(124,58,237,0.35)',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #7c3aed, #8b5cf6)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, #6d28d9, #7c3aed)' }}
       >
-        <span style={{ fontSize: (collapsed && !isMobile) ? 22 : 18, lineHeight: 1 }}>+</span>
-        {!(collapsed && !isMobile) && <span>Nova Aposta</span>}
+        <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+        {!isMobile && <span>Nova Aposta</span>}
       </button>
     </div>
   )
