@@ -26,6 +26,7 @@ export interface AiExtractedBet {
 export interface AiExtractionResponse {
   extractionId: number
   modelUsed: string
+  modelFallback?: boolean
   betsDetected: number
   bets: AiExtractedBet[]
   warnings: string[]

@@ -380,38 +380,225 @@ function DeleteConfirm({ bet, onClose, onConfirm }: { bet: Bet; onClose: () => v
 
 // ─── Bet Row ──────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
-  const [hovered, setHovered] = useState(false)
-  const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
+// ─── CombinedDetailsPopup ─────────────────────────────────────────────────────
+
+interface CombinedRow { game: string; selections: string[] }
+
+function parseCombinedMatch(match: string): CombinedRow[] {
+  // New format: "Jogo1 {Sel1, Sel2}; Jogo2 {Sel3}"
+  const newFmt = /\{[^}]+\}/
+  if (newFmt.test(match)) {
+    return match.split(';').map(s => s.trim()).filter(Boolean).map(block => {
+      const braceIdx = block.indexOf('{')
+      if (braceIdx === -1) return { game: block, selections: [] }
+      const game = block.slice(0, braceIdx).trim()
+      const sels = block.slice(braceIdx + 1, block.lastIndexOf('}')).split(',').map(s => s.trim()).filter(Boolean)
+      return { game, selections: sels }
+    })
+  }
+  // Legacy format: games and markets were separate (semicolon-separated)
+  return match.split(';').map(s => s.trim()).filter(Boolean).map(g => ({ game: g, selections: [] }))
+}
+
+function CombinedDetailsPopup({ bet, onClose }: { bet: Bet; onClose: () => void }) {
+  // market holds "Jogo {Sel1, Sel2}; Jogo2 {Sel3}" for combined bets
+  const rows = parseCombinedMatch(bet.market ?? '')
+
+  // Legacy fallback: market was flat list, match had the games
+  const legacyGames   = (bet.match  ?? '').split(';').map(s => s.trim()).filter(Boolean)
+  const legacyMarkets = (bet.market ?? '').split(';').map(s => s.trim()).filter(Boolean)
+  const useLegacy     = rows.every(r => r.selections.length === 0 && !r.game.includes(' x ') && !r.game.includes(' - '))
 
   return (
-    <tr
+    <div
+      onClick={onClose}
       style={{
-        borderBottom: '1px solid var(--border)',
-        background: hovered ? 'rgba(124,58,237,0.05)' : odd ? 'rgba(255,255,255,0.013)' : 'transparent',
-        transition: 'background 0.12s',
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24,
       }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
     >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 16, padding: '24px 28px', minWidth: 340, maxWidth: 520, width: '100%',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.12em', color: '#a78bfa', textTransform: 'uppercase' }}>
+              Combinada
+            </span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>
+              {rows.length} {rows.length === 1 ? 'seleção' : 'seleções'}
+            </span>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28, height: 28, borderRadius: 8, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-muted)', fontSize: 16,
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >×</button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {(useLegacy ? legacyGames.map((g, i) => ({ game: g, selections: legacyMarkets[i] ? [legacyMarkets[i]] : [] })) : rows).map((row, i) => {
+            const sels = row.selections
+            return (
+              <div
+                key={i}
+                style={{
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+                  borderRadius: 10, padding: '10px 14px',
+                }}
+              >
+                <div style={{ fontSize: 10, color: '#7c3aed', fontWeight: 700, marginBottom: 6 }}>
+                  JOGO {i + 1}
+                </div>
+                {row.game && (
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: sels.length ? 8 : 0 }}>
+                    {row.game}
+                  </div>
+                )}
+                {sels.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {sels.map((sel, j) => (
+                      <div key={j} style={{
+                        display: 'flex', alignItems: 'flex-start', gap: 6,
+                        fontSize: 12, color: 'var(--text-secondary)',
+                      }}>
+                        <span style={{ color: '#6d28d9', marginTop: 1, flexShrink: 0 }}>›</span>
+                        {sel}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {bet.odds != null && (
+          <div style={{
+            marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--border)',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Odd total</span>
+            <span style={{ fontSize: 16, fontWeight: 800, color: '#eab308', fontFamily: 'monospace' }}>
+              {bet.odds.toFixed(2)}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── BetRow ───────────────────────────────────────────────────────────────────
+
+function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
+  const [hovered,       setHovered]       = useState(false)
+  const [showCombined,  setShowCombined]  = useState(false)
+  const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
+
+  const isCombined = bet.isCombined
+  const allGames   = isCombined
+    ? (bet.match ?? '').split(';').map(s => s.trim()).filter(Boolean)
+    : bet.match ? [bet.match] : []
+  const gameCount  = allGames.length
+
+  // Market subtitle: for combined, extract ALL selections across all games
+  const marketSubtitle = (() => {
+    if (!isCombined) return bet.market || null
+    const raw = bet.market ?? ''
+    if (raw.includes('{')) {
+      // new format: "Jogo {Sel1, Sel2}; Jogo2 {Sel3}" → "Sel1, Sel2, Sel3"
+      const sels: string[] = []
+      const blocks = raw.split(';').map(s => s.trim())
+      for (const block of blocks) {
+        const start = block.indexOf('{')
+        const end   = block.lastIndexOf('}')
+        if (start !== -1 && end !== -1) {
+          block.slice(start + 1, end).split(',').forEach(s => { const t = s.trim(); if (t) sels.push(t) })
+        }
+      }
+      return sels.join('  ·  ') || null
+    }
+    // legacy flat format
+    return raw.split(';').map(s => s.trim()).filter(Boolean).join('  ·  ') || null
+  })()
+
+  // Render game header based on count
+  function GameHeader() {
+    if (!isCombined || gameCount <= 1) {
+      return allGames[0]
+        ? <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12 }}>{allGames[0]}</span>
+        : null
+    }
+    if (gameCount === 2) {
+      return (
+        <button onClick={e => { e.stopPropagation(); setShowCombined(true) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%' }}>
+          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12, color: 'var(--text-primary)' }}>
+            {allGames[0]}
+            <span style={{ color: 'var(--text-muted)', fontWeight: 400, margin: '0 5px' }}>·</span>
+            {allGames[1]}
+          </span>
+        </button>
+      )
+    }
+    // 3+ games
+    return (
+      <button onClick={e => { e.stopPropagation(); setShowCombined(true) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', width: '100%', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12, color: 'var(--text-primary)', flex: 1, minWidth: 0 }}>
+          {allGames[0]}
+        </span>
+        <span style={{
+          flexShrink: 0, padding: '1px 7px', borderRadius: 5,
+          border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.10)',
+          color: '#a78bfa', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap',
+        }}>
+          +{gameCount - 1} jogos
+        </span>
+      </button>
+    )
+  }
+
+  return (
+    <>
+      {showCombined && <CombinedDetailsPopup bet={bet} onClose={() => setShowCombined(false)} />}
+      <tr
+        style={{
+          borderBottom: '1px solid var(--border)',
+          background: hovered ? 'rgba(124,58,237,0.05)' : odd ? 'rgba(255,255,255,0.013)' : 'transparent',
+          transition: 'background 0.12s',
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+      >
       <td style={{ ...td, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
         {fmtDate(bet.date)}
       </td>
-      <td style={{ ...td, color: 'var(--text-primary)', maxWidth: 260 }}>
-        {bet.match && (
-          <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600, fontSize: 12 }}>
-            {bet.match}
+      <td style={{ ...td, color: 'var(--text-primary)', maxWidth: 280 }}>
+        <GameHeader />
+        {marketSubtitle && (
+          <span style={{
+            display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            color: 'var(--text-secondary)', fontSize: 11, marginTop: allGames.length ? 2 : 0,
+          }}>
+            {marketSubtitle}
           </span>
         )}
-        <span style={{
-          display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          color: bet.match ? 'var(--text-secondary)' : 'var(--text-primary)',
-          fontSize: bet.match ? 11 : 12,
-        }}>
-          {bet.market}
-        </span>
-        <div style={{ display: 'flex', gap: 4, marginTop: 2 }}>
-          {bet.isCombined && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}>combinada</span>}
+        <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+          {isCombined && (
+            <button
+              onClick={e => { e.stopPropagation(); setShowCombined(true) }}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}
+            >combinada ›</button>
+          )}
           {bet.source === 'ai_extract' && <span style={{ fontSize: 9, fontWeight: 700, color: '#c084fc' }}>✦ IA</span>}
         </div>
       </td>
@@ -475,7 +662,8 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
           >🗑</button>
         </div>
       </td>
-    </tr>
+      </tr>
+    </>
   )
 }
 

@@ -605,7 +605,7 @@ function AiTab() {
   const extractBets  = useExtractBets()
   const createBatch  = useCreateBetsBatch()
 
-  const [model, setModel]       = useState<'haiku' | 'sonnet'>('haiku')
+  const model = 'haiku' // Scout (único modelo disponível)
   const [dragging, setDragging] = useState(false)
   const [preview, setPreview]   = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
@@ -692,61 +692,21 @@ function AiTab() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── Model selector ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
-        {[
-          {
-            value: 'haiku', icon: '⚡', label: 'Scout',
-            sub: 'Llama 4 Scout · 17B',
-            desc: 'Resposta rápida, ótimo para screenshots simples',
-            badge: 'Recomendado',
-            badgeColor: '#22c55e',
-          },
-          {
-            value: 'sonnet', icon: '🧠', label: 'Maverick',
-            sub: 'Llama 4 Maverick · 17B',
-            desc: 'Maior precisão para apostas múltiplas complexas',
-            badge: 'Mais preciso',
-            badgeColor: '#a78bfa',
-          },
-        ].map(m => {
-          const active = model === m.value
-          return (
-            <button key={m.value} type="button" onClick={() => setModel(m.value as any)} style={{
-              textAlign: 'left', padding: '16px 18px', borderRadius: 14, cursor: 'pointer',
-              border: active ? '2px solid #7c3aed' : '1px solid var(--border)',
-              background: active
-                ? 'linear-gradient(135deg, rgba(124,58,237,0.14), rgba(99,102,241,0.08))'
-                : 'var(--bg-card)',
-              boxShadow: active ? '0 0 24px rgba(124,58,237,0.18)' : 'none',
-              transition: 'all 0.2s',
-              position: 'relative', overflow: 'hidden',
-            }}>
-              {active && <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'linear-gradient(90deg, #6d28d9, #a78bfa, #6d28d9)', backgroundSize: '200%', animation: 'shimmer 2s linear infinite' }} />}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 22 }}>{m.icon}</span>
-                  <div>
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: active ? '#c4b5fd' : 'var(--text-primary)' }}>{m.label}</p>
-                    <p style={{ margin: 0, fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{m.sub}</p>
-                  </div>
-                </div>
-                <span style={{
-                  fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
-                  background: `${m.badgeColor}18`, color: m.badgeColor, border: `1px solid ${m.badgeColor}30`,
-                }}>{m.badge}</span>
-              </div>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>{m.desc}</p>
-              {active && (
-                <div style={{ position: 'absolute', top: 12, right: 12, width: 8, height: 8, borderRadius: '50%', background: '#7c3aed', boxShadow: '0 0 8px #7c3aed' }} />
-              )}
-            </button>
-          )
-        })}
+      {/* ── Model info strip ────────────────────────────────────── */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px',
+        borderRadius: 12, background: 'rgba(124,58,237,0.06)', border: '1px solid rgba(124,58,237,0.15)',
+      }}>
+        <span style={{ fontSize: 16 }}>⚡</span>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#c4b5fd' }}>Llama 4 Scout</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>meta-llama/llama-4-scout-17b-16e-instruct</span>
+        </div>
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999,
+          background: 'rgba(34,197,94,0.12)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.25)',
+        }}>via Groq · gratuito</span>
       </div>
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: 'right', marginTop: -8 }}>
-        via <span style={{ color: '#a78bfa', fontWeight: 700 }}>Groq</span> · gratuito · sem custo de tokens
-      </p>
 
       {/* ── Dropzone ─────────────────────────────────────────────── */}
       <div style={{
