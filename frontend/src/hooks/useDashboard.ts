@@ -29,3 +29,12 @@ export function useBetTypeStats() {
 export function useGoals() {
   return useQuery(['goals'], () => dashboardService.getGoals())
 }
+
+// profileId = undefined → all, null → no profile, number → specific profile
+export function useProfileDetail(profileId: number | null | undefined, enabled: boolean) {
+  return useQuery(
+    ['stats', 'profile-detail', profileId],
+    () => dashboardService.getProfileDetail(profileId),
+    { enabled, keepPreviousData: true }
+  )
+}

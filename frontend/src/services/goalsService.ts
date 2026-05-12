@@ -1,15 +1,7 @@
 import { api } from './api'
+import { Goal, YearAnalytics, PeriodAnalytics } from '../types/dashboard.types'
 
-export interface Goal {
-  id: number
-  month: number
-  year: number
-  targetProfit: number
-  actualProfit: number
-  progressPct: number
-  achieved: boolean
-  isCurrentMonth: boolean
-}
+export type { Goal }
 
 export interface GoalInput {
   month: number
@@ -21,6 +13,12 @@ export interface GoalInput {
 export const goalsService = {
   list: () =>
     api.get<{ data: Goal[] }>('/api/goals').then((r) => r.data.data),
+
+  getYearAnalytics: (year: number) =>
+    api.get<{ data: YearAnalytics }>('/api/goals/analytics/year', { params: { year } }).then((r) => r.data.data),
+
+  getPeriodAnalytics: (dateFrom: string, dateTo: string) =>
+    api.get<{ data: PeriodAnalytics }>('/api/goals/analytics/period', { params: { dateFrom, dateTo } }).then((r) => r.data.data),
 
   create: (data: GoalInput) =>
     api.post<{ data: Goal }>('/api/goals', data).then((r) => r.data.data),

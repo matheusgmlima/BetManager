@@ -4,37 +4,219 @@ import { calculateProfit } from '../utils/calculations'
 import { daysRemainingInMonth } from '../utils/dateUtils'
 import { CreateGoalInput, UpdateGoalInput } from '../validators/goalSchema'
 
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+function calcBetStats(bets: any[]) {
+  const settled = bets.filter((b) => b.result !== 'pending')
+  const won     = settled.filter((b) => b.result === 'won').length
+  const lost    = settled.filter((b) => b.result === 'lost').length
+  const totalBets     = settled.length
+  const totalWagered  = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
+  const totalProfit   = settled.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+  const hitRatePct    = totalBets > 0 ? parseFloat(((won / totalBets) * 100).toFixed(1)) : null
+  const roi           = totalWagered > 0 ? parseFloat(((totalProfit / totalWagered) * 100).toFixed(2)) : null
+  return { totalBets, won, lost, totalWagered, totalProfit, hitRatePct, roi }
+}
+
+// ─── list goals ──────────────────────────────────────────────────────────────
+
 export async function listGoals() {
   const goals = await prisma.goal.findMany({ orderBy: [{ year: 'desc' }, { month: 'desc' }] })
-  const now = new Date()
+  const now   = new Date()
 
   return Promise.all(
     goals.map(async (goal) => {
       const from = new Date(goal.year, goal.month - 1, 1)
-      const to = new Date(goal.year, goal.month, 0, 23, 59, 59)
+      const to   = new Date(goal.year, goal.month, 0, 23, 59, 59)
+
       const bets = await prisma.bet.findMany({
-        where: { date: { gte: from, lte: to }, result: { not: 'pending' } },
+        where: { date: { gte: from, lte: to } },
+        include: { bettingProfile: true },
       })
-      const actualProfit = bets.reduce(
-        (s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0
-      )
+
+      const stats        = calcBetStats(bets)
       const targetProfit = Number(goal.targetProfit)
-      const progressPct = parseFloat(((actualProfit / targetProfit) * 100).toFixed(1))
-      const isCurrentMonth = goal.month === now.getMonth() + 1 && goal.year === now.getFullYear()
+      const progressPct  = targetProfit !== 0
+        ? parseFloat(((stats.totalProfit / targetProfit) * 100).toFixed(1))
+        : 0
+
+      const isCurrentMonth =
+        goal.month === now.getMonth() + 1 && goal.year === now.getFullYear()
+
+      // Per-profile breakdown
+      const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+      for (const b of bets.filter((b) => b.result !== 'pending')) {
+        const name = b.bettingProfile?.name ?? 'Sem perfil'
+        const id   = b.bettingProfileId ?? null
+        if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
+        profileMap.get(name)!.bets.push(b)
+      }
+      const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
+        const ps = calcBetStats(pb)
+        return { profile, profileId, ...ps }
+      })
 
       return {
         id: goal.id,
         month: goal.month,
         year: goal.year,
         targetProfit,
-        actualProfit: parseFloat(actualProfit.toFixed(2)),
+        actualProfit:     parseFloat(stats.totalProfit.toFixed(2)),
+        totalWagered:     parseFloat(stats.totalWagered.toFixed(2)),
+        totalBets:        stats.totalBets,
+        won:              stats.won,
+        lost:             stats.lost,
+        hitRatePct:       stats.hitRatePct,
+        roi:              stats.roi,
         progressPct,
-        achieved: actualProfit >= targetProfit,
+        achieved:         stats.totalProfit >= targetProfit,
         isCurrentMonth,
+        profileBreakdown,
       }
     })
   )
 }
+
+// ─── year analytics ───────────────────────────────────────────────────────────
+
+export async function getYearAnalytics(year: number) {
+  const from = new Date(year, 0, 1)
+  const to   = new Date(year, 11, 31, 23, 59, 59)
+
+  const [allBets, goals] = await Promise.all([
+    prisma.bet.findMany({
+      where: { date: { gte: from, lte: to } },
+      include: { bettingProfile: true },
+    }),
+    prisma.goal.findMany({ where: { year } }),
+  ])
+
+  // Build month-by-month data
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const m     = i + 1
+    const mBets = allBets.filter((b) => {
+      const d = new Date(b.date)
+      return d.getMonth() + 1 === m
+    })
+    const stats     = calcBetStats(mBets)
+    const goal      = goals.find((g) => g.month === m)
+    const targetPct = goal && goal.targetProfit
+      ? parseFloat(((stats.totalProfit / Number(goal.targetProfit)) * 100).toFixed(1))
+      : null
+
+    return {
+      month:        m,
+      totalBets:    stats.totalBets,
+      won:          stats.won,
+      lost:         stats.lost,
+      totalWagered: parseFloat(stats.totalWagered.toFixed(2)),
+      totalProfit:  parseFloat(stats.totalProfit.toFixed(2)),
+      hitRatePct:   stats.hitRatePct,
+      roi:          stats.roi,
+      targetProfit: goal ? Number(goal.targetProfit) : null,
+      goalId:       goal?.id ?? null,
+      achieved:     goal ? stats.totalProfit >= Number(goal.targetProfit) : null,
+      progressPct:  targetPct,
+    }
+  })
+
+  // Overall year stats
+  const yearStats   = calcBetStats(allBets)
+  const goalsSet    = goals.length
+  const goalsHit    = goals.filter((g) => {
+    const m     = g.month
+    const mBets = allBets.filter((b) => new Date(b.date).getMonth() + 1 === m)
+    const stats = calcBetStats(mBets)
+    return stats.totalProfit >= Number(g.targetProfit)
+  }).length
+
+  // Best / worst month by profit
+  const withBets  = months.filter((m) => m.totalBets > 0)
+  const bestMonth = withBets.length
+    ? withBets.reduce((a, b) => (b.totalProfit > a.totalProfit ? b : a))
+    : null
+  const worstMonth = withBets.length
+    ? withBets.reduce((a, b) => (b.totalProfit < a.totalProfit ? b : a))
+    : null
+
+  // Per-profile breakdown for the year
+  const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+  for (const b of allBets.filter((b) => b.result !== 'pending')) {
+    const name = b.bettingProfile?.name ?? 'Sem perfil'
+    const id   = b.bettingProfileId ?? null
+    if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
+    profileMap.get(name)!.bets.push(b)
+  }
+  const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
+    const ps = calcBetStats(pb)
+    return { profile, profileId, ...ps }
+  })
+
+  return {
+    year,
+    months,
+    summary: {
+      totalBets:    yearStats.totalBets,
+      won:          yearStats.won,
+      lost:         yearStats.lost,
+      totalWagered: parseFloat(yearStats.totalWagered.toFixed(2)),
+      totalProfit:  parseFloat(yearStats.totalProfit.toFixed(2)),
+      hitRatePct:   yearStats.hitRatePct,
+      roi:          yearStats.roi,
+      goalsSet,
+      goalsHit,
+      bestMonth:    bestMonth?.month ?? null,
+      bestProfit:   bestMonth?.totalProfit ?? null,
+      worstMonth:   worstMonth?.month ?? null,
+      worstProfit:  worstMonth?.totalProfit ?? null,
+    },
+    profileBreakdown,
+  }
+}
+
+// ─── period analytics (date range + profile breakdown) ───────────────────────
+
+export async function getPeriodAnalytics(dateFrom: string, dateTo: string) {
+  const from = new Date(dateFrom)
+  const to   = new Date(dateTo)
+  to.setHours(23, 59, 59)
+
+  const bets = await prisma.bet.findMany({
+    where: { date: { gte: from, lte: to } },
+    include: { bettingProfile: true },
+  })
+
+  const overall = calcBetStats(bets)
+
+  const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+  for (const b of bets.filter((b) => b.result !== 'pending')) {
+    const name = b.bettingProfile?.name ?? 'Sem perfil'
+    const id   = b.bettingProfileId ?? null
+    if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
+    profileMap.get(name)!.bets.push(b)
+  }
+  const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
+    const ps = calcBetStats(pb)
+    return { profile, profileId, ...ps }
+  })
+
+  return {
+    dateFrom,
+    dateTo,
+    summary: {
+      totalBets:    overall.totalBets,
+      won:          overall.won,
+      lost:         overall.lost,
+      totalWagered: parseFloat(overall.totalWagered.toFixed(2)),
+      totalProfit:  parseFloat(overall.totalProfit.toFixed(2)),
+      hitRatePct:   overall.hitRatePct,
+      roi:          overall.roi,
+    },
+    profileBreakdown,
+  }
+}
+
+// ─── CRUD ─────────────────────────────────────────────────────────────────────
 
 export async function createGoal(data: CreateGoalInput) {
   return prisma.goal.create({ data: { ...data, targetProfit: data.targetProfit } })

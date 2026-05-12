@@ -82,6 +82,7 @@ export interface ProfileStat {
   hitRatePct: number | null
   totalWagered: number
   totalProfit: number
+  roi?: number | null
 }
 
 export interface Goal {
@@ -90,7 +91,67 @@ export interface Goal {
   year: number
   targetProfit: number
   actualProfit: number
+  totalWagered: number
+  totalBets: number
+  won: number
+  lost: number
+  hitRatePct: number | null
+  roi: number | null
   progressPct: number
   achieved: boolean
   isCurrentMonth: boolean
+  profileBreakdown: ProfileStat[]
+}
+
+export interface MonthAnalytics {
+  month: number
+  totalBets: number
+  won: number
+  lost: number
+  totalWagered: number
+  totalProfit: number
+  hitRatePct: number | null
+  roi: number | null
+  targetProfit: number | null
+  goalId: number | null
+  achieved: boolean | null
+  progressPct: number | null
+}
+
+export interface YearAnalyticsSummary {
+  totalBets: number
+  won: number
+  lost: number
+  totalWagered: number
+  totalProfit: number
+  hitRatePct: number | null
+  roi: number | null
+  goalsSet: number
+  goalsHit: number
+  bestMonth: number | null
+  bestProfit: number | null
+  worstMonth: number | null
+  worstProfit: number | null
+}
+
+export interface YearAnalytics {
+  year: number
+  months: MonthAnalytics[]
+  summary: YearAnalyticsSummary
+  profileBreakdown: ProfileStat[]
+}
+
+export interface PeriodAnalytics {
+  dateFrom: string
+  dateTo: string
+  summary: {
+    totalBets: number
+    won: number
+    lost: number
+    totalWagered: number
+    totalProfit: number
+    hitRatePct: number | null
+    roi: number | null
+  }
+  profileBreakdown: ProfileStat[]
 }

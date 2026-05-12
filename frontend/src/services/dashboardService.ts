@@ -11,8 +11,13 @@ export const dashboardService = {
   getBookmakerStats: (dateFrom?: string, dateTo?: string) =>
     api.get<{ data: BookmakerStat[] }>('/api/stats/bookmakers', { params: { dateFrom, dateTo } }).then((r) => r.data.data),
 
-  getProfileStats: () =>
-    api.get<{ data: ProfileStat[] }>('/api/stats/profiles').then((r) => r.data.data),
+  getProfileStats: (dateFrom?: string, dateTo?: string) =>
+    api.get<{ data: ProfileStat[] }>('/api/stats/profiles', { params: { dateFrom, dateTo } }).then((r) => r.data.data),
+
+  getProfileDetail: (profileId: number | null | undefined) =>
+    api.get<{ data: any }>('/api/stats/profiles/detail', {
+      params: profileId === undefined ? {} : { profileId: profileId === null ? 'null' : profileId },
+    }).then((r) => r.data.data),
 
   getBetTypeStats: () =>
     api.get<{ data: BetTypeStat[]; recommendation: string }>('/api/stats/bet-types').then((r) => r.data),

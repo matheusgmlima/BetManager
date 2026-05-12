@@ -5,9 +5,7 @@ import { QueryClient, QueryClientProvider } from 'react-query'
 import { useMobile } from './hooks/useMobile'
 import { useFaviconSnake } from './hooks/useFaviconSnake'
 import Dashboard from './pages/Dashboard'
-import History from './pages/History'
 import NewBet from './pages/NewBet'
-import Statistics from './pages/Statistics'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Spreadsheet from './pages/Spreadsheet'
@@ -21,7 +19,7 @@ const queryClient = new QueryClient({
 const navItems = [
   { to: '/',              label: 'Dashboard',     icon: '▦' },
   { to: '/planilha',      label: 'Planilha',      icon: '⊞' },
-  { to: '/metas',         label: 'Metas',         icon: '◎' },
+  { to: '/estatisticas',  label: 'Estatísticas',  icon: '◎' },
   { to: '/configuracoes', label: 'Configurações', icon: '⚙' },
 ]
 
@@ -322,10 +320,8 @@ export default function App() {
         <Layout>
           <Routes>
             <Route path="/"              element={<Dashboard />} />
-            <Route path="/apostas"       element={<History />} />
             <Route path="/apostas/nova"  element={<NewBet />} />
-            <Route path="/estatisticas"  element={<Statistics />} />
-            <Route path="/metas"         element={<Goals />} />
+            <Route path="/estatisticas"  element={<Goals />} />
             <Route path="/planilha"      element={<Spreadsheet />} />
             <Route path="/configuracoes" element={<Settings />} />
           </Routes>

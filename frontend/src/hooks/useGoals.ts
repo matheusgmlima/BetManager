@@ -5,10 +5,26 @@ export function useGoals() {
   return useQuery(['goals'], () => goalsService.list())
 }
 
+export function useYearAnalytics(year: number) {
+  return useQuery(['goals', 'analytics', 'year', year], () => goalsService.getYearAnalytics(year), {
+    keepPreviousData: true,
+  })
+}
+
+export function usePeriodAnalytics(dateFrom: string | null, dateTo: string | null) {
+  return useQuery(
+    ['goals', 'analytics', 'period', dateFrom, dateTo],
+    () => goalsService.getPeriodAnalytics(dateFrom!, dateTo!),
+    { enabled: !!dateFrom && !!dateTo, keepPreviousData: true }
+  )
+}
+
 export function useCreateGoal() {
   const qc = useQueryClient()
   return useMutation(goalsService.create, {
-    onSuccess: () => qc.invalidateQueries(['goals']),
+    onSuccess: () => {
+      qc.invalidateQueries(['goals'])
+    },
   })
 }
 

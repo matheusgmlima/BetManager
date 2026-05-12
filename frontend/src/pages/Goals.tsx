@@ -1,677 +1,725 @@
 import { useState } from 'react'
-import { useMobile } from '../hooks/useMobile'
-import { useGoals, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
-import { Goal } from '../services/goalsService'
+import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
+import { useProfileDetail } from '../hooks/useDashboard'
+import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── constants ────────────────────────────────────────────────────────────────
 
-const MONTHS = [
-  'Janeiro','Fevereiro','Março','Abril','Maio','Junho',
-  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro',
-]
+const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+const MONTH_FULL  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
-const MONTHS_SHORT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
-
-function fmtBRL(n: number) {
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+function fmt(v: number | null | undefined) {
+  if (v == null) return '—'
+  const abs = Math.abs(v)
+  const str = abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  return `${v < 0 ? '-' : ''}R$ ${str}`
+}
+function fmtPct(v: number | null | undefined) {
+  if (v == null) return '—'
+  return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
+}
+function clr(v: number | null | undefined) {
+  if (v == null) return 'var(--text-muted)'
+  return v > 0 ? 'var(--green)' : v < 0 ? 'var(--red)' : 'var(--text-muted)'
+}
+function fmtDate(iso: string) {
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
 }
 
-const now = new Date()
+// ─── sub-components ───────────────────────────────────────────────────────────
 
-// ─── Design helpers ───────────────────────────────────────────────────────────
-
-const inp: React.CSSProperties = {
-  width: '100%', background: 'var(--bg-primary)',
-  border: '1px solid var(--border)', borderRadius: 10,
-  padding: '10px 14px', color: 'var(--text-primary)',
-  fontSize: 14, outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s', fontFamily: 'inherit',
-}
-
-const focus = (e: React.FocusEvent<any>) => {
-  e.target.style.borderColor = '#7c3aed'
-  e.target.style.boxShadow   = '0 0 0 3px rgba(124,58,237,0.12)'
-}
-const blur = (e: React.FocusEvent<any>) => {
-  e.target.style.borderColor = 'var(--border)'
-  e.target.style.boxShadow   = 'none'
-}
-
-// ─── Utils ────────────────────────────────────────────────────────────────────
-
-function daysInMonth(month: number, year: number) {
-  return new Date(year, month, 0).getDate()
-}
-
-function getPace(goal: Goal) {
-  const total     = daysInMonth(goal.month, goal.year)
-  const elapsed   = Math.min(now.getDate(), total)
-  const remaining = total - elapsed
-  const dailyAvg  = elapsed > 0 ? goal.actualProfit / elapsed : 0
-  const projected = dailyAvg * total
-  const onTrack   = projected >= goal.targetProfit
-  return { total, elapsed, remaining, dailyAvg, projected, onTrack }
-}
-
-function computeStreak(goals: Goal[]): number {
-  const past = [...goals]
-    .filter(g => !g.isCurrentMonth)
-    .sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
-  let streak = 0
-  for (const g of past) {
-    if (g.achieved) streak++
-    else break
-  }
-  return streak
-}
-
-function statusOf(goal: Goal): { label: string; color: string } {
-  const isFuture = goal.year > now.getFullYear() ||
-    (goal.year === now.getFullYear() && goal.month > now.getMonth() + 1)
-  if (goal.achieved)         return { label: 'Alcançada',     color: '#22c55e' }
-  if (isFuture)              return { label: 'Agendada',       color: '#64748b' }
-  if (goal.isCurrentMonth)   return { label: 'Em progresso',  color: '#a78bfa' }
-  return                            { label: 'Não alcançada', color: '#ef4444' }
-}
-
-// ─── Progress Ring ────────────────────────────────────────────────────────────
-
-function ProgressRing({
-  pct, achieved, size = 80, stroke = 7,
-}: { pct: number; achieved: boolean; size?: number; stroke?: number }) {
-  const r    = (size - stroke * 2) / 2
-  const circ = 2 * Math.PI * r
-  const pctC = Math.min(Math.max(pct, 0), 100)
-  const dash = (pctC / 100) * circ
-  const cx   = size / 2
-  const cy   = size / 2
-  const color = achieved ? '#22c55e' : pct >= 80 ? '#a78bfa' : pct >= 50 ? '#eab308' : '#ef4444'
-
+function ProgressRing({ pct, size = 72, stroke = 6, color = '#7c3aed' }: {
+  pct: number; size?: number; stroke?: number; color?: string
+}) {
+  const r   = (size - stroke) / 2
+  const c   = 2 * Math.PI * r
+  const off = c - (Math.min(Math.max(pct, 0), 100) / 100) * c
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} />
-      <circle
-        cx={cx} cy={cy} r={r} fill="none"
-        stroke={color} strokeWidth={stroke}
-        strokeDasharray={`${dash} ${circ - dash}`}
-        strokeLinecap="round"
-        transform={`rotate(-90 ${cx} ${cy})`}
-        style={{ transition: 'stroke-dasharray 0.9s cubic-bezier(0.4,0,0.2,1)' }}
-      />
-      <text x={cx} y={cy + 5} textAnchor="middle" fill={color}
-        fontSize={size < 80 ? 11 : 13} fontWeight={800} fontFamily="inherit">
-        {pct > 999 ? '>999' : `${Math.round(pctC)}%`}
-      </text>
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+        strokeDasharray={c} strokeDashoffset={off}
+        style={{ transition: 'stroke-dashoffset 0.6s ease', strokeLinecap: 'round' }} />
     </svg>
   )
 }
 
-// ─── Thin progress bar ────────────────────────────────────────────────────────
-
-function ProgressBar({ pct, achieved }: { pct: number; achieved: boolean }) {
-  return (
-    <div style={{ height: 4, borderRadius: 999, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-      <div style={{
-        height: '100%',
-        width: `${Math.min(Math.max(pct, 0), 100)}%`,
-        background: achieved ? '#22c55e' : 'linear-gradient(to right, #6d28d9, #a78bfa)',
-        borderRadius: 999,
-        transition: 'width 0.9s cubic-bezier(0.4,0,0.2,1)',
-      }} />
-    </div>
-  )
-}
-
-// ─── Hero Card (current month) ────────────────────────────────────────────────
-
-function HeroGoalCard({ goal, onEdit }: { goal: Goal; onEdit: (g: Goal) => void }) {
-  const pace   = getPace(goal)
-  const status = statusOf(goal)
-
-  const paceColor  = goal.achieved ? '#22c55e' : pace.onTrack ? '#22c55e' : '#ef4444'
-  const paceLabel  = goal.achieved
-    ? 'Meta atingida'
-    : pace.onTrack
-    ? `No ritmo — projeção R$ ${fmtBRL(pace.projected)}`
-    : `Abaixo do ritmo — projeção R$ ${fmtBRL(pace.projected)}`
-
+function Kpi({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
   return (
     <div style={{
-      background: 'var(--bg-card)',
-      border: '1px solid #2d1f5e',
-      borderRadius: 20,
-      padding: '28px 32px',
-      marginBottom: 28,
-      boxShadow: '0 0 48px rgba(124,58,237,0.12)',
-      position: 'relative',
-      overflow: 'hidden',
+      background: 'var(--bg-card)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '12px 18px', minWidth: 110,
     }}>
-      {/* Subtle glow orb */}
-      <div style={{
-        position: 'absolute', top: -40, right: -40,
-        width: 200, height: 200, borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-
-      {/* Top accent line */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-        background: 'linear-gradient(to right, #6d28d9, #a78bfa, transparent)',
-        borderRadius: '20px 20px 0 0',
-      }} />
-
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 28, flexWrap: 'wrap' }}>
-
-        {/* Ring */}
-        <ProgressRing pct={goal.progressPct} achieved={goal.achieved} size={100} stroke={8} />
-
-        {/* Details */}
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-            <h2 style={{ margin: 0, fontSize: 22, fontWeight: 900, color: 'var(--text-primary)' }}>
-              {MONTHS[goal.month - 1]} {goal.year}
-            </h2>
-            <span style={{
-              padding: '2px 10px', borderRadius: 999, fontSize: 10, fontWeight: 800,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              background: 'rgba(124,58,237,0.18)', color: '#a78bfa',
-              border: '1px solid rgba(124,58,237,0.3)',
-            }}>
-              Mês atual
-            </span>
-          </div>
-
-          <p style={{ margin: '0 0 16px', fontSize: 13, color: 'var(--text-muted)' }}>
-            {pace.remaining > 0 ? `${pace.remaining} dias restantes` : 'Último dia do mês'} ·{' '}
-            Média diária: <span style={{ color: 'var(--text-secondary)' }}>R$ {fmtBRL(pace.dailyAvg)}</span>
-          </p>
-
-          {/* Stats row */}
-          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 16 }}>
-            {[
-              { label: 'Meta',      value: `R$ ${fmtBRL(goal.targetProfit)}`,                           color: 'var(--text-secondary)' },
-              { label: 'Realizado', value: `${goal.actualProfit >= 0 ? '+' : ''}R$ ${fmtBRL(goal.actualProfit)}`, color: goal.actualProfit >= 0 ? '#22c55e' : '#ef4444' },
-              { label: 'Faltam',    value: goal.achieved ? 'Concluído' : `R$ ${fmtBRL(Math.max(0, goal.targetProfit - goal.actualProfit))}`, color: goal.achieved ? '#22c55e' : '#a78bfa' },
-            ].map(s => (
-              <div key={s.label}>
-                <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{s.label}</p>
-                <p style={{ margin: '3px 0 0', fontSize: 16, fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-
-          <ProgressBar pct={goal.progressPct} achieved={goal.achieved} />
-
-          {/* Pace indicator */}
-          <div style={{
-            marginTop: 12, display: 'flex', alignItems: 'center', gap: 8,
-          }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: paceColor, flexShrink: 0 }} />
-            <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)' }}>
-              <span style={{ color: paceColor, fontWeight: 600 }}>{paceLabel}</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Edit */}
-        <button
-          onClick={() => onEdit(goal)}
-          style={{
-            padding: '8px 18px', borderRadius: 10,
-            border: '1px solid var(--border)', background: 'transparent',
-            color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
-            cursor: 'pointer', flexShrink: 0, alignSelf: 'flex-start',
-            transition: 'border-color 0.15s, color 0.15s',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#5b21b6'; e.currentTarget.style.color = '#a78bfa' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-        >
-          Editar
-        </button>
-      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
+      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</p>
+      {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</p>}
     </div>
   )
 }
 
-// ─── Goal Card ────────────────────────────────────────────────────────────────
+// ─── Goal form modal ───────────────────────────────────────────────────────────
 
-function GoalCard({ goal, onEdit }: { goal: Goal; onEdit: (g: Goal) => void }) {
-  const deleteGoal = useDeleteGoal()
-  const [confirming, setConfirming] = useState(false)
-  const status = statusOf(goal)
-
-  const handleDelete = async () => {
-    if (!confirming) { setConfirming(true); return }
-    await deleteGoal.mutateAsync(goal.id)
-    setConfirming(false)
-  }
-
-  return (
-    <div
-      style={{
-        background: 'var(--bg-card)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: '20px', position: 'relative', overflow: 'hidden',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.borderColor = '#3d1f8e'
-        e.currentTarget.style.boxShadow   = '0 0 24px rgba(124,58,237,0.1)'
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.borderColor = 'var(--border)'
-        e.currentTarget.style.boxShadow   = 'none'
-      }}
-    >
-      {/* Left accent bar */}
-      <div style={{
-        position: 'absolute', left: 0, top: 16, bottom: 16,
-        width: 3, borderRadius: '0 3px 3px 0',
-        background: status.color,
-        opacity: 0.7,
-      }} />
-
-      <div style={{ paddingLeft: 12 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-          <div>
-            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
-              {MONTHS_SHORT[goal.month - 1]} {goal.year}
-            </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 4 }}>
-              <div style={{ width: 5, height: 5, borderRadius: '50%', background: status.color }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: status.color }}>{status.label}</span>
-            </div>
-          </div>
-          <ProgressRing pct={goal.progressPct} achieved={goal.achieved} size={60} stroke={5} />
-        </div>
-
-        {/* Stats */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
-          {[
-            { label: 'Meta',      value: `R$ ${fmtBRL(goal.targetProfit)}` },
-            { label: 'Realizado', value: `${goal.actualProfit >= 0 ? '+' : ''}R$ ${fmtBRL(goal.actualProfit)}`, valueColor: goal.actualProfit >= 0 ? '#22c55e' : '#ef4444' },
-          ].map(s => (
-            <div key={s.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.label}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: (s as any).valueColor ?? 'var(--text-secondary)' }}>{s.value}</span>
-            </div>
-          ))}
-        </div>
-
-        <ProgressBar pct={goal.progressPct} achieved={goal.achieved} />
-
-        {/* Actions */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-          <button
-            onClick={() => onEdit(goal)}
-            style={{
-              flex: 1, padding: '7px 0', borderRadius: 8,
-              border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              transition: 'border-color 0.15s, color 0.15s',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#5b21b6'; e.currentTarget.style.color = '#a78bfa' }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-          >
-            Editar
-          </button>
-          <button
-            onClick={handleDelete}
-            disabled={deleteGoal.isLoading}
-            onBlur={() => setConfirming(false)}
-            style={{
-              flex: 1, padding: '7px 0', borderRadius: 8,
-              border: `1px solid ${confirming ? 'rgba(239,68,68,0.4)' : 'var(--border)'}`,
-              background: confirming ? 'rgba(239,68,68,0.08)' : 'transparent',
-              color: confirming ? '#ef4444' : 'var(--text-secondary)',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              transition: 'all 0.15s',
-            }}
-          >
-            {confirming ? 'Confirmar?' : 'Excluir'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Summary Stats ────────────────────────────────────────────────────────────
-
-function SummaryStats({ goals }: { goals: Goal[] }) {
-  const total    = goals.length
-  const achieved = goals.filter(g => g.achieved).length
-  const rate     = total > 0 ? Math.round((achieved / total) * 100) : null
-  const streak   = computeStreak(goals)
-  const current  = goals.find(g => g.isCurrentMonth)
-
-  const stats = [
-    { label: 'Metas criadas',    value: String(total),           color: '#8b5cf6' },
-    { label: 'Alcançadas',       value: String(achieved),        color: '#22c55e' },
-    { label: 'Taxa de sucesso',  value: rate !== null ? `${rate}%` : '—', color: '#a78bfa' },
-    { label: 'Sequência atual',  value: streak > 0 ? `${streak} ${streak === 1 ? 'mês' : 'meses'}` : '—', color: streak >= 3 ? '#22c55e' : streak >= 1 ? '#eab308' : 'var(--text-muted)' },
-  ]
-
-  if (current && !current.achieved) {
-    // Replace last stat with current month progress
-    const pace = getPace(current)
-    stats[3] = {
-      label: 'Ritmo atual',
-      value: pace.onTrack ? 'No ritmo' : 'Abaixo',
-      color: pace.onTrack ? '#22c55e' : '#ef4444',
-    }
-  }
-
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12, marginBottom: 28 }}>
-      {stats.map(s => (
-        <div key={s.label} style={{
-          padding: '16px 18px', borderRadius: 14,
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-        }}>
-          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-            {s.label}
-          </p>
-          <p style={{ margin: '5px 0 0', fontSize: 22, fontWeight: 900, color: s.color, lineHeight: 1 }}>
-            {s.value}
-          </p>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ─── Goal Form ────────────────────────────────────────────────────────────────
-
-interface GoalFormProps {
-  initial?: Goal | null
+function GoalModal({ editing, onClose }: {
+  editing: { month: number; year: number; id?: number; target?: number }
   onClose: () => void
-}
+}) {
+  const create = useCreateGoal()
+  const update = useUpdateGoal()
+  const [target, setTarget] = useState(String(editing.target ?? ''))
 
-function GoalForm({ initial, onClose }: GoalFormProps) {
-  const createGoal = useCreateGoal()
-  const updateGoal = useUpdateGoal()
-
-  const [month,  setMonth]  = useState<number>(initial?.month  ?? now.getMonth() + 1)
-  const [year,   setYear]   = useState<number>(initial?.year   ?? now.getFullYear())
-  const [target, setTarget] = useState<string>(initial?.targetProfit ? String(initial.targetProfit) : '')
-  const [notes,  setNotes]  = useState('')
-  const [error,  setError]  = useState('')
-
-  const yearOpts = Array.from({ length: 5 }, (_, i) => now.getFullYear() + i - 1)
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const save = () => {
     const t = parseFloat(target)
-    if (!t || t <= 0) { setError('Meta deve ser maior que zero'); return }
-    setError('')
-    try {
-      if (initial) {
-        await updateGoal.mutateAsync({ id: initial.id, data: { month, year, targetProfit: t } })
-      } else {
-        await createGoal.mutateAsync({ month, year, targetProfit: t, notes: notes || null })
-      }
-      onClose()
-    } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Erro ao salvar meta')
+    if (isNaN(t) || t <= 0) return
+    if (editing.id) {
+      update.mutate({ id: editing.id, data: { targetProfit: t } }, { onSuccess: onClose })
+    } else {
+      create.mutate({ month: editing.month, year: editing.year, targetProfit: t }, { onSuccess: onClose })
     }
   }
 
-  const isLoading = createGoal.isLoading || updateGoal.isLoading
+  return (
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 100,
+      background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: 32, minWidth: 320,
+      }}>
+        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 }}>
+          {editing.id ? 'Editar meta' : 'Nova meta'} — {MONTH_FULL[editing.month - 1]} {editing.year}
+        </h3>
+        <label style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Meta de lucro (R$)</label>
+        <input
+          type="number" value={target} onChange={e => setTarget(e.target.value)}
+          placeholder="ex: 500"
+          onKeyDown={e => e.key === 'Enter' && save()}
+          style={{
+            width: '100%', marginTop: 6, marginBottom: 20,
+            background: 'var(--bg-card)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 14px', color: 'var(--text-primary)',
+            fontSize: 15, outline: 'none',
+          }}
+          autoFocus
+        />
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={btnGhost}>Cancelar</button>
+          <button onClick={save} disabled={create.isLoading || update.isLoading} style={btnPrimary}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Calendar month cell ───────────────────────────────────────────────────────
+
+function MonthCell({ m, selectedMonth, onSelect, onNewGoal }: {
+  m: MonthAnalytics
+  selectedMonth: number | null
+  onSelect: (month: number) => void
+  onNewGoal: (month: number) => void
+}) {
+  const now    = new Date()
+  const isCurr = m.month === now.getMonth() + 1
+  const isFut  = m.month > now.getMonth() + 1
+  const isSel  = selectedMonth === m.month
+  const hasGoal = m.goalId !== null
+  const hasBets = m.totalBets > 0
+
+  const borderColor = isSel
+    ? 'var(--purple-500)'
+    : isCurr ? 'var(--purple-700)'
+    : m.achieved === true ? 'var(--green)'
+    : m.achieved === false && hasBets ? 'var(--red)'
+    : 'var(--border)'
 
   return (
     <div
+      onClick={() => (hasBets || hasGoal) ? onSelect(m.month) : undefined}
       style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
-        padding: 16,
+        background: isSel ? 'rgba(109,40,217,0.15)' : 'var(--bg-card)',
+        border: `1.5px solid ${borderColor}`,
+        borderRadius: 12, padding: '12px 14px',
+        cursor: (hasBets || hasGoal) ? 'pointer' : 'default',
+        transition: 'all 0.15s',
+        opacity: isFut && !hasGoal ? 0.45 : 1,
+        position: 'relative', minHeight: 100,
       }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{
-        background: 'var(--bg-card)', border: '1px solid #2d1f5e',
-        borderRadius: 20, padding: '28px', width: '100%', maxWidth: 420,
-        boxShadow: '0 0 60px rgba(124,58,237,0.18)',
-        animation: 'scaleIn 0.2s cubic-bezier(0.16,1,0.3,1)',
-      }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: 'var(--text-primary)' }}>
-              {initial ? 'Editar meta' : 'Nova meta'}
-            </h2>
-            <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-              Defina seu objetivo de lucro mensal
-            </p>
-          </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: isCurr ? 'var(--purple-400)' : 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+          {MONTH_NAMES[m.month - 1]}
+        </span>
+        {!hasGoal && (
           <button
-            onClick={onClose}
+            onClick={e => { e.stopPropagation(); onNewGoal(m.month) }}
+            title="Adicionar meta"
             style={{
-              width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)',
-              background: 'transparent', color: 'var(--text-muted)', fontSize: 18,
+              width: 18, height: 18, borderRadius: '50%',
+              border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-muted)', fontSize: 13, lineHeight: 1,
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-          >
-            ×
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Mês</label>
-              <select value={month} onChange={e => setMonth(Number(e.target.value))} onFocus={focus} onBlur={blur} style={inp}>
-                {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Ano</label>
-              <select value={year} onChange={e => setYear(Number(e.target.value))} onFocus={focus} onBlur={blur} style={inp}>
-                {yearOpts.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Meta de lucro (R$)</label>
-            <input
-              type="number" min="0.01" step="0.01" value={target}
-              onChange={e => setTarget(e.target.value)}
-              onFocus={focus} onBlur={blur}
-              placeholder="0,00"
-              style={{ ...inp, borderColor: error ? '#ef4444' : 'var(--border)' }}
-            />
-            {error && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>{error}</p>}
-          </div>
-
-          {!initial && (
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Observações <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
-              <textarea
-                value={notes} rows={2} placeholder="Estratégia, observações…"
-                onChange={e => setNotes(e.target.value)}
-                onFocus={focus as any} onBlur={blur as any}
-                style={{ ...inp, resize: 'vertical' }}
-              />
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <button
-              type="button" onClick={onClose}
-              style={{
-                flex: 1, padding: '11px', borderRadius: 10, border: '1px solid var(--border)',
-                background: 'transparent', color: 'var(--text-secondary)', fontSize: 14, fontWeight: 600, cursor: 'pointer',
-              }}
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit" disabled={isLoading}
-              style={{
-                flex: 2, padding: '11px', borderRadius: 10, border: 'none',
-                background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
-                color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-                boxShadow: '0 0 20px rgba(124,58,237,0.25)',
-                opacity: isLoading ? 0.7 : 1,
-              }}
-            >
-              {isLoading ? 'Salvando…' : initial ? 'Salvar alterações' : 'Criar meta'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-// ─── Empty State ──────────────────────────────────────────────────────────────
-
-function EmptyGoals({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: 320, gap: 16, textAlign: 'center',
-    }}>
-      <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="24" cy="24" r="23" stroke="#2d1f5e" strokeWidth="2" />
-        <circle cx="24" cy="24" r="15" stroke="#3d1f8e" strokeWidth="1.5" />
-        <circle cx="24" cy="24" r="6"  fill="#6d28d9" opacity="0.6" />
-        <line x1="24" y1="1" x2="24" y2="10" stroke="#4c1d95" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="24" y1="38" x2="24" y2="47" stroke="#4c1d95" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="1" y1="24" x2="10" y2="24" stroke="#4c1d95" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="38" y1="24" x2="47" y2="24" stroke="#4c1d95" strokeWidth="1.5" strokeLinecap="round" />
-      </svg>
-      <div>
-        <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: 'var(--text-primary)' }}>Nenhuma meta definida</p>
-        <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>Crie sua primeira meta mensal de lucro</p>
-      </div>
-      <button
-        onClick={onAdd}
-        style={{
-          padding: '12px 28px', borderRadius: 12, border: 'none',
-          background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
-          color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-          boxShadow: '0 0 20px rgba(124,58,237,0.25)',
-        }}
-      >
-        Criar primeira meta
-      </button>
-    </div>
-  )
-}
-
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-
-function SkeletonCard() {
-  return (
-    <div style={{
-      height: 200, borderRadius: 16, background: 'var(--bg-card)',
-      border: '1px solid var(--border)',
-      animation: 'pulse 1.5s ease infinite',
-    }} />
-  )
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function Goals() {
-  const isMobile = useMobile()
-  const { data: goals = [], isLoading } = useGoals()
-  const [showForm, setShowForm] = useState(false)
-  const [editing, setEditing]   = useState<Goal | null>(null)
-
-  const openAdd   = () => { setEditing(null);  setShowForm(true) }
-  const openEdit  = (g: Goal) => { setEditing(g); setShowForm(true) }
-  const closeForm = () => { setShowForm(false); setEditing(null)  }
-
-  const currentGoal = goals.find(g => g.isCurrentMonth) ?? null
-  const otherGoals  = [...goals]
-    .filter(g => !g.isCurrentMonth)
-    .sort((a, b) => b.year !== a.year ? b.year - a.year : b.month - a.month)
-
-  return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 32px' : '36px 40px' }}>
-
-      {/* Header */}
-      <div style={{
-        display: 'flex', alignItems: 'flex-start',
-        justifyContent: 'space-between', gap: 16,
-        marginBottom: 32, flexWrap: 'wrap',
-      }}>
-        <div>
-          <h1 style={{
-            margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 900,
-            background: 'linear-gradient(135deg, var(--purple-400), var(--purple-300))',
-            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-          }}>
-            Metas
-          </h1>
-          <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
-            Objetivos mensais de lucro e disciplina
-          </p>
-        </div>
-        <button
-          onClick={openAdd}
-          style={{
-            padding: '10px 20px', borderRadius: 12, border: 'none',
-            background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
-            color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-            boxShadow: '0 0 20px rgba(124,58,237,0.25)',
-            transition: 'transform 0.15s, box-shadow 0.15s',
-            flexShrink: 0,
-          }}
-          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 0 28px rgba(124,58,237,0.4)' }}
-          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 20px rgba(124,58,237,0.25)' }}
-        >
-          Nova meta
-        </button>
+          >+</button>
+        )}
       </div>
 
-      {isLoading ? (
-        <>
-          <div style={{ height: 180, borderRadius: 20, background: 'var(--bg-card)', border: '1px solid var(--border)', marginBottom: 28, animation: 'pulse 1.5s ease infinite' }} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 28 }}>
-            {[1,2,3,4].map(i => <SkeletonCard key={i} />)}
-          </div>
-        </>
-      ) : goals.length === 0 ? (
-        <EmptyGoals onAdd={openAdd} />
+      {hasBets ? (
+        <p style={{ fontSize: 15, fontWeight: 700, color: clr(m.totalProfit), marginBottom: 2 }}>
+          {fmt(m.totalProfit)}
+        </p>
       ) : (
-        <>
-          {/* Summary stats always shown */}
-          <SummaryStats goals={goals} />
-
-          {/* Current month hero */}
-          {currentGoal && <HeroGoalCard goal={currentGoal} onEdit={openEdit} />}
-
-          {/* Past/future goals grid */}
-          {otherGoals.length > 0 && (
-            <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                  Histórico
-                </p>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: 14,
-              }}>
-                {otherGoals.map(g => (
-                  <GoalCard key={g.id} goal={g} onEdit={openEdit} />
-                ))}
-              </div>
-            </>
-          )}
-        </>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem apostas</p>
       )}
 
-      {showForm && <GoalForm initial={editing} onClose={closeForm} />}
+      {hasGoal && m.targetProfit !== null && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>
+            <span>{fmt(m.targetProfit)}</span>
+            <span>{m.progressPct != null ? `${Math.min(m.progressPct, 100).toFixed(0)}%` : '—'}</span>
+          </div>
+          <div style={{ height: 3, background: 'var(--border)', borderRadius: 2 }}>
+            <div style={{
+              height: '100%', borderRadius: 2,
+              width: `${Math.min(Math.max(m.progressPct ?? 0, 0), 100)}%`,
+              background: m.achieved ? 'var(--green)' : 'var(--purple-500)',
+              transition: 'width 0.5s ease',
+            }} />
+          </div>
+        </div>
+      )}
 
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
+      {m.roi !== null && hasBets && (
+        <span style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 10, color: clr(m.roi), fontWeight: 600 }}>
+          {m.roi > 0 ? '+' : ''}{m.roi}%
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ─── Goal detail (month selected) ─────────────────────────────────────────────
+
+function GoalDetail({ month, year, goals, monthData, onEdit, onDelete }: {
+  month: number; year: number
+  goals: Goal[]
+  monthData: MonthAnalytics | undefined
+  onEdit: (g: Goal) => void
+  onDelete: (id: number) => void
+}) {
+  const goal = goals.find(g => g.month === month && g.year === year)
+  if (!goal && !monthData?.totalBets) return null
+  const pct  = goal?.progressPct ?? 0
+  const ring = Math.min(Math.max(pct, 0), 100)
+
+  return (
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--purple-700)', borderRadius: 16, padding: 24, marginTop: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{MONTH_FULL[month - 1]} {year}</h3>
+        {goal && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onEdit(goal)} style={btnGhost}>✏ Editar meta</button>
+            <button onClick={() => onDelete(goal.id)} style={{ ...btnGhost, borderColor: 'var(--red)', color: 'var(--red)' }}>🗑</button>
+          </div>
+        )}
+      </div>
+
+      {goal && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20 }}>
+          <div style={{ position: 'relative', width: 72, height: 72, flexShrink: 0 }}>
+            <ProgressRing pct={ring} size={72} color={goal.achieved ? 'var(--green)' : '#7c3aed'} />
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: goal.achieved ? 'var(--green)' : 'var(--purple-400)' }}>
+              {Math.round(ring)}%
+            </span>
+          </div>
+          <div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Meta de lucro</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(goal.targetProfit)}</p>
+            {goal.achieved
+              ? <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>✓ Atingida</span>
+              : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Faltam {fmt(goal.targetProfit - goal.actualProfit)}</span>
+            }
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
+        <Kpi label="Lucro real" value={fmt(goal?.actualProfit ?? monthData?.totalProfit)} color={clr(goal?.actualProfit ?? monthData?.totalProfit)} />
+        <Kpi label="Apostado" value={fmt(goal?.totalWagered ?? monthData?.totalWagered)} />
+        <Kpi label="Apostas" value={String(goal?.totalBets ?? monthData?.totalBets ?? 0)} />
+        <Kpi label="Taxa" value={goal?.hitRatePct != null ? `${goal.hitRatePct}%` : monthData?.hitRatePct != null ? `${monthData.hitRatePct}%` : '—'} />
+        <Kpi label="ROI" value={fmtPct(goal?.roi ?? monthData?.roi)} color={clr(goal?.roi ?? monthData?.roi)} />
+      </div>
+
+      {goal?.profileBreakdown && goal.profileBreakdown.length > 0 && (
+        <>
+          <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>Por perfil</p>
+          <ProfileTableSimple profiles={goal.profileBreakdown} onSelect={() => {}} />
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Profile detail panel ──────────────────────────────────────────────────────
+
+function ProfileDetailPanel({ profileId, profileName, onClose }: {
+  profileId: number | null
+  profileName: string
+  onClose: () => void
+}) {
+  const { data, isLoading } = useProfileDetail(profileId, true)
+
+  return (
+    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--purple-700)', borderRadius: 16, padding: 24, marginTop: 8 }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <div>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Perfil</p>
+          <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{profileName}</h3>
+        </div>
+        <button onClick={onClose} style={{ ...btnGhost, padding: '6px 14px' }}>✕ Fechar</button>
+      </div>
+
+      {isLoading && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando análise…</p>}
+
+      {data && !isLoading && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+
+          {/* Top-line KPIs */}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <Kpi label="Apostas" value={String(data.totalBets)} />
+            <Kpi label="Vitórias" value={String(data.won)} color="var(--green)" />
+            <Kpi label="Derrotas" value={String(data.lost)} color="var(--red)" />
+            {data.avgOddsWon && <Kpi label="Odd média (ganhas)" value={String(data.avgOddsWon)} color="var(--green)" />}
+            {data.avgOddsLost && <Kpi label="Odd média (perdidas)" value={String(data.avgOddsLost)} color="var(--red)" />}
+          </div>
+
+          {/* Sweet spot recommendation */}
+          {data.sweetSpot && (
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(109,40,217,0.15), rgba(124,58,237,0.08))',
+              border: '1px solid var(--purple-700)',
+              borderRadius: 12, padding: '14px 18px',
+              display: 'flex', alignItems: 'center', gap: 14,
+            }}>
+              <span style={{ fontSize: 28 }}>💡</span>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>Zona sweet spot</p>
+                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Suas apostas em odds <strong style={{ color: 'var(--purple-400)' }}>{data.sweetSpot.label}</strong> têm o melhor retorno:{' '}
+                  ROI <strong style={{ color: clr(data.sweetSpot.roi) }}>{fmtPct(data.sweetSpot.roi)}</strong>
+                  {data.sweetSpot.hitRatePct != null && ` · Taxa ${data.sweetSpot.hitRatePct}%`}
+                  {` · ${data.sweetSpot.total} apostas`}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Odds distribution */}
+          {data.oddsRanges.length > 0 && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Distribuição por faixa de odds</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {data.oddsRanges.map((r: any) => {
+                  const maxTotal = Math.max(...data.oddsRanges.map((x: any) => x.total))
+                  const barWidth = maxTotal > 0 ? (r.total / maxTotal) * 100 : 0
+                  const winWidth = r.total > 0 ? (r.won / r.total) * barWidth : 0
+                  return (
+                    <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 90px 70px', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right' }}>
+                        {r.emoji} {r.label}
+                      </span>
+                      <div style={{ height: 12, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
+                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${barWidth}%`, background: 'rgba(109,40,217,0.25)', borderRadius: 6 }} />
+                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${winWidth}%`, background: 'var(--green)', borderRadius: 6, opacity: 0.8 }} />
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                        {r.won}W / {r.lost}L ({r.total})
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: r.roi != null ? clr(r.roi) : 'var(--text-muted)' }}>
+                        {r.hitRatePct != null ? `${r.hitRatePct}%` : '—'}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--green)', display: 'inline-block' }} /> Vitórias
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(109,40,217,0.4)', display: 'inline-block' }} /> Total
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Simple vs Combined */}
+          {data.simpleVsCombined && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Simples vs Combinadas</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {([['simple', 'Simples', '🎯'], ['combined', 'Combinadas', '🎲']] as const).map(([key, label, emoji]) => {
+                  const s = data.simpleVsCombined[key]
+                  if (!s.total) return (
+                    <div key={key} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, opacity: 0.4 }}>
+                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{emoji} {label}</p>
+                      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Sem dados</p>
+                    </div>
+                  )
+                  const isBetter = key === 'simple'
+                    ? (data.simpleVsCombined.simple.roi ?? -Infinity) >= (data.simpleVsCombined.combined.roi ?? -Infinity)
+                    : (data.simpleVsCombined.combined.roi ?? -Infinity) > (data.simpleVsCombined.simple.roi ?? -Infinity)
+                  return (
+                    <div key={key} style={{
+                      background: 'var(--bg-card)',
+                      border: `1px solid ${isBetter ? 'var(--purple-700)' : 'var(--border)'}`,
+                      borderRadius: 12, padding: 16, position: 'relative',
+                    }}>
+                      {isBetter && (
+                        <span style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: 'var(--purple-400)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>✓ Melhor</span>
+                      )}
+                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>{emoji} {label}</p>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <div>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Apostas</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{s.total}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{s.hitRatePct != null ? `${s.hitRatePct}%` : '—'}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lucro</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: clr(s.totalProfit) }}>{fmt(s.totalProfit)}</p>
+                        </div>
+                        <div>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>ROI</p>
+                          <p style={{ fontSize: 15, fontWeight: 700, color: clr(s.roi) }}>{fmtPct(s.roi)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Bingos */}
+          {data.bingos && data.bingos.total > 0 && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Bingos (odd ≥ 3.0)</p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                <Kpi label="🎯 Apostas" value={String(data.bingos.total)} />
+                <Kpi label="✅ Ganhos" value={String(data.bingos.won)} color="var(--green)" />
+                <Kpi label="Taxa de bingo" value={data.bingos.hitRatePct != null ? `${data.bingos.hitRatePct}%` : '—'} />
+                {data.bingos.biggestOdds && <Kpi label="Maior odd ganha" value={`@${data.bingos.biggestOdds}`} color="var(--purple-400)" />}
+                {data.bingos.super.total > 0 && (
+                  <Kpi label="🔥 Super (5+)" value={`${data.bingos.super.won}/${data.bingos.super.total}`}
+                    sub={data.bingos.super.hitRatePct != null ? `${data.bingos.super.hitRatePct}% taxa` : undefined}
+                    color="var(--purple-400)"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Streaks */}
+          {data.streaks && (
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Sequências</p>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {data.streaks.current > 0 && data.streaks.currentType && (
+                  <div style={{
+                    background: 'var(--bg-card)', border: `1px solid ${data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)'}`,
+                    borderRadius: 12, padding: '12px 18px',
+                  }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Sequência atual</p>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)' }}>
+                      {data.streaks.current} {data.streaks.currentType === 'won' ? '🔥 vitórias' : '❄️ derrotas'}
+                    </p>
+                  </div>
+                )}
+                {data.streaks.bestWin > 0 && (
+                  <Kpi label="Maior série de vitórias" value={`${data.streaks.bestWin} seguidas`} color="var(--green)" />
+                )}
+                {data.streaks.bestLoss > 0 && (
+                  <Kpi label="Maior série de derrotas" value={`${data.streaks.bestLoss} seguidas`} color="var(--red)" />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Top wins / worst losses */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+            {/* Top wins */}
+            {data.topWins.length > 0 && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>🏆 Top 5 melhores</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {data.topWins.map((w: any, i: number) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <div style={{ overflow: 'hidden' }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {w.isCombined ? '🎲' : '🎯'} {w.match}
+                        </p>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>@{w.odds} · {fmtDate(w.date)}</p>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>+{fmt(w.profit)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Worst losses */}
+            {data.worstLosses.length > 0 && (
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>💸 Top 5 maiores perdas</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {data.worstLosses.map((l: any, i: number) => (
+                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                      <div style={{ overflow: 'hidden' }}>
+                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {l.isCombined ? '🎲' : '🎯'} {l.match}
+                        </p>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>@{l.odds} · {fmtDate(l.date)}</p>
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', flexShrink: 0 }}>-{fmt(l.loss)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Year profile table (clickable rows) ──────────────────────────────────────
+
+function ProfileTableSimple({ profiles, onSelect, selectedProfileId }: {
+  profiles: ProfileStat[]
+  onSelect: (p: ProfileStat) => void
+  selectedProfileId?: number | null
+}) {
+  if (!profiles.length) return null
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+            {['Perfil','Apostas','Taxa','Apostado','Lucro','ROI',''].map(h => (
+              <th key={h} style={{ padding: '8px 10px', color: 'var(--text-muted)', fontWeight: 600, textAlign: h === 'Perfil' ? 'left' : 'right', whiteSpace: 'nowrap' }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {profiles.map((p) => {
+            const isSelected = p.profileId === selectedProfileId
+            return (
+              <tr
+                key={p.profile}
+                onClick={() => onSelect(p)}
+                style={{
+                  borderBottom: '1px solid var(--border)',
+                  cursor: 'pointer',
+                  background: isSelected ? 'rgba(109,40,217,0.12)' : 'transparent',
+                  transition: 'background 0.15s',
+                }}
+                onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-card-hover)' }}
+                onMouseLeave={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              >
+                <td style={{ padding: '9px 10px', color: 'var(--text-primary)', fontWeight: 600 }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{
+                      width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                      background: isSelected ? 'var(--purple-400)' : 'var(--text-muted)',
+                    }} />
+                    {p.profile}
+                  </span>
+                </td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{p.totalBets}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{p.hitRatePct != null ? `${p.hitRatePct}%` : '—'}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(p.totalWagered)}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: clr(p.totalProfit), fontWeight: 600 }}>{fmt(p.totalProfit)}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: clr((p as any).roi) }}>{(p as any).roi != null ? `${(p as any).roi > 0 ? '+' : ''}${(p as any).roi}%` : '—'}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--purple-400)', fontSize: 12 }}>
+                  {isSelected ? '▲' : '▼ Detalhe'}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─── button styles ─────────────────────────────────────────────────────────────
+
+const btnGhost: React.CSSProperties = {
+  padding: '7px 14px', borderRadius: 8, border: '1px solid var(--border)',
+  background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 12,
+}
+const btnPrimary: React.CSSProperties = {
+  padding: '7px 18px', borderRadius: 8, border: 'none',
+  background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+  color: '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 13,
+}
+const navBtn: React.CSSProperties = {
+  width: 32, height: 32, borderRadius: 8,
+  border: '1px solid var(--border)', background: 'var(--bg-card)',
+  color: 'var(--text-primary)', fontSize: 18, cursor: 'pointer',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+}
+
+// ─── Main page ─────────────────────────────────────────────────────────────────
+
+export default function Goals() {
+  const now  = new Date()
+  const [year,       setYear]       = useState(now.getFullYear())
+  const [selMonth,   setSelMonth]   = useState<number | null>(now.getMonth() + 1)
+  const [modal,      setModal]      = useState<{ month: number; year: number; id?: number; target?: number } | null>(null)
+  const [delId,      setDelId]      = useState<number | null>(null)
+  const [selProfile, setSelProfile] = useState<ProfileStat | null>(null)
+
+  const { data: goals = [], isLoading: goalsLoading } = useGoals()
+  const { data: yearData,   isLoading: yearLoading }  = useYearAnalytics(year)
+  const deleteGoal = useDeleteGoal()
+
+  const goalsForYear = goals.filter(g => g.year === year)
+  const s = yearData?.summary
+
+  const handleDelete = (id: number) => {
+    deleteGoal.mutate(id)
+    setDelId(null)
+    setSelMonth(null)
+  }
+
+  const handleProfileSelect = (p: ProfileStat) => {
+    setSelProfile(prev => prev?.profile === p.profile ? null : p)
+    setSelMonth(null)
+  }
+
+  return (
+    <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Estatísticas</h1>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Metas mensais, calendário anual e análise detalhada por perfil</p>
+      </div>
+
+      {/* Year nav */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <button onClick={() => { setYear(y => y - 1); setSelMonth(null); setSelProfile(null) }} style={navBtn}>‹</button>
+        <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', minWidth: 60, textAlign: 'center' }}>{year}</span>
+        <button onClick={() => { setYear(y => y + 1); setSelMonth(null); setSelProfile(null) }} style={navBtn}>›</button>
+      </div>
+
+      {/* Year KPI strip */}
+      {s && (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
+          <Kpi label="Lucro no ano"    value={fmt(s.totalProfit)}   color={clr(s.totalProfit)} />
+          <Kpi label="Apostado"        value={fmt(s.totalWagered)} />
+          <Kpi label="Apostas"         value={String(s.totalBets)} />
+          <Kpi label="ROI"             value={fmtPct(s.roi)}         color={clr(s.roi)} />
+          <Kpi label="Taxa geral"      value={s.hitRatePct != null ? `${s.hitRatePct}%` : '—'} />
+          <Kpi label="Metas atingidas" value={s.goalsSet > 0 ? `${s.goalsHit}/${s.goalsSet}` : '—'}
+            color={s.goalsHit === s.goalsSet && s.goalsSet > 0 ? 'var(--green)' : undefined}
+          />
+          {s.bestMonth != null && <Kpi label="Melhor mês" value={`${MONTH_NAMES[s.bestMonth - 1]} (${fmt(s.bestProfit)})`} color="var(--green)" />}
+          {s.worstMonth != null && <Kpi label="Pior mês"  value={`${MONTH_NAMES[s.worstMonth - 1]} (${fmt(s.worstProfit)})`} color="var(--red)" />}
+        </div>
+      )}
+
+      {/* 12-month grid */}
+      {(yearLoading || goalsLoading) ? (
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando…</p>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+          {(yearData?.months ?? Array.from({ length: 12 }, (_, i) => ({
+            month: i + 1, totalBets: 0, won: 0, lost: 0,
+            totalWagered: 0, totalProfit: 0, hitRatePct: null, roi: null,
+            targetProfit: null, goalId: null, achieved: null, progressPct: null,
+          } as MonthAnalytics))).map((m: MonthAnalytics) => (
+            <MonthCell
+              key={m.month} m={m}
+              selectedMonth={selMonth}
+              onSelect={(mo) => { setSelMonth(mo); setSelProfile(null) }}
+              onNewGoal={(mo) => setModal({ month: mo, year })}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Selected month detail */}
+      {selMonth && !selProfile && (
+        <GoalDetail
+          month={selMonth} year={year}
+          goals={goalsForYear}
+          monthData={yearData?.months.find(m => m.month === selMonth)}
+          onEdit={g => setModal({ month: g.month, year: g.year, id: g.id, target: g.targetProfit })}
+          onDelete={id => setDelId(id)}
+        />
+      )}
+
+      {/* Year profile table */}
+      {yearData?.profileBreakdown && yearData.profileBreakdown.length > 0 && (
+        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginTop: 24 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+              Desempenho por perfil — {year}
+            </h3>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Clique num perfil para ver análise detalhada →</p>
+          </div>
+          <ProfileTableSimple
+            profiles={yearData.profileBreakdown}
+            onSelect={handleProfileSelect}
+            selectedProfileId={selProfile?.profileId}
+          />
+        </div>
+      )}
+
+      {/* Profile detail panel */}
+      {selProfile && (
+        <ProfileDetailPanel
+          profileId={selProfile.profileId}
+          profileName={selProfile.profile}
+          onClose={() => setSelProfile(null)}
+        />
+      )}
+
+      {/* Goal form modal */}
+      {modal && <GoalModal editing={modal} onClose={() => setModal(null)} />}
+
+      {/* Delete confirm */}
+      {delId !== null && (
+        <div onClick={() => setDelId(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+            borderRadius: 16, padding: 32, minWidth: 300, textAlign: 'center',
+          }}>
+            <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Excluir meta?</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>Essa ação não pode ser desfeita.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+              <button onClick={() => setDelId(null)} style={btnGhost}>Cancelar</button>
+              <button onClick={() => handleDelete(delId)} style={{ ...btnPrimary, background: 'var(--red)' }}>Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

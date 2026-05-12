@@ -29,6 +29,14 @@ export async function byProfile(req: Request, res: Response, next: NextFunction)
   } catch (err) { next(err) }
 }
 
+export async function profileDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const profileId = req.query.profileId as string | undefined
+    const data = await statsService.getProfileDetail(profileId)
+    res.json({ data })
+  } catch (err) { next(err) }
+}
+
 export async function monthly(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await statsService.getMonthlyStats()
