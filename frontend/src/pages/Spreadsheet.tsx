@@ -362,7 +362,7 @@ function DeleteConfirm({ bet, onClose, onConfirm }: { bet: Bet; onClose: () => v
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{ width: '100%', maxWidth: 380, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 16, padding: '28px 24px', boxShadow: '0 0 40px rgba(239,68,68,0.15)', textAlign: 'center' }}>
-        <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, marginLeft: 'auto', marginRight: 'auto', fontSize: 20, color: '#ef4444' }}>✕</div>
         <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>Excluir aposta?</p>
         <p style={{ fontSize: 12, color: '#6d5a9a', margin: '0 0 8px' }}>
           {bet.match ? <><strong style={{ color: '#a78bfa' }}>{bet.match}</strong><br /></> : null}
@@ -647,7 +647,7 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.25)'; e.currentTarget.style.borderColor = '#7c3aed' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.3)' }}
-          >✏</button>
+          >✎</button>
           <button
             onClick={() => onDelete(bet)}
             title="Excluir"
@@ -659,7 +659,7 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.22)'; e.currentTarget.style.borderColor = '#ef4444' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.10)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.25)' }}
-          >🗑</button>
+          >✕</button>
         </div>
       </td>
       </tr>

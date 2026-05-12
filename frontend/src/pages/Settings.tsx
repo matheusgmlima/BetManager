@@ -150,7 +150,7 @@ function BookmakersSection() {
               {!b.active && <span style={inactiveBadge}>inativa</span>}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <button onClick={() => startEdit(b)} style={iconBtn} title="Editar">✏️</button>
+              <button onClick={() => startEdit(b)} style={iconBtn} title="Editar">✎</button>
               <Toggle active={b.active} onToggle={() => toggleBookmaker.mutate(b.id)} loading={toggleBookmaker.isLoading} />
             </div>
           </div>
@@ -492,17 +492,17 @@ export default function Settings() {
 
   const tabs: TabConfig[] = [
     {
-      key: 'bookmakers', icon: '🏠', label: 'Casas de Apostas',
+      key: 'bookmakers', icon: '◈', label: 'Casas de Apostas',
       description: 'Gerencie as casas onde você aposta',
       component: <BookmakersSection />,
     },
     {
-      key: 'sports', icon: '⚽', label: 'Esportes',
+      key: 'sports', icon: '◇', label: 'Esportes',
       description: 'Configure os esportes disponíveis',
       component: <SportsSection />,
     },
     {
-      key: 'profiles', icon: '👤', label: 'Perfis VIP',
+      key: 'profiles', icon: '◉', label: 'Perfis VIP',
       description: 'Perfis de apostadores associados às suas apostas',
       component: <ProfilesSection />,
     },

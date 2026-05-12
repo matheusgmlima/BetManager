@@ -174,7 +174,7 @@ function ChartCard({ title, children, delay = 0 }: { title: string; children: Re
 function EmptyChart({ msg = 'Nenhum dado ainda' }: { msg?: string }) {
   return (
     <div style={{ height: 210, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
-      <span style={{ fontSize: 28, opacity: 0.3 }}>📊</span>
+      <span style={{ fontSize: 28, opacity: 0.25, color: 'var(--text-muted)' }}>◈</span>
       <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{msg}</span>
     </div>
   )
@@ -357,10 +357,10 @@ export default function Dashboard() {
         <div className="anim-slide-up" style={{ animationDelay: '80ms' }}>
           <Section label="Métricas do período">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard icon="💰" label="Lucro"        rawValue={summary?.totalProfit  ?? 0} prefix="R$ " decimals={2} delay={0}   accent="#22c55e" />
-              <KpiCard icon="📊" label="Total apostado" rawValue={summary?.totalWagered ?? 0} prefix="R$ " decimals={2} delay={60}  accent="#8b5cf6" sub={`${summary?.totalBets ?? 0} apostas`} />
-              <KpiCard icon="🎯" label="Taxa de acerto" rawValue={summary?.hitRatePct   ?? 0} suffix="%" decimals={1}  delay={120} accent="#a78bfa" sub={`${summary?.won ?? 0} ganhou · ${summary?.lost ?? 0} perdeu`} />
-              <KpiCard icon="📈" label="ROI"           rawValue={roi}                          suffix="%" decimals={1}  delay={180} accent="#c084fc" sub={`Odd média: ${summary?.avgOdds?.toFixed(2) ?? '—'}`} />
+              <KpiCard icon="R$" label="Lucro"        rawValue={summary?.totalProfit  ?? 0} prefix="R$ " decimals={2} delay={0}   accent="#22c55e" />
+              <KpiCard icon="Σ"  label="Total apostado" rawValue={summary?.totalWagered ?? 0} prefix="R$ " decimals={2} delay={60}  accent="#8b5cf6" sub={`${summary?.totalBets ?? 0} apostas`} />
+              <KpiCard icon="%"  label="Taxa de acerto" rawValue={summary?.hitRatePct   ?? 0} suffix="%" decimals={1}  delay={120} accent="#a78bfa" sub={`${summary?.won ?? 0} ganhou · ${summary?.lost ?? 0} perdeu`} />
+              <KpiCard icon="↑"  label="ROI"           rawValue={roi}                          suffix="%" decimals={1}  delay={180} accent="#c084fc" sub={`Odd média: ${summary?.avgOdds?.toFixed(2) ?? '—'}`} />
             </div>
           </Section>
         </div>
@@ -384,7 +384,7 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
               {/* Lucro acumulado */}
-              <ChartCard title="📈  Lucro acumulado" delay={80}>
+              <ChartCard title="Lucro acumulado" delay={80}>
                 {profitChart.length >= 1 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <LineChart data={profitChart}>
@@ -405,7 +405,7 @@ export default function Dashboard() {
               </ChartCard>
 
               {/* Donut distribuição */}
-              <ChartCard title="🎯  Distribuição de resultados" delay={140}>
+              <ChartCard title="Distribuição de resultados" delay={140}>
                 {distribution.length > 0 ? (
                   <div className="flex items-center gap-6">
                     <ResponsiveContainer width="55%" height={210}>
@@ -438,7 +438,7 @@ export default function Dashboard() {
               </ChartCard>
 
               {/* Por esporte */}
-              <ChartCard title="⚽  Lucro por esporte (R$)" delay={200}>
+              <ChartCard title="Lucro por esporte (R$)" delay={200}>
                 {sportStats.length > 0 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={sportStats.slice(0, 7)} barSize={30}>
@@ -455,7 +455,7 @@ export default function Dashboard() {
               </ChartCard>
 
               {/* Por casa */}
-              <ChartCard title="🏠  Lucro por casa de apostas (R$)" delay={260}>
+              <ChartCard title="Lucro por casa de apostas (R$)" delay={260}>
                 {bookmakerStats.length > 0 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={bookmakerStats.slice(0, 6)} layout="vertical" barSize={20}>

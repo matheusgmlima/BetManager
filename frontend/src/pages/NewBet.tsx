@@ -130,7 +130,7 @@ function PreviewCard({ form, profiles, bookmakers, profit }: {
             color: form.betType === 'combined' ? '#818cf8' : '#a78bfa',
             border: `1px solid ${form.betType === 'combined' ? 'rgba(129,140,248,0.3)' : 'rgba(124,58,237,0.3)'}`,
           }}>
-            {form.betType === 'combined' ? '🔗 Múltipla' : '⚡ Simples'}
+            {form.betType === 'combined' ? '⋈ Múltipla' : '· Simples'}
           </span>
           {result && (
             <span style={{
@@ -312,7 +312,7 @@ function ManualTab() {
 
   if (success) return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 320, gap: 16 }}>
-      <div style={{ fontSize: 56, animation: 'scaleIn 0.4s cubic-bezier(0.16,1,0.3,1)' }}>✅</div>
+      <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', border: '2px solid rgba(34,197,94,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#22c55e', animation: 'scaleIn 0.4s cubic-bezier(0.16,1,0.3,1)' }}>✓</div>
       <p style={{ color: 'var(--green)', fontWeight: 800, fontSize: 20 }}>Aposta registrada!</p>
       <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Redirecionando para a planilha…</p>
     </div>
@@ -322,7 +322,7 @@ function ManualTab() {
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
       {/* ── Seção 1: Identificação ───────────────────────────── */}
-      <SectionCard icon="📋" title="Identificação">
+      <SectionCard icon="◈" title="Identificação">
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 14 }}>
           <Field label="Data *" error={errors.date}>
             <input type="date" value={form.date} max={today()}
@@ -367,7 +367,7 @@ function ManualTab() {
                   color: form.betType === t ? 'var(--purple-300)' : 'var(--text-muted)',
                   boxShadow: form.betType === t ? '0 0 12px rgba(124,58,237,0.15)' : 'none',
                 }}>
-                  {t === 'simple' ? '⚡ Simples' : '🔗 Múltipla'}
+                  {t === 'simple' ? 'Simples' : 'Múltipla'}
                 </button>
               ))}
             </div>
@@ -389,7 +389,7 @@ function ManualTab() {
       </SectionCard>
 
       {/* ── Seção 2: Jogo/Mercado ─────────────────────────────── */}
-      <SectionCard icon="⚽" title="Jogo & Mercado">
+      <SectionCard icon="◇" title="Jogo & Mercado">
         {form.betType === 'simple' ? (
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
             <Field label="Jogo">
@@ -449,7 +449,7 @@ function ManualTab() {
       </SectionCard>
 
       {/* ── Seção 3: Valores ──────────────────────────────────── */}
-      <SectionCard icon="💰" title="Valores">
+      <SectionCard icon="◆" title="Valores">
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 14 }}>
           <Field label="Apostado (R$) *" error={errors.amountWagered}>
             <input type="number" min="0.01" step="0.01" value={form.amountWagered}
@@ -475,7 +475,7 @@ function ManualTab() {
       </SectionCard>
 
       {/* ── Seção 4: Resultado ────────────────────────────────── */}
-      <SectionCard icon="🎯" title="Resultado">
+      <SectionCard icon="◉" title="Resultado">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
           {RESULT_OPTS.map(r => (
             <button key={r.value} type="button" onClick={() => set('result', r.value)} style={{
@@ -767,7 +767,7 @@ function AiTab() {
         >
           {dragging && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'rgba(109,40,217,0.1)', zIndex: 2, gap: 8 }}>
-              <div style={{ fontSize: 36 }}>📥</div>
+              <div style={{ fontSize: 28, color: '#a78bfa' }}>↓</div>
               <p style={{ margin: 0, color: '#a78bfa', fontWeight: 700, fontSize: 14 }}>Solte para analisar</p>
             </div>
           )}
@@ -775,7 +775,7 @@ function AiTab() {
           {preview ? (
             <div style={{ width: '100%', textAlign: 'center' }}>
               <img src={preview} alt="preview" style={{ maxHeight: 300, maxWidth: '100%', borderRadius: 10, objectFit: 'contain', display: 'block', margin: '0 auto', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-              {fileName && <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>📄 {fileName}</p>}
+              {fileName && <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>{fileName}</p>}
             </div>
           ) : (
             <>
@@ -860,7 +860,7 @@ function AiTab() {
             transition: 'border-color 0.2s',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17 }}>✨</div>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#a78bfa', fontWeight: 800 }}>✦</div>
               <div>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#c4b5fd' }}>{bets.length} apostas detectadas</p>
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -870,7 +870,7 @@ function AiTab() {
             </div>
             {Object.keys(validationErrors).length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', borderRadius: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
-                <span style={{ fontSize: 14 }}>⚠️</span>
+                <span style={{ fontSize: 14, color: '#ef4444' }}>!</span>
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>
                   {Object.keys(validationErrors).length} aposta{Object.keys(validationErrors).length !== 1 ? 's' : ''} com campos obrigatórios
                 </span>
