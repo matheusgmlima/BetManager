@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { prisma } from '../lib/prisma'
 import { validate } from '../middlewares/validateRequest'
-import { createBookmakerSchema, updateBookmakerSchema, createSportSchema, updateSportSchema } from '../validators/configSchema'
+import { createBookmakerSchema, updateBookmakerSchema, createSportSchema, updateSportSchema, createProfileSchema, updateProfileSchema } from '../validators/configSchema'
 import { AppError } from '../middlewares/errorHandler'
 
 const router = Router()
@@ -71,10 +71,30 @@ router.patch('/sports/:id/toggle', async (req, res, next) => {
 // Betting Profiles
 router.get('/profiles', async (_req, res, next) => {
   try {
-    const data = await prisma.bettingProfile.findMany({
-      where: { active: true },
-      orderBy: { name: 'asc' },
-    })
+    const data = await prisma.bettingProfile.findMany({ orderBy: { name: 'asc' } })
+    res.json({ data })
+  } catch (err) { next(err) }
+})
+
+router.post('/profiles', validate(createProfileSchema), async (req, res, next) => {
+  try {
+    const data = await prisma.bettingProfile.create({ data: req.body })
+    res.status(201).json({ data })
+  } catch (err) { next(err) }
+})
+
+router.put('/profiles/:id', validate(updateProfileSchema), async (req, res, next) => {
+  try {
+    const data = await prisma.bettingProfile.update({ where: { id: Number(req.params.id) }, data: req.body })
+    res.json({ data })
+  } catch (err) { next(err) }
+})
+
+router.patch('/profiles/:id/toggle', async (req, res, next) => {
+  try {
+    const profile = await prisma.bettingProfile.findUnique({ where: { id: Number(req.params.id) } })
+    if (!profile) throw new AppError('Perfil não encontrado', 404, 'PROFILE_NOT_FOUND')
+    const data = await prisma.bettingProfile.update({ where: { id: profile.id }, data: { active: !profile.active } })
     res.json({ data })
   } catch (err) { next(err) }
 })

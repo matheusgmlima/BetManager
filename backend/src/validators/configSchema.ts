@@ -17,5 +17,12 @@ export const createSportSchema = z.object({
 
 export const updateSportSchema = createSportSchema.partial()
 
+export const createProfileSchema = z.object({
+  name: z.string().min(1).max(100),
+})
+
+export const updateProfileSchema = createProfileSchema.partial()
+
 export type CreateBookmakerInput = z.infer<typeof createBookmakerSchema>
 export type CreateSportInput = z.infer<typeof createSportSchema>
+export type CreateProfileInput = z.infer<typeof createProfileSchema>

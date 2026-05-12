@@ -3,7 +3,12 @@ import { prisma } from '../lib/prisma'
 import { parseDDMM } from '../utils/dateUtils'
 import { AiExtractedBet, AiExtractionResponse } from '../types/api.types'
 
-const EXTRACT_PROMPT = `Você é um especialista em extrair dados de apostas esportivas de screenshots de casas de apostas brasileiras (Betano, Bet365, Superbet, Sportingbet, Betfair, KTO, Pixbet, etc.).
+function buildPrompt(bookmakerNames: string[]): string {
+  const casasList = bookmakerNames.length > 0
+    ? bookmakerNames.join(', ')
+    : 'Betano, Bet365, Superbet, Sportingbet, Betfair, KTO, Pixbet, Betsul, Mr.Jack, Novibet, Parimatch, 1xbet, Pinnacle'
+
+  return `Você é um especialista em extrair dados de apostas esportivas de screenshots de casas de apostas brasileiras (${casasList}).
 
 Analise a imagem cuidadosamente e extraia TODAS as apostas visíveis.
 Retorne APENAS um JSON válido, sem markdown, sem \`\`\`, sem explicações.
@@ -23,6 +28,7 @@ Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/tick
       "valor_apostado": 20.00,
       "casa": "nome da casa ou null",
       "odd": 2.08,
+      "odds_multiplas": [1.85, 1.60, 1.40],
       "retorno_total": 41.67,
       "resultado": "won|lost|void|pending"
     }
@@ -38,7 +44,8 @@ Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/tick
 "jogo" (combinada): todos os confrontos separados por ; — ex: "Sport Recife x ASA; MIN Timberwolves x SA Spurs"
 "mercado" (simples): a seleção — ex: "+2.5 gols", "Sport Recife para ganhar"
 "mercado" (combinada): TODAS as seleções separadas por ; — ex: "Resultado Final: Sport Recife; ASA - Menos de 2 Gols; Mais de 5 Escanteios; SA Spurs Para Ganhar"
-"odd": a odd TOTAL do bilhete. Se não mostrada, calcule: odd = retorno_total / valor_apostado
+"odd": a odd TOTAL do bilhete. Prioridade: (1) valor total mostrado na tela, (2) multiplique as odds individuais (odds_multiplas), (3) calcule retorno_total / valor_apostado. Nunca deixe null se houver como calcular.
+"odds_multiplas": array com cada odd individual visível na combinada (ex: [1.85, 1.60, 1.40]). null para apostas simples ou se não visíveis.
 "valor_apostado": valor total apostado (número, não string)
 "retorno_total": retorno total mostrado (número, não string)
 "data": data no formato DD/MM se visível, senão null
@@ -50,7 +57,8 @@ Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/tick
 "pending" → Ao Vivo / A decorrer / Pendente / Criar Aposta / Em aberto / sem resultado visível
 
 ════ CASAS DE APOSTAS — IDENTIFICAÇÃO ════
-Betano, Bet365, Superbet, Sportingbet, Betfair, KTO, Pixbet, Betsul, Mr.Jack, Novibet, Parimatch, 1xbet, Pinnacle
+Casas cadastradas no sistema: ${casasList}
+Retorne o nome EXATAMENTE como aparece na lista acima se reconhecer a casa.
 Se a casa não estiver visível no screenshot, use null.
 
 ════ REGRAS GERAIS ════
@@ -58,6 +66,7 @@ Se a casa não estiver visível no screenshot, use null.
 - Valores monetários SEMPRE como número (não string)
 - Nunca quebre uma aposta combinada em múltiplas entradas
 - Se o screenshot mostrar um histórico, extraia CADA aposta individualmente`
+}
 
 export async function extractBetsFromImage(
   imageBuffer: Buffer,
@@ -70,6 +79,9 @@ export async function extractBetsFromImage(
   let inputTokens  = 0
   let outputTokens = 0
   let rawResponse  = ''
+
+  const bookmakers = await prisma.bookmaker.findMany({ where: { active: true } })
+  const EXTRACT_PROMPT = buildPrompt(bookmakers.map(b => b.name))
 
   try {
     const response = await groq.chat.completions.create({
@@ -113,13 +125,14 @@ export async function extractBetsFromImage(
     throw new Error('IA retornou resposta em formato inválido')
   }
 
-  const bookmakers = await prisma.bookmaker.findMany({ where: { active: true } })
   const warnings: string[] = []
 
   const bets: AiExtractedBet[] = parsed.apostas.map((a, i) => {
-    const foundBookmaker = bookmakers.find(
-      (b) => b.name.toLowerCase() === (a.casa ?? '').toLowerCase()
-    )
+    const casaRaw = (a.casa ?? '').toLowerCase().replace(/[\s.\-_]/g, '')
+    const foundBookmaker = bookmakers.find((b) => {
+      const bNorm = b.name.toLowerCase().replace(/[\s.\-_]/g, '')
+      return bNorm === casaRaw || bNorm.includes(casaRaw) || casaRaw.includes(bNorm)
+    })
 
     if (!foundBookmaker && a.casa) {
       warnings.push(`Aposta ${i + 1}: casa "${a.casa}" não encontrada no cadastro`)
@@ -137,7 +150,15 @@ export async function extractBetsFromImage(
       if (d) parsedDate = d.toISOString().split('T')[0]
     }
 
-    let odd = a.odd ?? null
+    let odd: number | null = a.odd ?? null
+
+    // fallback 1: produto das odds individuais da combinada
+    if (!odd && Array.isArray(a.odds_multiplas) && a.odds_multiplas.length > 0) {
+      const product = (a.odds_multiplas as number[]).reduce((acc, o) => acc * o, 1)
+      if (product > 0) odd = parseFloat(product.toFixed(4))
+    }
+
+    // fallback 2: retorno / valor apostado
     if (!odd && a.valor_apostado && a.retorno_total && a.valor_apostado > 0) {
       odd = parseFloat((a.retorno_total / a.valor_apostado).toFixed(4))
     }
