@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useContext, createContext } from 'react'
 import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
 import { useProfileDetail } from '../hooks/useDashboard'
 import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
@@ -27,34 +27,78 @@ function fmtDate(iso: string) {
   return `${d}/${m}/${y}`
 }
 
-// ─── sub-components ───────────────────────────────────────────────────────────
+// ─── Unit context ─────────────────────────────────────────────────────────────
 
-function ProgressRing({ pct, size = 72, stroke = 6, color = '#7c3aed' }: {
+const UnitCtx = createContext<{ showU: boolean; unitVal: number }>({ showU: false, unitVal: 10 })
+
+/** Returns a monetary formatter that respects the current unit toggle */
+function useFmt() {
+  const { showU, unitVal } = useContext(UnitCtx)
+  return (v: number | null | undefined) => {
+    if (v == null) return '—'
+    if (showU && unitVal > 0) {
+      const u = v / unitVal
+      const sign = v < 0 ? '-' : ''
+      return `${sign}${Math.abs(u).toFixed(2)}u`
+    }
+    return fmt(v)
+  }
+}
+
+// ─── design primitives ────────────────────────────────────────────────────────
+
+/** Thin labeled divider — used as section headers inside panels */
+function SectionDivider({ label }: { label: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0 16px' }}>
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>
+      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+    </div>
+  )
+}
+
+/** Horizontal label : value row — used in the narrow left column */
+function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+      <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>
+      <span className="stat-value" style={{ fontSize: 13, fontWeight: 700, color: color ?? 'var(--text-primary)', textAlign: 'right' }}>{value}</span>
+    </div>
+  )
+}
+
+/** Compact stat chip — label above, value below */
+function Kpi({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
+  return (
+    <div style={{
+      background: 'var(--bg-card)',
+      borderRadius: 8, padding: '10px 14px',
+    }}>
+      <p style={{
+        fontSize: 10, color: 'var(--text-label)', marginBottom: 5,
+        textTransform: 'uppercase', letterSpacing: '0.09em', fontWeight: 600,
+        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>{label}</p>
+      <p className="stat-value" style={{ fontSize: 17, fontWeight: 700, color: color ?? 'var(--text-primary)', lineHeight: 1 }}>{value}</p>
+      {sub && <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</p>}
+    </div>
+  )
+}
+
+/** Progress ring — simplified stroke */
+function ProgressRing({ pct, size = 64, stroke = 5, color = 'var(--purple-400)' }: {
   pct: number; size?: number; stroke?: number; color?: string
 }) {
   const r   = (size - stroke) / 2
   const c   = 2 * Math.PI * r
   const off = c - (Math.min(Math.max(pct, 0), 100) / 100) * c
   return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
         strokeDasharray={c} strokeDashoffset={off}
-        style={{ transition: 'stroke-dashoffset 0.6s ease', strokeLinecap: 'round' }} />
+        style={{ transition: 'stroke-dashoffset 0.5s ease', strokeLinecap: 'round' }} />
     </svg>
-  )
-}
-
-function Kpi({ label, value, color, sub }: { label: string; value: string; color?: string; sub?: string }) {
-  return (
-    <div style={{
-      background: 'var(--bg-card)', border: '1px solid var(--border)',
-      borderRadius: 12, padding: '12px 18px', minWidth: 110,
-    }}>
-      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</p>
-      <p style={{ fontSize: 18, fontWeight: 700, color: color ?? 'var(--text-primary)' }}>{value}</p>
-      {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</p>}
-    </div>
   )
 }
 
@@ -115,15 +159,24 @@ function GoalModal({ editing, onClose }: {
 
 // ─── Calendar month cell ───────────────────────────────────────────────────────
 
-function MonthCell({ m, selectedMonth, onSelect, onNewGoal }: {
+function MonthCell({ m, year, selectedMonth, onSelect, onNewGoal }: {
   m: MonthAnalytics
+  year: number
   selectedMonth: number | null
   onSelect: (month: number) => void
   onNewGoal: (month: number) => void
 }) {
+  const { showU, unitVal } = useContext(UnitCtx)
+  const fmtV = (v: number | null | undefined) => {
+    if (v == null) return '—'
+    if (showU && unitVal > 0) { const u = v / unitVal; return `${v < 0 ? '-' : ''}${Math.abs(u).toFixed(2)}u` }
+    return fmt(v)
+  }
   const now    = new Date()
-  const isCurr = m.month === now.getMonth() + 1
-  const isFut  = m.month > now.getMonth() + 1
+  const nowY   = now.getFullYear()
+  const nowM   = now.getMonth() + 1
+  const isCurr = m.month === nowM && year === nowY
+  const isFut  = year > nowY || (year === nowY && m.month > nowM)
   const isSel  = selectedMonth === m.month
   const hasGoal = m.goalId !== null
   const hasBets = m.totalBets > 0
@@ -168,7 +221,7 @@ function MonthCell({ m, selectedMonth, onSelect, onNewGoal }: {
 
       {hasBets ? (
         <p style={{ fontSize: 15, fontWeight: 700, color: clr(m.totalProfit), marginBottom: 2 }}>
-          {fmt(m.totalProfit)}
+          {fmtV(m.totalProfit)}
         </p>
       ) : (
         <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem apostas</p>
@@ -209,6 +262,7 @@ function GoalDetail({ month, year, goals, monthData, onEdit, onDelete }: {
   onEdit: (g: Goal) => void
   onDelete: (id: number) => void
 }) {
+  const fmtV = useFmt()
   const goal = goals.find(g => g.month === month && g.year === year)
   if (!goal && !monthData?.totalBets) return null
   const pct  = goal?.progressPct ?? 0
@@ -236,18 +290,18 @@ function GoalDetail({ month, year, goals, monthData, onEdit, onDelete }: {
           </div>
           <div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Meta de lucro</p>
-            <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{fmt(goal.targetProfit)}</p>
+            <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{fmtV(goal.targetProfit)}</p>
             {goal.achieved
               ? <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>✓ Atingida</span>
-              : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Faltam {fmt(goal.targetProfit - goal.actualProfit)}</span>
+              : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Faltam {fmtV(goal.targetProfit - goal.actualProfit)}</span>
             }
           </div>
         </div>
       )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 20 }}>
-        <Kpi label="Lucro real" value={fmt(goal?.actualProfit ?? monthData?.totalProfit)} color={clr(goal?.actualProfit ?? monthData?.totalProfit)} />
-        <Kpi label="Apostado" value={fmt(goal?.totalWagered ?? monthData?.totalWagered)} />
+        <Kpi label="Lucro real" value={fmtV(goal?.actualProfit ?? monthData?.totalProfit)} color={clr(goal?.actualProfit ?? monthData?.totalProfit)} />
+        <Kpi label="Apostado" value={fmtV(goal?.totalWagered ?? monthData?.totalWagered)} />
         <Kpi label="Apostas" value={String(goal?.totalBets ?? monthData?.totalBets ?? 0)} />
         <Kpi label="Taxa" value={goal?.hitRatePct != null ? `${goal.hitRatePct}%` : monthData?.hitRatePct != null ? `${monthData.hitRatePct}%` : '—'} />
         <Kpi label="ROI" value={fmtPct(goal?.roi ?? monthData?.roi)} color={clr(goal?.roi ?? monthData?.roi)} />
@@ -271,233 +325,296 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
   onClose: () => void
 }) {
   const { data, isLoading } = useProfileDetail(profileId, true)
+  const fmtV = useFmt()
+
+  // derive initials for avatar
+  const initials = profileName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
 
   return (
-    <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--purple-700)', borderRadius: 16, padding: 24, marginTop: 8 }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <div>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>Perfil</p>
-          <h3 style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{profileName}</h3>
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 200,
+        background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
+        display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+        overflowY: 'auto', padding: '48px 16px 48px',
+      }}
+    >
+    <div
+      onClick={e => e.stopPropagation()}
+      style={{
+        width: '100%', maxWidth: 960,
+        background: 'var(--bg-secondary)',
+        border: '1px solid var(--border)',
+        borderRadius: 16,
+        overflow: 'hidden',
+        boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
+      }}
+    >
+      {/* ── Header bar ── */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '20px 24px',
+        borderBottom: '1px solid var(--border)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {/* avatar */}
+          <div style={{
+            width: 38, height: 38, borderRadius: 8,
+            background: 'var(--purple-900)',
+            border: '1px solid var(--border-purple)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 13, fontWeight: 700, color: 'var(--purple-300)',
+            letterSpacing: '0.03em', flexShrink: 0,
+          }}>{initials}</div>
+          <div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Perfil</p>
+            <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{profileName}</h3>
+          </div>
         </div>
-        <button onClick={onClose} style={{ ...btnGhost, padding: '6px 14px' }}>✕ Fechar</button>
+        <button
+          onClick={onClose}
+          style={{
+            width: 32, height: 32, borderRadius: 6,
+            border: '1px solid var(--border)', background: 'transparent',
+            color: 'var(--text-muted)', fontSize: 16, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.1s',
+          }}
+        >✕</button>
       </div>
 
-      {isLoading && <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando análise…</p>}
+      {/* ── Body: two-column horizontal layout ── */}
+      <div style={{ padding: '0' }}>
 
-      {data && !isLoading && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-          {/* Top-line KPIs */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Kpi label="Apostas" value={String(data.totalBets)} />
-            <Kpi label="Vitórias" value={String(data.won)} color="var(--green)" />
-            <Kpi label="Derrotas" value={String(data.lost)} color="var(--red)" />
-            {data.avgOddsWon && <Kpi label="Odd média (ganhas)" value={String(data.avgOddsWon)} color="var(--green)" />}
-            {data.avgOddsLost && <Kpi label="Odd média (perdidas)" value={String(data.avgOddsLost)} color="var(--red)" />}
+        {isLoading && (
+          <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando análise…</p>
           </div>
+        )}
 
-          {/* Sweet spot recommendation */}
-          {data.sweetSpot && (
+        {data && !isLoading && (
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr' }}>
+
+            {/* ── LEFT COLUMN — KPIs + sweet spot + streaks ── */}
             <div style={{
-              background: 'linear-gradient(135deg, rgba(109,40,217,0.15), rgba(124,58,237,0.08))',
-              border: '1px solid var(--purple-700)',
-              borderRadius: 12, padding: '14px 18px',
-              display: 'flex', alignItems: 'center', gap: 14,
+              padding: '24px 20px',
+              borderRight: '1px solid var(--border)',
+              display: 'flex', flexDirection: 'column', gap: 0,
             }}>
-              <span style={{ fontSize: 28 }}>💡</span>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>Zona sweet spot</p>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Suas apostas em odds <strong style={{ color: 'var(--purple-400)' }}>{data.sweetSpot.label}</strong> têm o melhor retorno:{' '}
-                  ROI <strong style={{ color: clr(data.sweetSpot.roi) }}>{fmtPct(data.sweetSpot.roi)}</strong>
-                  {data.sweetSpot.hitRatePct != null && ` · Taxa ${data.sweetSpot.hitRatePct}%`}
-                  {` · ${data.sweetSpot.total} apostas`}
-                </p>
-              </div>
-            </div>
-          )}
 
-          {/* Odds distribution */}
-          {data.oddsRanges.length > 0 && (
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Distribuição por faixa de odds</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {data.oddsRanges.map((r: any) => {
-                  const maxTotal = Math.max(...data.oddsRanges.map((x: any) => x.total))
-                  const barWidth = maxTotal > 0 ? (r.total / maxTotal) * 100 : 0
-                  const winWidth = r.total > 0 ? (r.won / r.total) * barWidth : 0
-                  return (
-                    <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 90px 70px', alignItems: 'center', gap: 10 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', textAlign: 'right' }}>
-                        {r.emoji} {r.label}
-                      </span>
-                      <div style={{ height: 12, background: 'var(--border)', borderRadius: 6, overflow: 'hidden', position: 'relative' }}>
-                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${barWidth}%`, background: 'rgba(109,40,217,0.25)', borderRadius: 6 }} />
-                        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${winWidth}%`, background: 'var(--green)', borderRadius: 6, opacity: 0.8 }} />
+              {/* KPI stack */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <StatRow label="Apostas"  value={String(data.totalBets)} />
+                <StatRow label="Vitórias" value={String(data.won)}  color="var(--green)" />
+                <StatRow label="Derrotas" value={String(data.lost)} color="var(--red)" />
+                {data.avgOddsWon  && <StatRow label="Odd média (ganhas)"  value={String(data.avgOddsWon)}  color="var(--green)" />}
+                {data.avgOddsLost && <StatRow label="Odd média (perdidas)" value={String(data.avgOddsLost)} color="var(--red)" />}
+              </div>
+
+              {/* Sweet spot */}
+              {data.sweetSpot && (
+                <div style={{
+                  marginTop: 20,
+                  padding: '12px 14px',
+                  background: 'var(--bg-card)',
+                  borderLeft: '2px solid var(--purple-400)',
+                  borderRadius: '0 6px 6px 0',
+                }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--purple-300)', marginBottom: 6 }}>Sweet spot</p>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 3 }}>{data.sweetSpot.label}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    ROI <strong style={{ color: 'var(--green)' }}>{fmtPct(data.sweetSpot.roi)}</strong>
+                    {data.sweetSpot.hitRatePct != null && <span style={{ color: 'var(--text-muted)' }}> · {data.sweetSpot.hitRatePct}% acerto</span>}
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{data.sweetSpot.total} apostas</p>
+                </div>
+              )}
+
+              {/* Streaks */}
+              {data.streaks && (data.streaks.bestWin > 0 || data.streaks.bestLoss > 0) && (
+                <div style={{ marginTop: 20 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>Sequências</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {data.streaks.current > 0 && data.streaks.currentType && (
+                      <div style={{
+                        padding: '10px 12px',
+                        background: 'var(--bg-card)',
+                        borderLeft: `2px solid ${data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)'}`,
+                        borderRadius: '0 6px 6px 0',
+                      }}>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>Atual</p>
+                        <p className="stat-value" style={{ fontSize: 14, fontWeight: 700, color: data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)' }}>
+                          {data.streaks.current} {data.streaks.currentType === 'won' ? 'vitórias' : 'derrotas'}
+                        </p>
                       </div>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                        {r.won}W / {r.lost}L ({r.total})
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 600, textAlign: 'right', color: r.roi != null ? clr(r.roi) : 'var(--text-muted)' }}>
-                        {r.hitRatePct != null ? `${r.hitRatePct}%` : '—'}
-                      </span>
-                    </div>
-                  )
-                })}
-              </div>
-              <div style={{ display: 'flex', gap: 16, marginTop: 8 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'var(--green)', display: 'inline-block' }} /> Vitórias
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, background: 'rgba(109,40,217,0.4)', display: 'inline-block' }} /> Total
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Simple vs Combined */}
-          {data.simpleVsCombined && (
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Simples vs Combinadas</p>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                {([['simple', 'Simples', '🎯'], ['combined', 'Combinadas', '🎲']] as const).map(([key, label, emoji]) => {
-                  const s = data.simpleVsCombined[key]
-                  if (!s.total) return (
-                    <div key={key} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16, opacity: 0.4 }}>
-                      <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>{emoji} {label}</p>
-                      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Sem dados</p>
-                    </div>
-                  )
-                  const isBetter = key === 'simple'
-                    ? (data.simpleVsCombined.simple.roi ?? -Infinity) >= (data.simpleVsCombined.combined.roi ?? -Infinity)
-                    : (data.simpleVsCombined.combined.roi ?? -Infinity) > (data.simpleVsCombined.simple.roi ?? -Infinity)
-                  return (
-                    <div key={key} style={{
-                      background: 'var(--bg-card)',
-                      border: `1px solid ${isBetter ? 'var(--purple-700)' : 'var(--border)'}`,
-                      borderRadius: 12, padding: 16, position: 'relative',
-                    }}>
-                      {isBetter && (
-                        <span style={{ position: 'absolute', top: 10, right: 12, fontSize: 10, color: 'var(--purple-400)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>✓ Melhor</span>
-                      )}
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>{emoji} {label}</p>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                        <div>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Apostas</p>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{s.total}</p>
-                        </div>
-                        <div>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Taxa</p>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{s.hitRatePct != null ? `${s.hitRatePct}%` : '—'}</p>
-                        </div>
-                        <div>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>Lucro</p>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: clr(s.totalProfit) }}>{fmt(s.totalProfit)}</p>
-                        </div>
-                        <div>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>ROI</p>
-                          <p style={{ fontSize: 15, fontWeight: 700, color: clr(s.roi) }}>{fmtPct(s.roi)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Bingos */}
-          {data.bingos && data.bingos.total > 0 && (
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Bingos (odd ≥ 3.0)</p>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <Kpi label="🎯 Apostas" value={String(data.bingos.total)} />
-                <Kpi label="✅ Ganhos" value={String(data.bingos.won)} color="var(--green)" />
-                <Kpi label="Taxa de bingo" value={data.bingos.hitRatePct != null ? `${data.bingos.hitRatePct}%` : '—'} />
-                {data.bingos.biggestOdds && <Kpi label="Maior odd ganha" value={`@${data.bingos.biggestOdds}`} color="var(--purple-400)" />}
-                {data.bingos.super.total > 0 && (
-                  <Kpi label="🔥 Super (5+)" value={`${data.bingos.super.won}/${data.bingos.super.total}`}
-                    sub={data.bingos.super.hitRatePct != null ? `${data.bingos.super.hitRatePct}% taxa` : undefined}
-                    color="var(--purple-400)"
-                  />
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Streaks */}
-          {data.streaks && (
-            <div>
-              <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 12 }}>Sequências</p>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                {data.streaks.current > 0 && data.streaks.currentType && (
-                  <div style={{
-                    background: 'var(--bg-card)', border: `1px solid ${data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)'}`,
-                    borderRadius: 12, padding: '12px 18px',
-                  }}>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Sequência atual</p>
-                    <p style={{ fontSize: 18, fontWeight: 700, color: data.streaks.currentType === 'won' ? 'var(--green)' : 'var(--red)' }}>
-                      {data.streaks.current} {data.streaks.currentType === 'won' ? '🔥 vitórias' : '❄️ derrotas'}
-                    </p>
+                    )}
+                    {data.streaks.bestWin > 0 && <StatRow label="Melhor sequência W" value={`${data.streaks.bestWin} seguidas`} color="var(--green)" />}
+                    {data.streaks.bestLoss > 0 && <StatRow label="Pior sequência L"   value={`${data.streaks.bestLoss} seguidas`} color="var(--red)" />}
                   </div>
-                )}
-                {data.streaks.bestWin > 0 && (
-                  <Kpi label="Maior série de vitórias" value={`${data.streaks.bestWin} seguidas`} color="var(--green)" />
-                )}
-                {data.streaks.bestLoss > 0 && (
-                  <Kpi label="Maior série de derrotas" value={`${data.streaks.bestLoss} seguidas`} color="var(--red)" />
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Bingos */}
+              {data.bingos && data.bingos.total > 0 && (
+                <div style={{ marginTop: 20 }}>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>Alto risco (odd ≥ 3.0)</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <StatRow label="Total"      value={String(data.bingos.total)} />
+                    <StatRow label="Ganhas"     value={String(data.bingos.won)}    color="var(--green)" />
+                    <StatRow label="Taxa"       value={data.bingos.hitRatePct != null ? `${data.bingos.hitRatePct}%` : '—'} />
+                    {data.bingos.biggestOdds && <StatRow label="Maior odd" value={`@${data.bingos.biggestOdds}`} color="var(--purple-300)" />}
+                    {data.bingos.super.total > 0 && (
+                      <StatRow label="Odd 5+ (super)" value={`${data.bingos.super.won}/${data.bingos.super.total}`} />
+                    )}
+                  </div>
+                </div>
+              )}
+
             </div>
-          )}
 
-          {/* Top wins / worst losses */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-            {/* Top wins */}
-            {data.topWins.length > 0 && (
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>🏆 Top 5 melhores</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {data.topWins.map((w: any, i: number) => (
-                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <div style={{ overflow: 'hidden' }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {w.isCombined ? '🎲' : '🎯'} {w.match}
-                        </p>
-                        <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>@{w.odds} · {fmtDate(w.date)}</p>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>+{fmt(w.profit)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            {/* ── RIGHT COLUMN — odds dist + simples/combinadas + top bets ── */}
+            <div style={{ padding: '24px 24px', overflowY: 'auto', maxHeight: 'calc(90vh - 64px)' }}>
 
-            {/* Worst losses */}
-            {data.worstLosses.length > 0 && (
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>💸 Top 5 maiores perdas</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {data.worstLosses.map((l: any, i: number) => (
-                    <div key={i} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                      <div style={{ overflow: 'hidden' }}>
-                        <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {l.isCombined ? '🎲' : '🎯'} {l.match}
-                        </p>
-                        <p style={{ fontSize: 10, color: 'var(--text-muted)' }}>@{l.odds} · {fmtDate(l.date)}</p>
+              {/* Odds distribution */}
+              {data.oddsRanges.length > 0 && (
+                <>
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>Distribuição por faixa de odds</p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {data.oddsRanges.map((r: any) => {
+                      const hitPct = r.hitRatePct ?? 0
+                      const barColor = hitPct >= 60 ? 'var(--green)' : hitPct >= 40 ? 'var(--yellow)' : 'var(--red)'
+                      return (
+                        <div key={r.label} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 110px 46px', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{r.label}</span>
+                          <div style={{ height: 6, background: 'var(--bg-card)', borderRadius: 3, overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', width: `${hitPct}%`,
+                              background: barColor, borderRadius: 3,
+                              transition: 'width 0.45s cubic-bezier(0.16,1,0.3,1)',
+                            }} />
+                          </div>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>
+                            {r.won}W · {r.lost}L · {r.total}
+                          </span>
+                          <span className="stat-value" style={{ fontSize: 13, fontWeight: 700, textAlign: 'right', color: barColor }}>
+                            {r.hitRatePct != null ? `${r.hitRatePct}%` : '—'}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 6, marginBottom: 0 }}>Barra = taxa de acerto</p>
+                </>
+              )}
+
+              {/* Simples vs Combinadas */}
+              {data.simpleVsCombined && (data.simpleVsCombined.simple.total > 0 || data.simpleVsCombined.combined.total > 0) && (
+                <>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '20px 0' }} />
+                  <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 12 }}>Simples vs Combinadas</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    {(['simple', 'combined'] as const).map((key) => {
+                      const s      = data.simpleVsCombined[key]
+                      const label  = key === 'simple' ? 'Simples' : 'Combinadas'
+                      const isBetter = key === 'simple'
+                        ? (s.roi ?? -Infinity) >= (data.simpleVsCombined.combined.roi ?? -Infinity)
+                        : (s.roi ?? -Infinity) > (data.simpleVsCombined.simple.roi ?? -Infinity)
+                      const bothHaveData = data.simpleVsCombined.simple.total > 0 && data.simpleVsCombined.combined.total > 0
+                      return (
+                        <div key={key} style={{ background: 'var(--bg-card)', padding: 14 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>{label}</span>
+                            {bothHaveData && isBetter && (
+                              <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--purple-300)', background: 'var(--purple-900)', padding: '2px 6px', borderRadius: 4 }}>melhor</span>
+                            )}
+                          </div>
+                          {s.total === 0 ? (
+                            <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sem dados</p>
+                          ) : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', rowGap: 8, columnGap: 8 }}>
+                              {[
+                                { l: 'Apostas', v: String(s.total),                                    c: undefined },
+                                { l: 'Taxa',    v: s.hitRatePct != null ? `${s.hitRatePct}%` : '—',   c: undefined },
+                                { l: 'Lucro',   v: fmtV(s.totalProfit),                                c: clr(s.totalProfit) },
+                                { l: 'ROI',     v: fmtPct(s.roi),                                     c: clr(s.roi) },
+                              ].map(({ l, v, c }) => (
+                                <div key={l}>
+                                  <p style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 2 }}>{l}</p>
+                                  <p className="stat-value" style={{ fontSize: 13, fontWeight: 700, color: c ?? 'var(--text-primary)' }}>{v}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* Top wins & worst losses */}
+              {(data.topWins.length > 0 || data.worstLosses.length > 0) && (
+                <>
+                  <div style={{ height: 1, background: 'var(--border)', margin: '20px 0' }} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                    {data.topWins.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>Melhores ganhos</p>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {data.topWins.map((w: any, i: number) => (
+                            <div key={i} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                              padding: '7px 0',
+                              borderBottom: i < data.topWins.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                            }}>
+                              <div style={{ overflow: 'hidden' }}>
+                                <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {w.match}
+                                </p>
+                                <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                                  @{w.odds} · {fmtDate(w.date)}
+                                </p>
+                              </div>
+                              <span className="stat-value" style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>+{fmtV(w.profit)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', flexShrink: 0 }}>-{fmt(l.loss)}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+                    )}
+                    {data.worstLosses.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>Maiores perdas</p>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          {data.worstLosses.map((l: any, i: number) => (
+                            <div key={i} style={{
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+                              padding: '7px 0',
+                              borderBottom: i < data.worstLosses.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                            }}>
+                              <div style={{ overflow: 'hidden' }}>
+                                <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {l.match}
+                                </p>
+                                <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                                  @{l.odds} · {fmtDate(l.date)}
+                                </p>
+                              </div>
+                              <span className="stat-value" style={{ fontSize: 13, fontWeight: 700, color: 'var(--red)', flexShrink: 0 }}>-{fmtV(l.loss)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
+
+            </div>
           </div>
-
-        </div>
-      )}
+        )}
+      </div>
+    </div>
     </div>
   )
 }
@@ -509,6 +626,7 @@ function ProfileTableSimple({ profiles, onSelect, selectedProfileId }: {
   onSelect: (p: ProfileStat) => void
   selectedProfileId?: number | null
 }) {
+  const fmtV = useFmt()
   if (!profiles.length) return null
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -547,8 +665,8 @@ function ProfileTableSimple({ profiles, onSelect, selectedProfileId }: {
                 </td>
                 <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{p.totalBets}</td>
                 <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{p.hitRatePct != null ? `${p.hitRatePct}%` : '—'}</td>
-                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmt(p.totalWagered)}</td>
-                <td style={{ padding: '9px 10px', textAlign: 'right', color: clr(p.totalProfit), fontWeight: 600 }}>{fmt(p.totalProfit)}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--text-secondary)' }}>{fmtV(p.totalWagered)}</td>
+                <td style={{ padding: '9px 10px', textAlign: 'right', color: clr(p.totalProfit), fontWeight: 600 }}>{fmtV(p.totalProfit)}</td>
                 <td style={{ padding: '9px 10px', textAlign: 'right', color: clr((p as any).roi) }}>{(p as any).roi != null ? `${(p as any).roi > 0 ? '+' : ''}${(p as any).roi}%` : '—'}</td>
                 <td style={{ padding: '9px 10px', textAlign: 'right', color: 'var(--purple-400)', fontSize: 12 }}>
                   {isSelected ? '▲' : '▼ Detalhe'}
@@ -584,11 +702,42 @@ const navBtn: React.CSSProperties = {
 
 export default function Goals() {
   const now  = new Date()
-  const [year,       setYear]       = useState(now.getFullYear())
-  const [selMonth,   setSelMonth]   = useState<number | null>(now.getMonth() + 1)
+  const nowY = now.getFullYear()
+  const nowM = now.getMonth() + 1
+
+  const [year,       setYear]       = useState(nowY)
+  const [selMonth,   setSelMonth]   = useState<number | null>(nowM)
   const [modal,      setModal]      = useState<{ month: number; year: number; id?: number; target?: number } | null>(null)
   const [delId,      setDelId]      = useState<number | null>(null)
   const [selProfile, setSelProfile] = useState<ProfileStat | null>(null)
+
+  // Unit toggle
+  const [showUnits, setShowUnits] = useState(false)
+  const [unitValue, setUnitValue] = useState<number>(() => {
+    const s = localStorage.getItem('bet-unit-value')
+    return s ? parseFloat(s) : 10
+  })
+  const saveUnit = (v: number) => {
+    setUnitValue(v)
+    localStorage.setItem('bet-unit-value', String(v))
+  }
+
+  const fmtV = (v: number | null | undefined) => {
+    if (v == null) return '—'
+    if (showUnits && unitValue > 0) {
+      const u = v / unitValue
+      const sign = v < 0 ? '-' : ''
+      return `${sign}${Math.abs(u).toFixed(2)}u`
+    }
+    return fmt(v)
+  }
+
+  const changeYear = (delta: number) => {
+    const ny = year + delta
+    setYear(ny)
+    setSelMonth(ny === nowY ? nowM : null)
+    setSelProfile(null)
+  }
 
   const { data: goals = [], isLoading: goalsLoading } = useGoals()
   const { data: yearData,   isLoading: yearLoading }  = useYearAnalytics(year)
@@ -609,34 +758,73 @@ export default function Goals() {
   }
 
   return (
+    <UnitCtx.Provider value={{ showU: showUnits, unitVal: unitValue }}>
     <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Estatísticas</h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Metas mensais, calendário anual e análise detalhada por perfil</p>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Estatísticas</h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Metas mensais, calendário anual e análise detalhada por perfil</p>
+        </div>
+
+        {/* Unit toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {showUnits && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1u =</span>
+              <input
+                type="number"
+                value={unitValue}
+                min={1}
+                onChange={e => saveUnit(parseFloat(e.target.value) || 1)}
+                style={{
+                  width: 64, background: 'var(--bg-card)', border: '1px solid var(--border)',
+                  borderRadius: 6, padding: '4px 8px', color: 'var(--text-primary)',
+                  fontSize: 13, outline: 'none', textAlign: 'right',
+                }}
+              />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$</span>
+            </div>
+          )}
+          {/* R$ / U pill toggle */}
+          <button
+            onClick={() => setShowUnits(u => !u)}
+            style={{
+              display: 'flex', alignItems: 'center',
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 20, padding: 3, cursor: 'pointer', gap: 2,
+            }}
+          >
+            {(['R$', 'U'] as const).map(label => (
+              <span key={label} style={{
+                padding: '3px 12px', borderRadius: 16, fontSize: 12, fontWeight: 700,
+                transition: 'all 0.15s',
+                background: (label === 'U') === showUnits ? 'var(--purple-600)' : 'transparent',
+                color:      (label === 'U') === showUnits ? '#fff' : 'var(--text-muted)',
+              }}>{label}</span>
+            ))}
+          </button>
+        </div>
       </div>
 
       {/* Year nav */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-        <button onClick={() => { setYear(y => y - 1); setSelMonth(null); setSelProfile(null) }} style={navBtn}>‹</button>
+        <button onClick={() => changeYear(-1)} style={navBtn}>‹</button>
         <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', minWidth: 60, textAlign: 'center' }}>{year}</span>
-        <button onClick={() => { setYear(y => y + 1); setSelMonth(null); setSelProfile(null) }} style={navBtn}>›</button>
+        <button onClick={() => changeYear(+1)} style={navBtn}>›</button>
       </div>
 
       {/* Year KPI strip */}
       {s && (
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 24 }}>
-          <Kpi label="Lucro no ano"    value={fmt(s.totalProfit)}   color={clr(s.totalProfit)} />
-          <Kpi label="Apostado"        value={fmt(s.totalWagered)} />
+          <Kpi label="Lucro no ano"    value={fmtV(s.totalProfit)}   color={clr(s.totalProfit)} />
+          <Kpi label="Apostado"        value={fmtV(s.totalWagered)} />
           <Kpi label="Apostas"         value={String(s.totalBets)} />
-          <Kpi label="ROI"             value={fmtPct(s.roi)}         color={clr(s.roi)} />
+          <Kpi label="ROI"             value={fmtPct(s.roi)}          color={clr(s.roi)} />
           <Kpi label="Taxa geral"      value={s.hitRatePct != null ? `${s.hitRatePct}%` : '—'} />
-          <Kpi label="Metas atingidas" value={s.goalsSet > 0 ? `${s.goalsHit}/${s.goalsSet}` : '—'}
-            color={s.goalsHit === s.goalsSet && s.goalsSet > 0 ? 'var(--green)' : undefined}
-          />
-          {s.bestMonth != null && <Kpi label="Melhor mês" value={`${MONTH_NAMES[s.bestMonth - 1]} (${fmt(s.bestProfit)})`} color="var(--green)" />}
-          {s.worstMonth != null && <Kpi label="Pior mês"  value={`${MONTH_NAMES[s.worstMonth - 1]} (${fmt(s.worstProfit)})`} color="var(--red)" />}
+          {s.bestMonth  != null && <Kpi label="Melhor mês" value={`${MONTH_NAMES[s.bestMonth  - 1]} (${fmtV(s.bestProfit)})`}  color="var(--green)" />}
+          {s.worstMonth != null && <Kpi label="Pior mês"   value={`${MONTH_NAMES[s.worstMonth - 1]} (${fmtV(s.worstProfit)})`} color="var(--red)" />}
         </div>
       )}
 
@@ -651,7 +839,7 @@ export default function Goals() {
             targetProfit: null, goalId: null, achieved: null, progressPct: null,
           } as MonthAnalytics))).map((m: MonthAnalytics) => (
             <MonthCell
-              key={m.month} m={m}
+              key={m.month} m={m} year={year}
               selectedMonth={selMonth}
               onSelect={(mo) => { setSelMonth(mo); setSelProfile(null) }}
               onNewGoal={(mo) => setModal({ month: mo, year })}
@@ -721,5 +909,6 @@ export default function Goals() {
         </div>
       )}
     </div>
+    </UnitCtx.Provider>
   )
 }

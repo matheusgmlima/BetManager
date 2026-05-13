@@ -3,25 +3,48 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary:    #09090f;
-  --bg-secondary:  #0f0f1a;
-  --bg-card:       #13131f;
-  --bg-card-hover: #1a1a2e;
-  --border:        #1e1e30;
-  --border-purple: #2d1f5e;
-  --purple-900:    #3b0764;
-  --purple-700:    #6d28d9;
-  --purple-600:    #7c3aed;
-  --purple-500:    #8b5cf6;
-  --purple-400:    #a78bfa;
-  --purple-300:    #c4b5fd;
-  --purple-glow:   rgba(124, 58, 237, 0.25);
-  --text-primary:  #f0f0ff;
-  --text-secondary:#a0a0c0;
-  --text-muted:    #5a5a78;
-  --green:         #22c55e;
-  --red:           #ef4444;
-  --yellow:        #eab308;
+  /* backgrounds — subtle depth layers */
+  --bg-primary:    #08080e;
+  --bg-secondary:  #0d0d18;
+  --bg-card:       #111120;
+  --bg-surface:    #161628;
+  --bg-card-hover: #191930;
+
+  /* borders — barely visible, rely on bg contrast */
+  --border:        #1c1c2e;
+  --border-subtle: #161624;
+  --border-purple: #2a1d54;
+
+  /* accent — indigo-violet, used sparingly */
+  --purple-900:    #1e1040;
+  --purple-700:    #5b21b6;
+  --purple-600:    #6d28d9;
+  --purple-500:    #7c3aed;
+  --purple-400:    #8b5cf6;
+  --purple-300:    #a78bfa;
+  --purple-glow:   rgba(109, 40, 217, 0.18);
+
+  /* typography — cooler whites, clear hierarchy */
+  --text-primary:  #ededf5;
+  --text-secondary:#7878a0;
+  --text-muted:    #46465e;
+  --text-label:    #56567a;
+
+  /* data colors — less saturated, more refined */
+  --green:         #16a34a;
+  --green-muted:   rgba(22, 163, 74, 0.12);
+  --red:           #dc2626;
+  --red-muted:     rgba(220, 38, 38, 0.12);
+  --yellow:        #ca8a04;
+
+  /* spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
 }
 
 * { box-sizing: border-box; }
@@ -31,6 +54,35 @@ body {
   color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Tabular numbers for all stat displays ── */
+.tabnum,
+[data-stat] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+/* ── Section divider label ── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+/* ── Stat value ── */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.03em;
 }
 
 /* Scrollbar */

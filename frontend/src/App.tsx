@@ -17,36 +17,37 @@ const queryClient = new QueryClient({
 })
 
 const navItems = [
-  { to: '/',              label: 'Dashboard',     icon: '▦' },
-  { to: '/planilha',      label: 'Planilha',      icon: '⊞' },
-  { to: '/estatisticas',  label: 'Estatísticas',  icon: '◎' },
-  { to: '/configuracoes', label: 'Configurações', icon: '⚙' },
+  { to: '/',             label: 'Dashboard',    end: true  },
+  { to: '/planilha',     label: 'Planilha',     end: false },
+  { to: '/estatisticas', label: 'Estatísticas', end: false },
+  { to: '/configuracoes',label: 'Configurações',end: false },
 ]
+
+const HEADER_H = 52
 
 // ─── Floating New Bet FAB (draggable) ─────────────────────────────────────────
 const FAB_KEY = 'fab-position'
 
 function FloatingNewBet() {
-  const navigate  = useNavigate()
-  const isMobile  = useMobile()
+  const navigate = useNavigate()
+  const isMobile = useMobile()
 
   const getDefault = useCallback(() => ({
-    x: window.innerWidth  - (isMobile ? 80  : 172),
-    y: window.innerHeight - (isMobile ? 80  : 80),
+    x: window.innerWidth  - (isMobile ? 76 : 168),
+    y: window.innerHeight - 76,
   }), [isMobile])
 
-  const [pos,     setPos]     = useState<{ x: number; y: number }>(() => {
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
     try {
       const s = localStorage.getItem(FAB_KEY)
       if (s) return JSON.parse(s)
     } catch {}
-    return { x: window.innerWidth - 172, y: window.innerHeight - 80 }
+    return { x: window.innerWidth - 168, y: window.innerHeight - 76 }
   })
   const [dragging, setDragging] = useState(false)
-  const dragRef   = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null)
-  const fabRef    = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number; moved: boolean } | null>(null)
+  const fabRef  = useRef<HTMLDivElement>(null)
 
-  // Clamp inside viewport on resize
   useEffect(() => {
     const onResize = () => {
       setPos(p => ({
@@ -59,13 +60,11 @@ function FloatingNewBet() {
   }, [])
 
   const onPointerDown = (e: React.PointerEvent) => {
-    // Only drag on the container div, not child buttons
     if ((e.target as HTMLElement).tagName === 'BUTTON') return
     e.currentTarget.setPointerCapture(e.pointerId)
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pos.x, originY: pos.y, moved: false }
     setDragging(true)
   }
-
   const onPointerMove = (e: React.PointerEvent) => {
     if (!dragRef.current) return
     const dx = e.clientX - dragRef.current.startX
@@ -73,23 +72,18 @@ function FloatingNewBet() {
     if (Math.abs(dx) > 4 || Math.abs(dy) > 4) dragRef.current.moved = true
     const w = fabRef.current?.offsetWidth  ?? 56
     const h = fabRef.current?.offsetHeight ?? 56
-    const newX = Math.max(8, Math.min(window.innerWidth  - w - 8, dragRef.current.originX + dx))
-    const newY = Math.max(8, Math.min(window.innerHeight - h - 8, dragRef.current.originY + dy))
-    setPos({ x: newX, y: newY })
+    setPos({
+      x: Math.max(8, Math.min(window.innerWidth  - w - 8, dragRef.current.originX + dx)),
+      y: Math.max(HEADER_H + 8, Math.min(window.innerHeight - h - 8, dragRef.current.originY + dy)),
+    })
   }
-
   const onPointerUp = (e: React.PointerEvent) => {
     if (!dragRef.current) return
     const moved = dragRef.current.moved
     dragRef.current = null
     setDragging(false)
-    if (!moved) {
-      // it was a click — navigate
-      navigate('/apostas/nova')
-    } else {
-      // save position
-      setPos(p => { localStorage.setItem(FAB_KEY, JSON.stringify(p)); return p })
-    }
+    if (!moved) navigate('/apostas/nova')
+    else setPos(p => { localStorage.setItem(FAB_KEY, JSON.stringify(p)); return p })
   }
 
   return (
@@ -99,219 +93,180 @@ function FloatingNewBet() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       style={{
-        position: 'fixed',
-        left: pos.x,
-        top:  pos.y,
-        zIndex: 50,
-        display: 'flex', alignItems: 'center',
+        position: 'fixed', left: pos.x, top: pos.y, zIndex: 50,
         cursor: dragging ? 'grabbing' : 'grab',
-        userSelect: 'none',
-        touchAction: 'none',
+        userSelect: 'none', touchAction: 'none',
       }}
     >
       <button
         className="fab-pulse"
         style={{
-          display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 10,
-          padding: isMobile ? '0' : '0 22px',
-          width:   isMobile ? 52 : 'auto',
-          height:  isMobile ? 52 : 52,
-          borderRadius: isMobile ? '50%' : 26,
-          background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+          display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 9,
+          padding: isMobile ? '0' : '0 20px',
+          width: isMobile ? 48 : 'auto', height: 48,
+          borderRadius: isMobile ? '50%' : 24,
+          background: 'linear-gradient(135deg, var(--purple-700), var(--purple-500))',
           border: 'none', color: '#fff',
-          fontSize: isMobile ? 22 : 14, fontWeight: 700,
+          fontSize: isMobile ? 22 : 13, fontWeight: 600,
           cursor: dragging ? 'grabbing' : 'pointer',
-          justifyContent: 'center',
-          whiteSpace: 'nowrap',
-          pointerEvents: 'none', // delegated to parent div
+          justifyContent: 'center', whiteSpace: 'nowrap',
+          pointerEvents: 'none',
           transition: dragging ? 'none' : 'box-shadow 0.2s',
-          boxShadow: dragging ? '0 8px 32px rgba(124,58,237,0.5)' : '0 4px 20px rgba(124,58,237,0.35)',
+          boxShadow: dragging
+            ? '0 8px 32px rgba(109,40,217,0.45)'
+            : '0 2px 16px rgba(109,40,217,0.3)',
         }}
       >
-        <span style={{ fontSize: 20, lineHeight: 1 }}>+</span>
+        <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
         {!isMobile && <span>Nova Aposta</span>}
       </button>
     </div>
   )
 }
 
-// ─── Sidebar content ──────────────────────────────────────────────────────────
-function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
-  return (
-    <>
-      {/* Logo */}
-      <div className="px-3 mb-8">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="flex-shrink-0 logo-pulse"
-            style={{ borderRadius: '50%', background: 'linear-gradient(135deg, #1a0a3e, #0f0820)', padding: 2 }}
-          >
-            <SnakeLogo size={36} />
-          </div>
-          <div>
-            <h1 className="text-sm font-bold" style={{ color: 'var(--text-primary)' }}>BetManager</h1>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Gestão de apostas</p>
-          </div>
-        </div>
-      </div>
+// ─── Top nav ──────────────────────────────────────────────────────────────────
 
-      {/* Nav */}
-      <nav className="flex flex-col gap-0.5 flex-1">
-        <p className="text-xs font-semibold px-3 mb-2 uppercase tracking-widest" style={{ color: 'var(--text-muted)' }}>
-          Menu
-        </p>
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            onClick={onNavClick}
-            style={({ isActive }) => ({
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              padding: '9px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 500,
-              transition: 'all 0.15s ease',
-              textDecoration: 'none',
-              background: isActive
-                ? 'linear-gradient(135deg, var(--purple-700), var(--purple-600))'
-                : 'transparent',
-              color: isActive ? '#fff' : 'var(--text-secondary)',
-              boxShadow: isActive ? '0 0 16px var(--purple-glow)' : 'none',
-            })}
-            onMouseEnter={(e) => {
-              const el = e.currentTarget
-              if (!el.style.background.includes('gradient')) {
-                el.style.background = 'var(--bg-card-hover)'
-                el.style.color = 'var(--text-primary)'
-              }
-            }}
-            onMouseLeave={(e) => {
-              const el = e.currentTarget
-              if (!el.style.background.includes('gradient')) {
-                el.style.background = 'transparent'
-                el.style.color = 'var(--text-secondary)'
-              }
-            }}
-          >
-            <span
-              className="w-6 h-6 flex items-center justify-center rounded-md text-xs font-bold flex-shrink-0"
-              style={{ background: 'var(--bg-card)', color: 'var(--purple-400)' }}
-            >
-              {item.icon}
-            </span>
-            {item.label}
-          </NavLink>
-        ))}
-      </nav>
-
-      {/* Status footer */}
-      <div
-        className="mx-1 mt-4 p-3 rounded-xl"
-        style={{ background: 'var(--bg-card)', border: '1px solid var(--border)' }}
-      >
-        <div className="flex items-center gap-2">
-          <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--green)' }} />
-          <p className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>Sistema online</p>
-        </div>
-        <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>v1.0.0 · MVP</p>
-      </div>
-    </>
-  )
-}
-
-function Layout({ children }: { children: React.ReactNode }) {
-  const isMobile = useMobile()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
-  const location = useLocation()
+function TopNav() {
+  const isMobile  = useMobile()
+  const location  = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
   useFaviconSnake()
 
-  // Close sidebar on route change (mobile)
-  useEffect(() => {
-    if (isMobile) setSidebarOpen(false)
-  }, [location.pathname, isMobile])
+  // close menu on route change
+  useEffect(() => { setMenuOpen(false) }, [location.pathname])
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--bg-primary)' }}>
+    <header style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 30,
+      height: HEADER_H,
+      background: 'var(--bg-secondary)',
+      borderBottom: '1px solid var(--border)',
+      display: 'flex', alignItems: 'center',
+      padding: '0 20px',
+      gap: 0,
+    }}>
+      {/* Logo */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 32, flexShrink: 0 }}>
+        <SnakeLogo size={28} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>
+          BetManager
+        </span>
+      </div>
 
-      {/* Mobile backdrop */}
-      {isMobile && sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          style={{
-            position: 'fixed', inset: 0, zIndex: 18,
-            background: 'rgba(0,0,0,0.55)',
-            backdropFilter: 'blur(3px)',
-          }}
-        />
+      {/* Desktop nav links */}
+      {!isMobile && (
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
+          {navItems.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              style={({ isActive }) => ({
+                padding: '6px 12px',
+                fontSize: 13,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                textDecoration: 'none',
+                borderRadius: 6,
+                background: isActive ? 'var(--bg-surface)' : 'transparent',
+                transition: 'all 0.12s',
+                position: 'relative',
+              })}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLAnchorElement
+                if (!el.style.background.includes('surface')) {
+                  el.style.background = 'var(--bg-card)'
+                  el.style.color = 'var(--text-primary)'
+                }
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLAnchorElement
+                if (!el.style.background.includes('surface')) {
+                  el.style.background = 'transparent'
+                  el.style.color = 'var(--text-secondary)'
+                }
+              }}
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
       )}
 
-      {/* Sidebar */}
-      <aside
-        className="flex flex-col py-6 px-3"
-        style={{
-          width: 240,
-          position: 'fixed', top: 0, left: 0, height: '100%',
-          background: 'var(--bg-secondary)',
-          borderRight: '1px solid var(--border)',
-          zIndex: 20,
-          transform: isMobile && !sidebarOpen ? 'translateX(-100%)' : 'translateX(0)',
-          transition: 'transform 0.28s cubic-bezier(0.16,1,0.3,1)',
-        }}
-      >
-        {/* Mobile close button */}
-        {isMobile && (
-          <button
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              position: 'absolute', top: 14, right: 14,
-              width: 30, height: 30, borderRadius: '50%',
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-          >
-            ✕
-          </button>
-        )}
+      {/* Spacer on mobile */}
+      {isMobile && <div style={{ flex: 1 }} />}
 
-        <SidebarContent onNavClick={isMobile ? () => setSidebarOpen(false) : undefined} />
-      </aside>
+      {/* Status dot (desktop) */}
+      {!isMobile && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', opacity: 0.8 }} />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>online</span>
+        </div>
+      )}
 
-      {/* Hamburger button — mobile only */}
+      {/* Mobile hamburger */}
       {isMobile && (
         <button
-          onClick={() => setSidebarOpen(true)}
+          onClick={() => setMenuOpen(o => !o)}
           style={{
-            position: 'fixed', top: 14, left: 14, zIndex: 17,
-            width: 38, height: 38, borderRadius: 10,
-            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-            color: 'var(--purple-400)', fontSize: 18, cursor: 'pointer',
+            width: 36, height: 36, borderRadius: 8,
+            border: '1px solid var(--border)', background: 'var(--bg-card)',
+            color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
           }}
         >
-          ☰
+          {menuOpen ? '✕' : '☰'}
         </button>
       )}
 
-      {/* Main content */}
-      <main
-        className="flex-1 overflow-auto"
-        style={{
-          marginLeft: isMobile ? 0 : 240,
-          minHeight: '100vh',
-        }}
-      >
+      {/* Mobile dropdown menu */}
+      {isMobile && menuOpen && (
+        <div style={{
+          position: 'absolute', top: HEADER_H, left: 0, right: 0,
+          background: 'var(--bg-secondary)',
+          borderBottom: '1px solid var(--border)',
+          padding: '8px 12px 12px',
+          display: 'flex', flexDirection: 'column', gap: 2,
+        }}>
+          {navItems.map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={() => setMenuOpen(false)}
+              style={({ isActive }) => ({
+                padding: '10px 14px',
+                fontSize: 14, fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                textDecoration: 'none',
+                borderRadius: 8,
+                background: isActive ? 'var(--bg-surface)' : 'transparent',
+                borderLeft: isActive ? '2px solid var(--purple-400)' : '2px solid transparent',
+              })}
+            >{item.label}</NavLink>
+          ))}
+        </div>
+      )}
+    </header>
+  )
+}
+
+// ─── Layout ───────────────────────────────────────────────────────────────────
+
+function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
+      <TopNav />
+      <main style={{ paddingTop: HEADER_H }}>
         {children}
       </main>
-
       <FloatingNewBet />
     </div>
   )
 }
+
+// ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
@@ -319,11 +274,11 @@ export default function App() {
       <BrowserRouter>
         <Layout>
           <Routes>
-            <Route path="/"              element={<Dashboard />} />
-            <Route path="/apostas/nova"  element={<NewBet />} />
-            <Route path="/estatisticas"  element={<Goals />} />
-            <Route path="/planilha"      element={<Spreadsheet />} />
-            <Route path="/configuracoes" element={<Settings />} />
+            <Route path="/"               element={<Dashboard />} />
+            <Route path="/apostas/nova"   element={<NewBet />} />
+            <Route path="/estatisticas"   element={<Goals />} />
+            <Route path="/planilha"       element={<Spreadsheet />} />
+            <Route path="/configuracoes"  element={<Settings />} />
           </Routes>
         </Layout>
       </BrowserRouter>

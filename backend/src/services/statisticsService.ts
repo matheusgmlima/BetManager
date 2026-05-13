@@ -293,11 +293,11 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
     },
   }
 
-  // ─── Sweet spot (best odds range by ROI with ≥5 bets) ──────────────────────
-  const qualified = oddsRanges.filter(r => r.total >= 5 && r.roi !== null)
+  // ─── Sweet spot (best odds range by ROI, must be positive, ≥3 bets) ─────────
+  const qualified = oddsRanges.filter(r => r.total >= 3 && r.roi !== null && r.roi > 0)
   const sweetSpot = qualified.length
     ? qualified.reduce((a, b) => (b.roi! > a.roi! ? b : a))
-    : oddsRanges.length ? oddsRanges.reduce((a, b) => (b.total > a.total ? b : a)) : null
+    : null  // no recommendation if no range has positive ROI
 
   // ─── Streaks ─────────────────────────────────────────────────────────────────
   const streaks = calcStreaks(bets)
