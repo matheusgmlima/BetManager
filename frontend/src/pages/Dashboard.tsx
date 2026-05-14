@@ -10,6 +10,7 @@ import { useMobile } from '../hooks/useMobile'
 import { useDashboard, useSportStats, useBookmakerStats, useProfileStats } from '../hooks/useDashboard'
 import { DashboardPeriod } from '../types/dashboard.types'
 import { useState } from 'react'
+import { useUnit } from '../contexts/UnitContext'
 
 // ─── Tooltip style ────────────────────────────────────────────────────────────
 const ttStyle     = { backgroundColor: '#0a0a12', border: '1px solid #2d1f5e', borderRadius: '10px', fontSize: '12px' }
@@ -65,15 +66,21 @@ function TrendBadge({ value, suffix = '%' }: { value: number; suffix?: string })
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 function KpiCard({
-  icon, label, rawValue, prefix = '', suffix = '', trend, sub, delay = 0, accent, decimals,
+  icon, label, rawValue, prefix = '', suffix = '', trend, sub, delay = 0, accent, decimals, isMoney = false,
 }: {
   icon: string; label: string; rawValue: number
   prefix?: string; suffix?: string; trend?: number
-  sub?: string; delay?: number; accent?: string; decimals?: number
+  sub?: string; delay?: number; accent?: string; decimals?: number; isMoney?: boolean
 }) {
-  const dec = decimals ?? (rawValue % 1 !== 0 ? 1 : 0)
-  const val = useCountUp(rawValue, 1300, dec)
-  const ac = accent ?? '#7c3aed'
+  const { showU, unitVal } = useUnit()
+  const useUnits = isMoney && showU && unitVal > 0
+  const displayValue = useUnits ? rawValue / unitVal : rawValue
+  const dec = decimals ?? (displayValue % 1 !== 0 ? (useUnits ? 2 : 1) : 0)
+  const val = useCountUp(displayValue, 1300, dec)
+  const ac  = accent ?? '#7c3aed'
+
+  const displayPrefix = useUnits ? '' : prefix
+  const displaySuffix = useUnits ? 'u' : suffix
 
   return (
     <div
@@ -97,7 +104,7 @@ function KpiCard({
       </div>
       <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</p>
       <p style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, marginTop: 4 }}>
-        {prefix}{val.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}{suffix}
+        {displayPrefix}{val.toLocaleString('pt-BR', { minimumFractionDigits: dec, maximumFractionDigits: dec })}{displaySuffix}
       </p>
       {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{sub}</p>}
     </div>
@@ -108,7 +115,8 @@ function KpiCard({
 function ProfileCard({ p, i }: { p: { profile: string; totalProfit: number; totalBets: number; hitRatePct: number | null }; i: number }) {
   const cor      = PROFILE_COLORS[i % PROFILE_COLORS.length]
   const sigla    = p.profile.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-  const lucroAnim = useCountUp(p.totalProfit, 1400, 2)
+  const { showU, unitVal } = useUnit()
+  const lucroAnim = useCountUp(showU && unitVal > 0 ? p.totalProfit / unitVal : p.totalProfit, 1400, 2)
 
   return (
     <div
@@ -134,7 +142,7 @@ function ProfileCard({ p, i }: { p: { profile: string; totalProfit: number; tota
         </div>
       </div>
       <p style={{ fontSize: 30, fontWeight: 900, color: p.totalProfit >= 0 ? '#22c55e' : '#ef4444', letterSpacing: '-0.02em', lineHeight: 1 }}>
-        {p.totalProfit >= 0 ? '+' : ''}R$ {lucroAnim.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+        {p.totalProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{lucroAnim.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
       </p>
       <div style={{ display: 'flex', gap: 24, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
         <div>
@@ -191,11 +199,14 @@ export default function Dashboard() {
   const { data: bookmakerStats = [] } = useBookmakerStats()
   const { data: profileStats = [] } = useProfileStats()
 
+  const { showU, unitVal } = useUnit()
   const summary = dash?.summary
   const profitChart = dash?.profitChart ?? []
 
-  const totalProfit   = useCountUp(summary?.totalProfit   ?? 0, 1500, 2)
-  const totalWagered  = useCountUp(summary?.totalWagered  ?? 0, 1400, 2)
+  const rawProfit   = summary?.totalProfit  ?? 0
+  const rawWagered  = summary?.totalWagered ?? 0
+  const totalProfit  = useCountUp(showU && unitVal > 0 ? rawProfit  / unitVal : rawProfit,  1500, showU ? 2 : 2)
+  const totalWagered = useCountUp(showU && unitVal > 0 ? rawWagered / unitVal : rawWagered, 1400, showU ? 2 : 2)
   const hitRate       = useCountUp(summary?.hitRatePct    ?? 0, 1300, 1)
   const roi           = summary?.totalWagered
     ? (summary.totalProfit / summary.totalWagered) * 100
@@ -225,7 +236,7 @@ export default function Dashboard() {
       <FloatingParticles />
 
       <div
-        style={{ padding: isMobile ? '56px 16px 24px' : '28px 32px', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}
+        style={{ padding: isMobile ? '56px 16px 24px' : '28px 40px', maxWidth: 1300, margin: '0 auto', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}
         className="space-y-6 anim-scale-in"
       >
         {/* ── HEADER ────────────────────────────────────────── */}
@@ -285,8 +296,8 @@ export default function Dashboard() {
                   {loadingDash ? (
                     <div style={{ height: 64, width: 220, borderRadius: 10, background: 'rgba(139,92,246,0.1)', animation: 'pulse 1.5s ease infinite' }} />
                   ) : (
-                    <span style={{ fontSize: isMobile ? 40 : 64, fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1, color: (summary?.totalProfit ?? 0) >= 0 ? '#fff' : '#ef4444' }}>
-                      {(summary?.totalProfit ?? 0) >= 0 ? '' : '-'}R$ {Math.abs(totalProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <span style={{ fontSize: isMobile ? 40 : 64, fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 1, color: rawProfit >= 0 ? '#fff' : '#ef4444' }}>
+                      {rawProfit >= 0 ? '' : '-'}{showU ? '' : 'R$ '}{Math.abs(totalProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
                     </span>
                   )}
                   {!loadingDash && roi !== 0 && <TrendBadge value={roi} />}
@@ -295,7 +306,7 @@ export default function Dashboard() {
                   <p style={{ fontSize: 13, color: '#6d5a9a', marginTop: 8 }}>
                     Total apostado:&nbsp;
                     <span style={{ color: '#a78bfa', fontWeight: 700 }}>
-                      R$ {totalWagered.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      {showU ? '' : 'R$ '}{totalWagered.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
                     </span>
                   </p>
                 )}
@@ -357,10 +368,11 @@ export default function Dashboard() {
         <div className="anim-slide-up" style={{ animationDelay: '80ms' }}>
           <Section label="Métricas do período">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <KpiCard icon="R$" label="Lucro"        rawValue={summary?.totalProfit  ?? 0} prefix="R$ " decimals={2} delay={0}   accent="#22c55e" />
-              <KpiCard icon="Σ"  label="Total apostado" rawValue={summary?.totalWagered ?? 0} prefix="R$ " decimals={2} delay={60}  accent="#8b5cf6" sub={`${summary?.totalBets ?? 0} apostas`} />
+              <KpiCard icon="Σ"  label="Total apostado" rawValue={summary?.totalWagered ?? 0} prefix="R$ " decimals={2} delay={0}   accent="#8b5cf6" isMoney />
+              <KpiCard icon="#"  label="Apostas"        rawValue={summary?.totalBets    ?? 0}              decimals={0} delay={60}  accent="#818cf8"
+                sub={summary ? `${summary.simpleCount} simples · ${summary.combinedCount} combinadas` : undefined} />
               <KpiCard icon="%"  label="Taxa de acerto" rawValue={summary?.hitRatePct   ?? 0} suffix="%" decimals={1}  delay={120} accent="#a78bfa" sub={`${summary?.won ?? 0} ganhou · ${summary?.lost ?? 0} perdeu`} />
-              <KpiCard icon="↑"  label="ROI"           rawValue={roi}                          suffix="%" decimals={1}  delay={180} accent="#c084fc" sub={`Odd média: ${summary?.avgOdds?.toFixed(2) ?? '—'}`} />
+              <KpiCard icon="↑"  label="ROI"            rawValue={roi}                         suffix="%" decimals={1}  delay={180} accent="#c084fc" sub={`Odd média: ${summary?.avgOdds?.toFixed(2) ?? '—'}`} />
             </div>
           </Section>
         </div>

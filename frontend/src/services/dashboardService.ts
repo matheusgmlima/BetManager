@@ -25,6 +25,9 @@ export const dashboardService = {
   getMonthlyStats: () =>
     api.get('/api/stats/monthly').then((r) => r.data.data),
 
+  getHeatmap: () =>
+    api.get<{ data: any[] }>('/api/stats/heatmap').then((r) => r.data.data),
+
   getGoals: () =>
     api.get<{ data: Goal[] }>('/api/goals').then((r) => r.data.data),
 

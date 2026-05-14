@@ -1,19 +1,14 @@
-import { useState, useContext, createContext } from 'react'
+import { useState } from 'react'
 import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
 import { useProfileDetail } from '../hooks/useDashboard'
 import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
+import { useUnit } from '../contexts/UnitContext'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
 const MONTH_NAMES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const MONTH_FULL  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
-function fmt(v: number | null | undefined) {
-  if (v == null) return '—'
-  const abs = Math.abs(v)
-  const str = abs.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  return `${v < 0 ? '-' : ''}R$ ${str}`
-}
 function fmtPct(v: number | null | undefined) {
   if (v == null) return '—'
   return `${v > 0 ? '+' : ''}${v.toFixed(1)}%`
@@ -27,35 +22,8 @@ function fmtDate(iso: string) {
   return `${d}/${m}/${y}`
 }
 
-// ─── Unit context ─────────────────────────────────────────────────────────────
-
-const UnitCtx = createContext<{ showU: boolean; unitVal: number }>({ showU: false, unitVal: 10 })
-
-/** Returns a monetary formatter that respects the current unit toggle */
-function useFmt() {
-  const { showU, unitVal } = useContext(UnitCtx)
-  return (v: number | null | undefined) => {
-    if (v == null) return '—'
-    if (showU && unitVal > 0) {
-      const u = v / unitVal
-      const sign = v < 0 ? '-' : ''
-      return `${sign}${Math.abs(u).toFixed(2)}u`
-    }
-    return fmt(v)
-  }
-}
-
 // ─── design primitives ────────────────────────────────────────────────────────
 
-/** Thin labeled divider — used as section headers inside panels */
-function SectionDivider({ label }: { label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '24px 0 16px' }}>
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{label}</span>
-      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-    </div>
-  )
-}
 
 /** Horizontal label : value row — used in the narrow left column */
 function StatRow({ label, value, color }: { label: string; value: string; color?: string }) {
@@ -108,17 +76,37 @@ function GoalModal({ editing, onClose }: {
   editing: { month: number; year: number; id?: number; target?: number }
   onClose: () => void
 }) {
-  const create = useCreateGoal()
-  const update = useUpdateGoal()
+  const create  = useCreateGoal()
+  const update  = useUpdateGoal()
+  const isEdit  = !!editing.id
+
+  const nowY = new Date().getFullYear()
+  const yearOpts = Array.from({ length: 5 }, (_, i) => nowY - 1 + i)
+
+  const [month,  setMonth]  = useState(editing.month)
+  const [year,   setYear]   = useState(editing.year)
   const [target, setTarget] = useState(String(editing.target ?? ''))
+  const [error,  setError]  = useState('')
+
+  const inpStyle: React.CSSProperties = {
+    width: '100%', background: 'var(--bg-card)', border: '1px solid var(--border)',
+    borderRadius: 8, padding: '10px 14px', color: 'var(--text-primary)',
+    fontSize: 14, outline: 'none', fontFamily: 'inherit',
+  }
+  const labelStyle: React.CSSProperties = {
+    fontSize: 11, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: 'var(--text-muted)',
+    display: 'block', marginBottom: 6,
+  }
 
   const save = () => {
     const t = parseFloat(target)
-    if (isNaN(t) || t <= 0) return
-    if (editing.id) {
-      update.mutate({ id: editing.id, data: { targetProfit: t } }, { onSuccess: onClose })
+    if (isNaN(t) || t <= 0) { setError('Informe um valor maior que zero'); return }
+    setError('')
+    if (isEdit) {
+      update.mutate({ id: editing.id!, data: { targetProfit: t } }, { onSuccess: onClose })
     } else {
-      create.mutate({ month: editing.month, year: editing.year, targetProfit: t }, { onSuccess: onClose })
+      create.mutate({ month, year, targetProfit: t }, { onSuccess: onClose })
     }
   }
 
@@ -127,30 +115,70 @@ function GoalModal({ editing, onClose }: {
       position: 'fixed', inset: 0, zIndex: 100,
       background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
     }}>
       <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-        borderRadius: 16, padding: 32, minWidth: 320,
+        background: 'var(--bg-secondary)', border: '1px solid #2d1f5e',
+        borderRadius: 16, padding: 28, width: '100%', maxWidth: 380,
+        boxShadow: '0 0 48px rgba(124,58,237,0.15)',
       }}>
-        <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 20 }}>
-          {editing.id ? 'Editar meta' : 'Nova meta'} — {MONTH_FULL[editing.month - 1]} {editing.year}
-        </h3>
-        <label style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Meta de lucro (R$)</label>
-        <input
-          type="number" value={target} onChange={e => setTarget(e.target.value)}
-          placeholder="ex: 500"
-          onKeyDown={e => e.key === 'Enter' && save()}
-          style={{
-            width: '100%', marginTop: 6, marginBottom: 20,
-            background: 'var(--bg-card)', border: '1px solid var(--border)',
-            borderRadius: 8, padding: '10px 14px', color: 'var(--text-primary)',
-            fontSize: 15, outline: 'none',
-          }}
-          autoFocus
-        />
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onClose} style={btnGhost}>Cancelar</button>
-          <button onClick={save} disabled={create.isLoading || update.isLoading} style={btnPrimary}>Salvar</button>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+          <div>
+            <h3 style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', margin: 0 }}>
+              {isEdit ? 'Editar meta' : 'Nova meta'}
+            </h3>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+              {isEdit ? `${MONTH_FULL[editing.month - 1]} ${editing.year}` : 'Defina o período e o objetivo'}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>×</button>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Month + Year — only when creating */}
+          {!isEdit && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                <label style={labelStyle}>Mês</label>
+                <select value={month} onChange={e => setMonth(Number(e.target.value))} style={inpStyle}>
+                  {MONTH_FULL.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Ano</label>
+                <select value={year} onChange={e => setYear(Number(e.target.value))} style={inpStyle}>
+                  {yearOpts.map(y => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Target */}
+          <div>
+            <label style={labelStyle}>Meta de lucro (R$)</label>
+            <input
+              type="number" value={target} min="0.01" step="0.01"
+              onChange={e => { setTarget(e.target.value); setError('') }}
+              onKeyDown={e => e.key === 'Enter' && save()}
+              placeholder="0,00"
+              style={{ ...inpStyle, borderColor: error ? 'var(--red)' : 'var(--border)' }}
+              autoFocus
+            />
+            {error && <p style={{ fontSize: 11, color: 'var(--red)', marginTop: 4 }}>{error}</p>}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+            <button onClick={onClose} style={{ ...btnGhost, flex: 1, justifyContent: 'center' }}>Cancelar</button>
+            <button
+              onClick={save}
+              disabled={create.isLoading || update.isLoading}
+              style={{ ...btnPrimary, flex: 2, textAlign: 'center', opacity: (create.isLoading || update.isLoading) ? 0.7 : 1 }}
+            >
+              {(create.isLoading || update.isLoading) ? 'Salvando…' : isEdit ? 'Salvar alterações' : 'Criar meta'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -166,12 +194,7 @@ function MonthCell({ m, year, selectedMonth, onSelect, onNewGoal }: {
   onSelect: (month: number) => void
   onNewGoal: (month: number) => void
 }) {
-  const { showU, unitVal } = useContext(UnitCtx)
-  const fmtV = (v: number | null | undefined) => {
-    if (v == null) return '—'
-    if (showU && unitVal > 0) { const u = v / unitVal; return `${v < 0 ? '-' : ''}${Math.abs(u).toFixed(2)}u` }
-    return fmt(v)
-  }
+  const { fmtMoney: fmtV } = useUnit()
   const now    = new Date()
   const nowY   = now.getFullYear()
   const nowM   = now.getMonth() + 1
@@ -219,18 +242,26 @@ function MonthCell({ m, year, selectedMonth, onSelect, onNewGoal }: {
         )}
       </div>
 
-      {hasBets ? (
-        <p style={{ fontSize: 15, fontWeight: 700, color: clr(m.totalProfit), marginBottom: 2 }}>
-          {fmtV(m.totalProfit)}
-        </p>
-      ) : (
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem apostas</p>
-      )}
+      {/* Profit + ROI on same row */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: hasGoal ? 8 : 0 }}>
+        {hasBets ? (
+          <p style={{ fontSize: 15, fontWeight: 700, color: clr(m.totalProfit), margin: 0 }}>
+            {fmtV(m.totalProfit)}
+          </p>
+        ) : (
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>Sem apostas</p>
+        )}
+        {m.roi !== null && hasBets && (
+          <span style={{ fontSize: 10, color: clr(m.roi), fontWeight: 600 }}>
+            {m.roi > 0 ? '+' : ''}{m.roi}%
+          </span>
+        )}
+      </div>
 
       {hasGoal && m.targetProfit !== null && (
-        <div style={{ marginTop: 8 }}>
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--text-muted)', marginBottom: 3 }}>
-            <span>{fmt(m.targetProfit)}</span>
+            <span>{fmtV(m.targetProfit)}</span>
             <span>{m.progressPct != null ? `${Math.min(m.progressPct, 100).toFixed(0)}%` : '—'}</span>
           </div>
           <div style={{ height: 3, background: 'var(--border)', borderRadius: 2 }}>
@@ -242,12 +273,6 @@ function MonthCell({ m, year, selectedMonth, onSelect, onNewGoal }: {
             }} />
           </div>
         </div>
-      )}
-
-      {m.roi !== null && hasBets && (
-        <span style={{ position: 'absolute', bottom: 8, right: 8, fontSize: 10, color: clr(m.roi), fontWeight: 600 }}>
-          {m.roi > 0 ? '+' : ''}{m.roi}%
-        </span>
       )}
     </div>
   )
@@ -262,7 +287,7 @@ function GoalDetail({ month, year, goals, monthData, onEdit, onDelete }: {
   onEdit: (g: Goal) => void
   onDelete: (id: number) => void
 }) {
-  const fmtV = useFmt()
+  const { fmtMoney: fmtV } = useUnit()
   const goal = goals.find(g => g.month === month && g.year === year)
   if (!goal && !monthData?.totalBets) return null
   const pct  = goal?.progressPct ?? 0
@@ -325,7 +350,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
   onClose: () => void
 }) {
   const { data, isLoading } = useProfileDetail(profileId, true)
-  const fmtV = useFmt()
+  const { fmtMoney: fmtV } = useUnit()
 
   // derive initials for avatar
   const initials = profileName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -626,7 +651,7 @@ function ProfileTableSimple({ profiles, onSelect, selectedProfileId }: {
   onSelect: (p: ProfileStat) => void
   selectedProfileId?: number | null
 }) {
-  const fmtV = useFmt()
+  const { fmtMoney: fmtV } = useUnit()
   if (!profiles.length) return null
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -711,26 +736,7 @@ export default function Goals() {
   const [delId,      setDelId]      = useState<number | null>(null)
   const [selProfile, setSelProfile] = useState<ProfileStat | null>(null)
 
-  // Unit toggle
-  const [showUnits, setShowUnits] = useState(false)
-  const [unitValue, setUnitValue] = useState<number>(() => {
-    const s = localStorage.getItem('bet-unit-value')
-    return s ? parseFloat(s) : 10
-  })
-  const saveUnit = (v: number) => {
-    setUnitValue(v)
-    localStorage.setItem('bet-unit-value', String(v))
-  }
-
-  const fmtV = (v: number | null | undefined) => {
-    if (v == null) return '—'
-    if (showUnits && unitValue > 0) {
-      const u = v / unitValue
-      const sign = v < 0 ? '-' : ''
-      return `${sign}${Math.abs(u).toFixed(2)}u`
-    }
-    return fmt(v)
-  }
+  const { fmtMoney: fmtV } = useUnit()
 
   const changeYear = (delta: number) => {
     const ny = year + delta
@@ -758,7 +764,6 @@ export default function Goals() {
   }
 
   return (
-    <UnitCtx.Provider value={{ showU: showUnits, unitVal: unitValue }}>
     <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
@@ -767,45 +772,19 @@ export default function Goals() {
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 4 }}>Estatísticas</h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Metas mensais, calendário anual e análise detalhada por perfil</p>
         </div>
-
-        {/* Unit toggle */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {showUnits && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1u =</span>
-              <input
-                type="number"
-                value={unitValue}
-                min={1}
-                onChange={e => saveUnit(parseFloat(e.target.value) || 1)}
-                style={{
-                  width: 64, background: 'var(--bg-card)', border: '1px solid var(--border)',
-                  borderRadius: 6, padding: '4px 8px', color: 'var(--text-primary)',
-                  fontSize: 13, outline: 'none', textAlign: 'right',
-                }}
-              />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$</span>
-            </div>
-          )}
-          {/* R$ / U pill toggle */}
-          <button
-            onClick={() => setShowUnits(u => !u)}
-            style={{
-              display: 'flex', alignItems: 'center',
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 20, padding: 3, cursor: 'pointer', gap: 2,
-            }}
-          >
-            {(['R$', 'U'] as const).map(label => (
-              <span key={label} style={{
-                padding: '3px 12px', borderRadius: 16, fontSize: 12, fontWeight: 700,
-                transition: 'all 0.15s',
-                background: (label === 'U') === showUnits ? 'var(--purple-600)' : 'transparent',
-                color:      (label === 'U') === showUnits ? '#fff' : 'var(--text-muted)',
-              }}>{label}</span>
-            ))}
-          </button>
-        </div>
+        <button
+          onClick={() => setModal({ month: selMonth ?? nowM, year })}
+          style={{
+            ...btnPrimary,
+            padding: '9px 18px',
+            boxShadow: '0 0 20px rgba(124,58,237,0.25)',
+            transition: 'box-shadow 0.15s, transform 0.15s',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 0 28px rgba(124,58,237,0.4)' }}
+          onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = '0 0 20px rgba(124,58,237,0.25)' }}
+        >
+          Nova meta
+        </button>
       </div>
 
       {/* Year nav */}
@@ -903,12 +882,11 @@ export default function Goals() {
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>Essa ação não pode ser desfeita.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
               <button onClick={() => setDelId(null)} style={btnGhost}>Cancelar</button>
-              <button onClick={() => handleDelete(delId)} style={{ ...btnPrimary, background: 'var(--red)' }}>Excluir</button>
+              <button onClick={() => delId !== null && handleDelete(delId)} style={{ ...btnPrimary, background: 'var(--red)' }}>Excluir</button>
             </div>
           </div>
         </div>
       )}
     </div>
-    </UnitCtx.Provider>
   )
 }

@@ -8,5 +8,6 @@ router.get('/profiles/detail', ctrl.profileDetail)
 router.get('/profiles',        ctrl.byProfile)
 router.get('/bet-types',  ctrl.byBetType)
 router.get('/monthly',    ctrl.monthly)
+router.get('/heatmap',    ctrl.heatmap)
 
 export default router

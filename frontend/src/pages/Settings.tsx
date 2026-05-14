@@ -512,6 +512,7 @@ export default function Settings() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 32px' : '32px 40px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
@@ -578,6 +579,7 @@ export default function Settings() {
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
       `}</style>
+      </div>
     </div>
   )
 }

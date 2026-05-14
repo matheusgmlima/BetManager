@@ -17,6 +17,8 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
   const lost = resolved.filter((b) => b.result === 'lost').length
   const voidBets = resolved.filter((b) => b.result === 'void').length
   const pending = bets.filter((b) => b.result === 'pending').length
+  const simpleCount   = bets.filter((b) => b.betType === 'simple').length
+  const combinedCount = bets.filter((b) => b.betType === 'combined').length
 
   const totalWagered = bets.reduce((s, b) => s + Number(b.amountWagered), 0)
   const totalPayout  = bets.reduce((s, b) => s + Number(b.payout), 0)
@@ -113,6 +115,8 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
       lost,
       void: voidBets,
       pending,
+      simpleCount,
+      combinedCount,
       hitRatePct: calculateHitRate(won, lost),
       totalWagered: parseFloat(totalWagered.toFixed(2)),
       totalPayout: parseFloat(totalPayout.toFixed(2)),

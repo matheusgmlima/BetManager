@@ -1,14 +1,16 @@
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import SnakeLogo from './components/SnakeLogo'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { useMobile } from './hooks/useMobile'
 import { useFaviconSnake } from './hooks/useFaviconSnake'
+import { UnitProvider, useUnit } from './contexts/UnitContext'
 import Dashboard from './pages/Dashboard'
 import NewBet from './pages/NewBet'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Spreadsheet from './pages/Spreadsheet'
+import Analytics from './pages/Analytics'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -19,7 +21,8 @@ const queryClient = new QueryClient({
 const navItems = [
   { to: '/',             label: 'Dashboard',    end: true  },
   { to: '/planilha',     label: 'Planilha',     end: false },
-  { to: '/estatisticas', label: 'Estatísticas', end: false },
+  { to: '/analytics',    label: 'Analytics',    end: false },
+  { to: '/estatisticas', label: 'Metas',        end: false },
   { to: '/configuracoes',label: 'Configurações',end: false },
 ]
 
@@ -32,10 +35,6 @@ function FloatingNewBet() {
   const navigate = useNavigate()
   const isMobile = useMobile()
 
-  const getDefault = useCallback(() => ({
-    x: window.innerWidth  - (isMobile ? 76 : 168),
-    y: window.innerHeight - 76,
-  }), [isMobile])
 
   const [pos, setPos] = useState<{ x: number; y: number }>(() => {
     try {
@@ -77,7 +76,7 @@ function FloatingNewBet() {
       y: Math.max(HEADER_H + 8, Math.min(window.innerHeight - h - 8, dragRef.current.originY + dy)),
     })
   }
-  const onPointerUp = (e: React.PointerEvent) => {
+  const onPointerUp = (_e: React.PointerEvent) => {
     if (!dragRef.current) return
     const moved = dragRef.current.moved
     dragRef.current = null
@@ -119,6 +118,51 @@ function FloatingNewBet() {
       >
         <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
         {!isMobile && <span>Nova Aposta</span>}
+      </button>
+    </div>
+  )
+}
+
+// ─── Unit toggle ──────────────────────────────────────────────────────────────
+
+function UnitToggle() {
+  const { showU, unitVal, setShowU, setUnitVal } = useUnit()
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {showU && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1u =</span>
+          <input
+            type="number"
+            value={unitVal}
+            min={1}
+            onChange={e => setUnitVal(parseFloat(e.target.value) || 1)}
+            style={{
+              width: 60, background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 6, padding: '3px 8px', color: 'var(--text-primary)',
+              fontSize: 12, outline: 'none', textAlign: 'right',
+            }}
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$</span>
+        </div>
+      )}
+      <button
+        onClick={() => setShowU(!showU)}
+        title={showU ? 'Mostrar em R$' : 'Mostrar em unidades'}
+        style={{
+          display: 'flex', alignItems: 'center',
+          background: 'var(--bg-card)', border: '1px solid var(--border)',
+          borderRadius: 20, padding: 3, cursor: 'pointer', gap: 2,
+        }}
+      >
+        {(['R$', 'U'] as const).map(label => (
+          <span key={label} style={{
+            padding: '2px 10px', borderRadius: 16, fontSize: 11, fontWeight: 700,
+            transition: 'all 0.15s',
+            background: (label === 'U') === showU ? 'var(--purple-600)' : 'transparent',
+            color:      (label === 'U') === showU ? '#fff' : 'var(--text-muted)',
+          }}>{label}</span>
+        ))}
       </button>
     </div>
   )
@@ -196,11 +240,14 @@ function TopNav() {
       {/* Spacer on mobile */}
       {isMobile && <div style={{ flex: 1 }} />}
 
-      {/* Status dot (desktop) */}
+      {/* Right controls (desktop) */}
       {!isMobile && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', flexShrink: 0 }}>
-          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', opacity: 0.8 }} />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>online</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto', flexShrink: 0 }}>
+          <UnitToggle />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', opacity: 0.8 }} />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>online</span>
+          </div>
         </div>
       )}
 
@@ -271,17 +318,20 @@ function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <UnitProvider>
       <BrowserRouter>
         <Layout>
           <Routes>
             <Route path="/"               element={<Dashboard />} />
             <Route path="/apostas/nova"   element={<NewBet />} />
+            <Route path="/analytics"      element={<Analytics />} />
             <Route path="/estatisticas"   element={<Goals />} />
             <Route path="/planilha"       element={<Spreadsheet />} />
             <Route path="/configuracoes"  element={<Settings />} />
           </Routes>
         </Layout>
       </BrowserRouter>
+      </UnitProvider>
     </QueryClientProvider>
   )
 }

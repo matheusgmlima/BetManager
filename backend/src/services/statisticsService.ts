@@ -241,6 +241,11 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
       const a = Number(b.amountWagered)
       return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
     }, 0)
+    const oddsVals = rb.filter(b => b.odds != null)
+    const avgOdds = oddsVals.length > 0
+      ? oddsVals.reduce((s, b) => s + Number(b.odds), 0) / oddsVals.length
+      : null
+    const expectedHitRatePct = avgOdds ? parseFloat((100 / avgOdds).toFixed(1)) : null
     return {
       label: r.label,
       emoji: r.emoji,
@@ -248,6 +253,8 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
       won: rWon,
       lost: rLost,
       hitRatePct: settled > 0 ? parseFloat(((rWon / settled) * 100).toFixed(1)) : null,
+      expectedHitRatePct,
+      avgOdds: avgOdds ? parseFloat(avgOdds.toFixed(2)) : null,
       roi: totalWagered > 0 ? parseFloat(((totalProfit / totalWagered) * 100).toFixed(1)) : null,
       totalProfit: parseFloat(totalProfit.toFixed(2)),
     }
@@ -381,6 +388,43 @@ export async function getMonthlyStats(): Promise<MonthlyStats[]> {
       lost,
       totalProfit: parseFloat(totalProfit.toFixed(2)),
       hitRatePct: calculateHitRate(won, lost),
+    }
+  })
+}
+
+// ─── Heatmap semanal ──────────────────────────────────────────────────────────
+
+export async function getHeatmap() {
+  const bets = await prisma.bet.findMany({
+    where: { result: { not: 'pending' } },
+    orderBy: { date: 'asc' },
+  })
+
+  const DAY_NAMES = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+  const days = DAY_NAMES.map((label, day) => ({ day, label, bets: [] as typeof bets }))
+
+  for (const bet of bets) {
+    const d = new Date(bet.date).getUTCDay()
+    days[d].bets.push(bet)
+  }
+
+  return days.map(({ day, label, bets: db }) => {
+    const won  = db.filter(b => b.result === 'won').length
+    const lost = db.filter(b => b.result === 'lost').length
+    const totalWagered = db.reduce((s, b) => s + Number(b.amountWagered), 0)
+    const totalProfit  = db.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
+    return {
+      day, label,
+      totalBets: db.length,
+      won, lost,
+      hitRatePct:  won + lost > 0 ? parseFloat(((won / (won + lost)) * 100).toFixed(1)) : null,
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
+      totalWagered: parseFloat(totalWagered.toFixed(2)),
+      roi: totalWagered > 0 ? parseFloat(((totalProfit / totalWagered) * 100).toFixed(1)) : null,
+      avgProfit: db.length > 0 ? parseFloat((totalProfit / db.length).toFixed(2)) : 0,
     }
   })
 }

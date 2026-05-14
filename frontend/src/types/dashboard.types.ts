@@ -6,6 +6,8 @@ export interface DashboardSummary {
   lost: number
   void: number
   pending: number
+  simpleCount: number
+  combinedCount: number
   hitRatePct: number | null
   totalWagered: number
   totalPayout: number

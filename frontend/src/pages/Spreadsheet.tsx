@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useBets, useUpdateBet, useDeleteBet } from '../hooks/useBets'
 import { useSports, useBookmakers, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
+import { useUnit } from '../contexts/UnitContext'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -34,9 +35,6 @@ function ResultBadge({ result }: { result: BetResult }) {
   )
 }
 
-function fmtBRL(n: number) {
-  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-}
 function fmtDate(iso: string) {
   const [y, m, d] = iso.split('T')[0].split('-')
   return `${d}/${m}/${y}`
@@ -125,11 +123,6 @@ function SummaryCard({ label, value, sub, color = '#8b5cf6' }: { label: string; 
 function PagBtn({ label, onClick, disabled = false, active = false }: {
   label: string; onClick: () => void; disabled?: boolean; active?: boolean
 }) {
-  const inputStyle: React.CSSProperties = {
-    background: 'var(--bg-card)', border: '1px solid var(--border)',
-    borderRadius: 8, padding: '7px 10px', fontSize: 12,
-    color: 'var(--text-primary)', outline: 'none', transition: 'border-color 0.15s',
-  }
   return (
     <button
       onClick={onClick}
@@ -503,6 +496,7 @@ function CombinedDetailsPopup({ bet, onClose }: { bet: Bet; onClose: () => void 
 function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
   const [hovered,       setHovered]       = useState(false)
   const [showCombined,  setShowCombined]  = useState(false)
+  const { fmtMoney }                      = useUnit()
   const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
 
   const isCombined = bet.isCombined
@@ -619,10 +613,10 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
         {bet.odds != null ? bet.odds.toFixed(2) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
       </td>
       <td style={{ ...td, textAlign: 'right', color: 'var(--text-primary)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-        R$ {fmtBRL(bet.amountWagered)}
+        {fmtMoney(bet.amountWagered)}
       </td>
       <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-        R$ {fmtBRL(bet.payout)}
+        {fmtMoney(bet.payout)}
       </td>
       <td style={{ ...td, whiteSpace: 'nowrap' }}>
         <ResultBadge result={bet.result} />
@@ -632,7 +626,7 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
         color: bet.profit > 0 ? '#22c55e' : bet.profit < 0 ? '#ef4444' : 'var(--text-muted)',
       }}>
         {bet.profit > 0 ? '+' : bet.profit < 0 ? '−' : ''}
-        {bet.profit !== 0 ? `R$ ${fmtBRL(Math.abs(bet.profit))}` : '—'}
+        {bet.profit !== 0 ? fmtMoney(Math.abs(bet.profit)) : '—'}
       </td>
       <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
@@ -672,6 +666,7 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
 const PAGE_SIZES = [10, 25, 50]
 
 function BetTable({ profileId, accentColor }: { profileId: number | null; accentColor: string }) {
+  const { fmtMoney } = useUnit()
   const [search,     setSearch]     = useState('')
   const [resultF,    setResultF]    = useState<BetResult | ''>('')
   const [betTypeF,   setBetTypeF]   = useState<BetType | ''>('')
@@ -762,10 +757,10 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
       {/* Summary cards */}
       {summary && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-          <SummaryCard label="Total apostado"    value={`R$ ${fmtBRL(summary.totalWagered)}`} color={accentColor} />
+          <SummaryCard label="Total apostado"    value={fmtMoney(summary.totalWagered)} color={accentColor} />
           <SummaryCard
             label="Lucro total"
-            value={`${summary.totalProfit >= 0 ? '+' : ''}R$ ${fmtBRL(summary.totalProfit)}`}
+            value={`${summary.totalProfit >= 0 ? '+' : ''}${fmtMoney(summary.totalProfit)}`}
             color={summary.totalProfit >= 0 ? '#22c55e' : '#ef4444'}
           />
           <SummaryCard label="Taxa de acerto" value={summary.hitRatePct != null ? `${summary.hitRatePct.toFixed(1)}%` : '—'} color="#a78bfa" />
@@ -856,13 +851,13 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
                   </td>
 
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>R$ {fmtBRL(summary.totalWagered)}</td>
+                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>{fmtMoney(summary.totalWagered)}</td>
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
                   <td style={{ padding: '10px 14px', background: 'rgba(9,9,15,0.5)' }}>
                     {summary.hitRatePct != null && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600 }}>{summary.hitRatePct.toFixed(1)}% acerto</span>}
                   </td>
                   <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, whiteSpace: 'nowrap', background: 'rgba(9,9,15,0.5)', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
-                    {summary.totalProfit >= 0 ? '+' : ''}R$ {fmtBRL(summary.totalProfit)}
+                    {summary.totalProfit >= 0 ? '+' : ''}{fmtMoney(summary.totalProfit)}
                   </td>
                   <td style={{ background: 'rgba(9,9,15,0.5)' }} />
                 </tr>
@@ -915,7 +910,7 @@ export default function Spreadsheet() {
   const activeColor = tabs.find(t => t.id === activeTab)?.color ?? '#8b5cf6'
 
   return (
-    <div style={{ padding: '28px 32px', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
+    <div style={{ padding: '28px 40px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
 
       {/* ── HEADER ── */}
       <div>

@@ -43,3 +43,10 @@ export async function monthly(req: Request, res: Response, next: NextFunction) {
     res.json({ data })
   } catch (err) { next(err) }
 }
+
+export async function heatmap(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await statsService.getHeatmap()
+    res.json({ data })
+  } catch (err) { next(err) }
+}
