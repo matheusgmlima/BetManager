@@ -3,28 +3,28 @@ import * as statsService from '../services/statisticsService'
 
 export async function bySport(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await statsService.getStatsBySport(req.query as any)
+    const data = await statsService.getStatsBySport(req.user!.userId, req.query as any)
     res.json({ data })
   } catch (err) { next(err) }
 }
 
 export async function byBookmaker(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await statsService.getStatsByBookmaker(req.query as any)
+    const data = await statsService.getStatsByBookmaker(req.user!.userId, req.query as any)
     res.json({ data })
   } catch (err) { next(err) }
 }
 
 export async function byBetType(req: Request, res: Response, next: NextFunction) {
   try {
-    const result = await statsService.getStatsByBetType(req.query as any)
+    const result = await statsService.getStatsByBetType(req.user!.userId, req.query as any)
     res.json(result)
   } catch (err) { next(err) }
 }
 
 export async function byProfile(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await statsService.getStatsByProfile(req.query as any)
+    const data = await statsService.getStatsByProfile(req.user!.userId, req.query as any)
     res.json({ data })
   } catch (err) { next(err) }
 }
@@ -32,21 +32,21 @@ export async function byProfile(req: Request, res: Response, next: NextFunction)
 export async function profileDetail(req: Request, res: Response, next: NextFunction) {
   try {
     const profileId = req.query.profileId as string | undefined
-    const data = await statsService.getProfileDetail(profileId)
+    const data = await statsService.getProfileDetail(req.user!.userId, profileId)
     res.json({ data })
   } catch (err) { next(err) }
 }
 
 export async function monthly(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await statsService.getMonthlyStats()
+    const data = await statsService.getMonthlyStats(req.user!.userId)
     res.json({ data })
   } catch (err) { next(err) }
 }
 
 export async function heatmap(req: Request, res: Response, next: NextFunction) {
   try {
-    const data = await statsService.getHeatmap()
+    const data = await statsService.getHeatmap(req.user!.userId)
     res.json({ data })
   } catch (err) { next(err) }
 }

@@ -3,11 +3,11 @@ import { calculateProfit, calculateHitRate } from '../utils/calculations'
 import { getPeriodRange, daysRemainingInMonth, toDateString } from '../utils/dateUtils'
 import { DashboardPeriod, DashboardData } from '../types/dashboard.types'
 
-export async function getDashboard(period: DashboardPeriod): Promise<DashboardData> {
+export async function getDashboard(userId: number, period: DashboardPeriod): Promise<DashboardData> {
   const { from, to } = getPeriodRange(period)
 
   const bets = await prisma.bet.findMany({
-    where: { date: { gte: from, lte: to } },
+    where: { userId, date: { gte: from, lte: to } },
     include: { bookmaker: true },
     orderBy: { date: 'asc' },
   })
@@ -30,7 +30,6 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
     ? resolved.reduce((s, b) => s + (b.odds ? Number(b.odds) : 0), 0) / resolved.filter((b) => b.odds).length
     : null
 
-  // Profit chart — agrupado por dia
   const profitByDay = new Map<string, number>()
   for (const bet of resolved) {
     const key    = toDateString(bet.date)
@@ -49,7 +48,6 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
       return { date, dailyProfit: parseFloat(dailyProfit.toFixed(2)), cumulativeProfit: parseFloat(cumulative.toFixed(2)) }
     })
 
-  // Apostas pendentes
   const pendingBets = bets
     .filter((b) => b.result === 'pending')
     .map((b) => ({
@@ -61,17 +59,16 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
       amountWagered: Number(b.amountWagered),
     }))
 
-  // Meta do mês atual
   const now = new Date()
   const currentGoal = await prisma.goal.findUnique({
-    where: { month_year: { month: now.getMonth() + 1, year: now.getFullYear() } },
+    where: { userId_month_year: { userId, month: now.getMonth() + 1, year: now.getFullYear() } },
   })
 
   let goal = null
   if (currentGoal) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
     const monthBets = await prisma.bet.findMany({
-      where: { date: { gte: monthStart }, result: { not: 'pending' } },
+      where: { userId, date: { gte: monthStart }, result: { not: 'pending' } },
     })
     const monthProfit = monthBets.reduce(
       (s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0
@@ -93,7 +90,6 @@ export async function getDashboard(period: DashboardPeriod): Promise<DashboardDa
     }
   }
 
-  // Últimas 5 apostas
   const recentBets = bets
     .slice(-5)
     .reverse()

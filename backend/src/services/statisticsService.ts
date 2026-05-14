@@ -4,8 +4,8 @@ import { SportStat, BookmakerStat, BetTypeStat, MonthlyStats } from '../types/da
 
 interface DateFilter { dateFrom?: string; dateTo?: string }
 
-function buildDateWhere(filters: DateFilter) {
-  const where: any = { result: { not: 'pending' } }
+function buildDateWhere(userId: number, filters: DateFilter) {
+  const where: any = { userId, result: { not: 'pending' } }
   if (filters.dateFrom || filters.dateTo) {
     where.date = {}
     if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom)
@@ -14,9 +14,9 @@ function buildDateWhere(filters: DateFilter) {
   return where
 }
 
-export async function getStatsBySport(filters: DateFilter): Promise<SportStat[]> {
+export async function getStatsBySport(userId: number, filters: DateFilter): Promise<SportStat[]> {
   const bets = await prisma.bet.findMany({
-    where: { ...buildDateWhere(filters), sportId: { not: null } },
+    where: { ...buildDateWhere(userId, filters), sportId: { not: null } },
     include: { sport: true },
   })
 
@@ -50,9 +50,9 @@ export async function getStatsBySport(filters: DateFilter): Promise<SportStat[]>
   }).sort((a, b) => b.totalProfit - a.totalProfit)
 }
 
-export async function getStatsByBookmaker(filters: DateFilter): Promise<BookmakerStat[]> {
+export async function getStatsByBookmaker(userId: number, filters: DateFilter): Promise<BookmakerStat[]> {
   const bets = await prisma.bet.findMany({
-    where: buildDateWhere(filters),
+    where: buildDateWhere(userId, filters),
     include: { bookmaker: true },
   })
 
@@ -85,8 +85,8 @@ export async function getStatsByBookmaker(filters: DateFilter): Promise<Bookmake
   }).sort((a, b) => b.totalProfit - a.totalProfit)
 }
 
-export async function getStatsByBetType(filters: DateFilter): Promise<{ data: BetTypeStat[]; recommendation: string }> {
-  const bets = await prisma.bet.findMany({ where: buildDateWhere(filters) })
+export async function getStatsByBetType(userId: number, filters: DateFilter): Promise<{ data: BetTypeStat[]; recommendation: string }> {
+  const bets = await prisma.bet.findMany({ where: buildDateWhere(userId, filters) })
 
   const types = ['simple', 'combined'] as const
   const data: BetTypeStat[] = types.map((betType) => {
@@ -121,17 +121,21 @@ export async function getStatsByBetType(filters: DateFilter): Promise<{ data: Be
   return { data, recommendation }
 }
 
-export async function getStatsByProfile(filters: DateFilter) {
+export async function getStatsByProfile(userId: number, filters: DateFilter) {
   const allBets = await prisma.bet.findMany({
-    where: buildDateWhere(filters),
+    where: buildDateWhere(userId, filters),
     include: { bettingProfile: true },
   })
-  // Also count total per profile (including pending) for total bets count
   const totalBetsPerProfile = await prisma.bet.findMany({
-    where: filters.dateFrom || filters.dateTo ? {
-      ...(filters.dateFrom ? { date: { gte: new Date(filters.dateFrom) } } : {}),
-      ...(filters.dateTo   ? { date: { lte: new Date(filters.dateTo)   } } : {}),
-    } : {},
+    where: {
+      userId,
+      ...(filters.dateFrom || filters.dateTo ? {
+        date: {
+          ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+          ...(filters.dateTo   ? { lte: new Date(filters.dateTo)   } : {}),
+        }
+      } : {}),
+    },
     include: { bettingProfile: true },
   })
 
@@ -167,8 +171,6 @@ export async function getStatsByProfile(filters: DateFilter) {
   }).sort((a, b) => b.totalProfit - a.totalProfit)
 }
 
-// ─── Profile detail ───────────────────────────────────────────────────────────
-
 const ODDS_RANGES = [
   { label: '< 1.30',    emoji: '🐢', min: 0,    max: 1.30 },
   { label: '1.30–1.60', emoji: '🟢', min: 1.30, max: 1.60 },
@@ -180,7 +182,6 @@ const ODDS_RANGES = [
 ]
 
 function calcStreaks(bets: any[]) {
-  // ordered by date asc
   let bestWin = 0, bestLoss = 0, tempCount = 0, tempType = ''
   for (const b of bets) {
     if (b.result === 'void') continue
@@ -190,7 +191,6 @@ function calcStreaks(bets: any[]) {
     if (tempType === 'lost' && tempCount > bestLoss) bestLoss = tempCount
   }
 
-  // current streak (walk back from last)
   let currentType: 'won' | 'lost' | null = null
   let current = 0
   for (let i = bets.length - 1; i >= 0; i--) {
@@ -204,8 +204,8 @@ function calcStreaks(bets: any[]) {
   return { current, currentType, bestWin, bestLoss }
 }
 
-export async function getProfileDetail(profileIdParam: string | undefined) {
-  let where: any = { result: { not: 'pending' } }
+export async function getProfileDetail(userId: number, profileIdParam: string | undefined) {
+  let where: any = { userId, result: { not: 'pending' } }
 
   if (profileIdParam === undefined || profileIdParam === '') {
     // aggregate ALL profiles
@@ -230,7 +230,6 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
   const won  = bets.filter(b => b.result === 'won').length
   const lost = bets.filter(b => b.result === 'lost').length
 
-  // ─── Odds distribution ──────────────────────────────────────────────────────
   const oddsRanges = ODDS_RANGES.map(r => {
     const rb   = bets.filter(b => { const o = Number(b.odds); return o >= r.min && o < r.max })
     const rWon = rb.filter(b => b.result === 'won').length
@@ -260,7 +259,6 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
     }
   }).filter(r => r.total > 0)
 
-  // ─── Simple vs Combined ─────────────────────────────────────────────────────
   const calcType = (type: 'simple' | 'combined') => {
     const tb = bets.filter(b => b.betType === type)
     const w  = tb.filter(b => b.result === 'won').length
@@ -282,7 +280,6 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
     combined: calcType('combined'),
   }
 
-  // ─── Bingos ─────────────────────────────────────────────────────────────────
   const bingoBets = bets.filter(b => Number(b.odds) >= 3)
   const bingoWon  = bingoBets.filter(b => b.result === 'won')
   const superBets = bets.filter(b => Number(b.odds) >= 5)
@@ -300,16 +297,13 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
     },
   }
 
-  // ─── Sweet spot (best odds range by ROI, must be positive, ≥3 bets) ─────────
   const qualified = oddsRanges.filter(r => r.total >= 3 && r.roi !== null && r.roi > 0)
   const sweetSpot = qualified.length
     ? qualified.reduce((a, b) => (b.roi! > a.roi! ? b : a))
-    : null  // no recommendation if no range has positive ROI
+    : null
 
-  // ─── Streaks ─────────────────────────────────────────────────────────────────
   const streaks = calcStreaks(bets)
 
-  // ─── Top wins / losses ──────────────────────────────────────────────────────
   const withProfit = bets.map(b => {
     const a = Number(b.amountWagered)
     const profit = b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a)
@@ -342,7 +336,6 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
       isCombined: b.betType === 'combined',
     }))
 
-  // ─── Avg odds won vs lost ───────────────────────────────────────────────────
   const wonBets  = bets.filter(b => b.result === 'won')
   const lostBets = bets.filter(b => b.result === 'lost')
   const avgOddsWon  = wonBets.length  ? parseFloat((wonBets.reduce((s, b) => s + Number(b.odds), 0) / wonBets.length).toFixed(2))  : null
@@ -362,9 +355,10 @@ export async function getProfileDetail(profileIdParam: string | undefined) {
   }
 }
 
-export async function getMonthlyStats(): Promise<MonthlyStats[]> {
+export async function getMonthlyStats(userId: number): Promise<MonthlyStats[]> {
   const bets = await prisma.bet.findMany({
     where: {
+      userId,
       result: { not: 'pending' },
       date: { gte: new Date(new Date().getFullYear() - 1, new Date().getMonth() + 1, 1) },
     },
@@ -392,11 +386,9 @@ export async function getMonthlyStats(): Promise<MonthlyStats[]> {
   })
 }
 
-// ─── Heatmap semanal ──────────────────────────────────────────────────────────
-
-export async function getHeatmap() {
+export async function getHeatmap(userId: number) {
   const bets = await prisma.bet.findMany({
-    where: { result: { not: 'pending' } },
+    where: { userId, result: { not: 'pending' } },
     orderBy: { date: 'asc' },
   })
 

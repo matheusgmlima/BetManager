@@ -1,16 +1,20 @@
-import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import SnakeLogo from './components/SnakeLogo'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { useMobile } from './hooks/useMobile'
 import { useFaviconSnake } from './hooks/useFaviconSnake'
 import { UnitProvider, useUnit } from './contexts/UnitContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './pages/Dashboard'
 import NewBet from './pages/NewBet'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
 import Spreadsheet from './pages/Spreadsheet'
 import Analytics from './pages/Analytics'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import VerifyEmail from './pages/VerifyEmail'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -174,6 +178,7 @@ function TopNav() {
   const isMobile  = useMobile()
   const location  = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
+  const { user, logout } = useAuth()
   useFaviconSnake()
 
   // close menu on route change
@@ -242,12 +247,22 @@ function TopNav() {
 
       {/* Right controls (desktop) */}
       {!isMobile && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginLeft: 'auto', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexShrink: 0 }}>
           <UnitToggle />
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', opacity: 0.8 }} />
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>online</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user?.username}</span>
           </div>
+          <button
+            onClick={logout}
+            style={{
+              padding: '4px 10px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'transparent', color: 'var(--text-muted)', fontSize: 11,
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'var(--red)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--red)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.borderColor = 'var(--border)' }}
+          >Sair</button>
         </div>
       )}
 
@@ -313,25 +328,50 @@ function Layout({ children }: { children: React.ReactNode }) {
   )
 }
 
+// ─── Protected route ──────────────────────────────────────────────────────────
+
+function ProtectedRoutes() {
+  const { user, loading } = useAuth()
+  if (loading) return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando…</p>
+    </div>
+  )
+  if (!user) return <Navigate to="/login" replace />
+  return (
+    <Layout>
+      <Routes>
+        <Route path="/"              element={<Dashboard />} />
+        <Route path="/apostas/nova"  element={<NewBet />} />
+        <Route path="/analytics"     element={<Analytics />} />
+        <Route path="/estatisticas"  element={<Goals />} />
+        <Route path="/planilha"      element={<Spreadsheet />} />
+        <Route path="/configuracoes" element={<Settings />} />
+        <Route path="*"              element={<Navigate to="/" replace />} />
+      </Routes>
+    </Layout>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <UnitProvider>
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/"               element={<Dashboard />} />
-            <Route path="/apostas/nova"   element={<NewBet />} />
-            <Route path="/analytics"      element={<Analytics />} />
-            <Route path="/estatisticas"   element={<Goals />} />
-            <Route path="/planilha"       element={<Spreadsheet />} />
-            <Route path="/configuracoes"  element={<Settings />} />
-          </Routes>
-        </Layout>
-      </BrowserRouter>
-      </UnitProvider>
+      <AuthProvider>
+        <UnitProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public */}
+              <Route path="/login"           element={<Login />} />
+              <Route path="/cadastro"        element={<Register />} />
+              <Route path="/verificar-email" element={<VerifyEmail />} />
+              {/* Protected */}
+              <Route path="/*" element={<ProtectedRoutes />} />
+            </Routes>
+          </BrowserRouter>
+        </UnitProvider>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

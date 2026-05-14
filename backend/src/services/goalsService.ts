@@ -1,10 +1,7 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middlewares/errorHandler'
 import { calculateProfit } from '../utils/calculations'
-import { daysRemainingInMonth } from '../utils/dateUtils'
 import { CreateGoalInput, UpdateGoalInput } from '../validators/goalSchema'
-
-// ─── helpers ─────────────────────────────────────────────────────────────────
 
 function calcBetStats(bets: any[]) {
   const settled = bets.filter((b) => b.result !== 'pending')
@@ -18,10 +15,8 @@ function calcBetStats(bets: any[]) {
   return { totalBets, won, lost, totalWagered, totalProfit, hitRatePct, roi }
 }
 
-// ─── list goals ──────────────────────────────────────────────────────────────
-
-export async function listGoals() {
-  const goals = await prisma.goal.findMany({ orderBy: [{ year: 'desc' }, { month: 'desc' }] })
+export async function listGoals(userId: number) {
+  const goals = await prisma.goal.findMany({ where: { userId }, orderBy: [{ year: 'desc' }, { month: 'desc' }] })
   const now   = new Date()
 
   return Promise.all(
@@ -30,7 +25,7 @@ export async function listGoals() {
       const to   = new Date(goal.year, goal.month, 0, 23, 59, 59)
 
       const bets = await prisma.bet.findMany({
-        where: { date: { gte: from, lte: to } },
+        where: { userId, date: { gte: from, lte: to } },
         include: { bettingProfile: true },
       })
 
@@ -43,7 +38,6 @@ export async function listGoals() {
       const isCurrentMonth =
         goal.month === now.getMonth() + 1 && goal.year === now.getFullYear()
 
-      // Per-profile breakdown
       const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
       for (const b of bets.filter((b) => b.result !== 'pending')) {
         const name = b.bettingProfile?.name ?? 'Sem perfil'
@@ -77,21 +71,18 @@ export async function listGoals() {
   )
 }
 
-// ─── year analytics ───────────────────────────────────────────────────────────
-
-export async function getYearAnalytics(year: number) {
+export async function getYearAnalytics(userId: number, year: number) {
   const from = new Date(year, 0, 1)
   const to   = new Date(year, 11, 31, 23, 59, 59)
 
   const [allBets, goals] = await Promise.all([
     prisma.bet.findMany({
-      where: { date: { gte: from, lte: to } },
+      where: { userId, date: { gte: from, lte: to } },
       include: { bettingProfile: true },
     }),
-    prisma.goal.findMany({ where: { year } }),
+    prisma.goal.findMany({ where: { userId, year } }),
   ])
 
-  // Build month-by-month data
   const months = Array.from({ length: 12 }, (_, i) => {
     const m     = i + 1
     const mBets = allBets.filter((b) => {
@@ -120,7 +111,6 @@ export async function getYearAnalytics(year: number) {
     }
   })
 
-  // Overall year stats
   const yearStats   = calcBetStats(allBets)
   const goalsSet    = goals.length
   const goalsHit    = goals.filter((g) => {
@@ -130,7 +120,6 @@ export async function getYearAnalytics(year: number) {
     return stats.totalProfit >= Number(g.targetProfit)
   }).length
 
-  // Best / worst month by profit
   const withBets  = months.filter((m) => m.totalBets > 0)
   const bestMonth = withBets.length
     ? withBets.reduce((a, b) => (b.totalProfit > a.totalProfit ? b : a))
@@ -139,7 +128,6 @@ export async function getYearAnalytics(year: number) {
     ? withBets.reduce((a, b) => (b.totalProfit < a.totalProfit ? b : a))
     : null
 
-  // Per-profile breakdown for the year
   const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
   for (const b of allBets.filter((b) => b.result !== 'pending')) {
     const name = b.bettingProfile?.name ?? 'Sem perfil'
@@ -174,15 +162,13 @@ export async function getYearAnalytics(year: number) {
   }
 }
 
-// ─── period analytics (date range + profile breakdown) ───────────────────────
-
-export async function getPeriodAnalytics(dateFrom: string, dateTo: string) {
+export async function getPeriodAnalytics(userId: number, dateFrom: string, dateTo: string) {
   const from = new Date(dateFrom)
   const to   = new Date(dateTo)
   to.setHours(23, 59, 59)
 
   const bets = await prisma.bet.findMany({
-    where: { date: { gte: from, lte: to } },
+    where: { userId, date: { gte: from, lte: to } },
     include: { bettingProfile: true },
   })
 
@@ -216,20 +202,18 @@ export async function getPeriodAnalytics(dateFrom: string, dateTo: string) {
   }
 }
 
-// ─── CRUD ─────────────────────────────────────────────────────────────────────
-
-export async function createGoal(data: CreateGoalInput) {
-  return prisma.goal.create({ data: { ...data, targetProfit: data.targetProfit } })
+export async function createGoal(userId: number, data: CreateGoalInput) {
+  return prisma.goal.create({ data: { ...data, userId, targetProfit: data.targetProfit } })
 }
 
-export async function updateGoal(id: number, data: UpdateGoalInput) {
-  const goal = await prisma.goal.findUnique({ where: { id } })
+export async function updateGoal(userId: number, id: number, data: UpdateGoalInput) {
+  const goal = await prisma.goal.findFirst({ where: { id, userId } })
   if (!goal) throw new AppError('Meta não encontrada', 404, 'GOAL_NOT_FOUND')
   return prisma.goal.update({ where: { id }, data })
 }
 
-export async function deleteGoal(id: number) {
-  const goal = await prisma.goal.findUnique({ where: { id } })
+export async function deleteGoal(userId: number, id: number) {
+  const goal = await prisma.goal.findFirst({ where: { id, userId } })
   if (!goal) throw new AppError('Meta não encontrada', 404, 'GOAL_NOT_FOUND')
   await prisma.goal.delete({ where: { id } })
 }

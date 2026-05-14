@@ -45,10 +45,10 @@ function formatBet(bet: any): BetWithRelations {
   }
 }
 
-export async function listBets(filters: BetFiltersInput): Promise<PaginatedBets> {
+export async function listBets(userId: number, filters: BetFiltersInput): Promise<PaginatedBets> {
   const { page, perPage, dateFrom, dateTo, result, sportId, bookmakerId, betType, bettingProfileId, search, orderBy, orderDir } = filters
 
-  const where: any = {}
+  const where: any = { userId }
   if (dateFrom) where.date = { ...where.date, gte: new Date(dateFrom) }
   if (dateTo) where.date = { ...where.date, lte: new Date(dateTo) }
   if (result) where.result = result
@@ -88,15 +88,16 @@ export async function listBets(filters: BetFiltersInput): Promise<PaginatedBets>
   }
 }
 
-export async function getBetById(id: number): Promise<BetWithRelations> {
-  const bet = await prisma.bet.findUnique({ where: { id }, select: betSelect })
+export async function getBetById(userId: number, id: number): Promise<BetWithRelations> {
+  const bet = await prisma.bet.findFirst({ where: { id, userId }, select: betSelect })
   if (!bet) throw new AppError('Aposta não encontrada', 404, 'BET_NOT_FOUND')
   return formatBet(bet)
 }
 
-export async function createBet(data: CreateBetInput): Promise<BetWithRelations> {
+export async function createBet(userId: number, data: CreateBetInput): Promise<BetWithRelations> {
   const bet = await prisma.bet.create({
     data: {
+      userId,
       date: new Date(data.date),
       match: data.match ?? null,
       market: data.market,
@@ -117,13 +118,13 @@ export async function createBet(data: CreateBetInput): Promise<BetWithRelations>
   return formatBet(bet)
 }
 
-export async function createBetsBatch(bets: CreateBetInput[]): Promise<BetWithRelations[]> {
-  const created = await Promise.all(bets.map(createBet))
+export async function createBetsBatch(userId: number, bets: CreateBetInput[]): Promise<BetWithRelations[]> {
+  const created = await Promise.all(bets.map(b => createBet(userId, b)))
   return created
 }
 
-export async function updateBet(id: number, data: UpdateBetInput): Promise<BetWithRelations> {
-  await getBetById(id)
+export async function updateBet(userId: number, id: number, data: UpdateBetInput): Promise<BetWithRelations> {
+  await getBetById(userId, id)
   const bet = await prisma.bet.update({
     where: { id },
     data: {
@@ -144,8 +145,8 @@ export async function updateBet(id: number, data: UpdateBetInput): Promise<BetWi
   return formatBet(bet)
 }
 
-export async function updateBetResult(id: number, data: ResultUpdateInput): Promise<BetWithRelations> {
-  await getBetById(id)
+export async function updateBetResult(userId: number, id: number, data: ResultUpdateInput): Promise<BetWithRelations> {
+  await getBetById(userId, id)
   const bet = await prisma.bet.update({
     where: { id },
     data: { result: data.result, payout: data.payout },
@@ -154,7 +155,17 @@ export async function updateBetResult(id: number, data: ResultUpdateInput): Prom
   return formatBet(bet)
 }
 
-export async function deleteBet(id: number): Promise<void> {
-  await getBetById(id)
+export async function deleteBet(userId: number, id: number): Promise<void> {
+  await getBetById(userId, id)
   await prisma.bet.delete({ where: { id } })
+}
+n formatBet(bet)
+}
+
+export async function deleteBet(userId: number, id: number): Promise<void> {
+  await getBetById(userId, id)
+  await prisma.bet.delete({ where: { id } })
+}
+)}
+
 }

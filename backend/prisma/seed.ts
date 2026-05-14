@@ -3,48 +3,41 @@ import { PrismaClient } from '@prisma/client'
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('Seeding database...')
+  console.log('Seeding defaults...')
 
-  // Sports
-  await prisma.sport.createMany({
-    skipDuplicates: true,
-    data: [
-      { name: 'Futebol',   icon: '⚽' },
-      { name: 'Basquete',  icon: '🏀' },
-      { name: 'Tênis',     icon: '🎾' },
-      { name: 'Fórmula 1', icon: '🏎️' },
-      { name: 'MMA/UFC',   icon: '🥊' },
-      { name: 'Voleibol',  icon: '🏐' },
-      { name: 'Beisebol',  icon: '⚾' },
-      { name: 'Hóquei',    icon: '🏒' },
-      { name: 'Outro',     icon: '🎯' },
-    ],
-  })
+  // ─── Default Sports (globais, isDefault=true, userId=null) ────────────────
+  const sports = [
+    { name: 'Futebol',           icon: '⚽' },
+    { name: 'Basquete',          icon: '🏀' },
+    { name: 'Tênis',             icon: '🎾' },
+    { name: 'MMA / UFC',         icon: '🥊' },
+    { name: 'Futebol Americano', icon: '🏈' },
+    { name: 'Outros',            icon: '🎯' },
+  ]
 
-  // Bookmakers
-  await prisma.bookmaker.createMany({
-    skipDuplicates: true,
-    data: [
-      { name: 'Bet365',      color: '#007B5E' },
-      { name: 'Superbet',    color: '#E63946' },
-      { name: 'Betano',      color: '#FF6B35' },
-      { name: 'Sportingbet', color: '#1A1A2E' },
-      { name: 'KTO',         color: '#FFD700' },
-      { name: 'Betfair',     color: '#FFD700' },
-      { name: 'Pinnacle',    color: '#003087' },
-      { name: 'Outros',      color: '#6B7280' },
-    ],
-  })
+  for (const s of sports) {
+    const exists = await prisma.sport.findFirst({ where: { name: s.name, isDefault: true } })
+    if (!exists) {
+      await prisma.sport.create({ data: { ...s, isDefault: true, userId: null } })
+    }
+  }
 
-  // Betting Profiles
-  await prisma.bettingProfile.createMany({
-    skipDuplicates: true,
-    data: [
-      { name: 'Vip Extraordinário' },
-      { name: 'Vip Herculano' },
-      { name: 'Apostas Próprias' }, 
-    ],
-  })
+  // ─── Default Bookmakers (globais, isDefault=true, userId=null) ────────────
+  const bookmakers = [
+    { name: 'Bet365',      color: '#007B5E' },
+    { name: 'Betano',      color: '#FF6B35' },
+    { name: 'Sportingbet', color: '#16213E' },
+    { name: 'KTO',         color: '#C8A217' },
+    { name: 'Superbet',    color: '#E63946' },
+    { name: 'Betfair',     color: '#FFCC00' },
+  ]
+
+  for (const b of bookmakers) {
+    const exists = await prisma.bookmaker.findFirst({ where: { name: b.name, isDefault: true } })
+    if (!exists) {
+      await prisma.bookmaker.create({ data: { ...b, isDefault: true, userId: null } })
+    }
+  }
 
   console.log('Seed completed!')
 }

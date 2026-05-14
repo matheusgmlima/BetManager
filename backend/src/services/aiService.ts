@@ -92,6 +92,7 @@ Se a casa não estiver visível no screenshot, use null.
 }
 
 export async function extractBetsFromImage(
+  userId: number,
   imageBuffer: Buffer,
   mimeType: string,
   model: AiModel = 'fast'
@@ -103,7 +104,9 @@ export async function extractBetsFromImage(
   let outputTokens = 0
   let rawResponse  = ''
 
-  const bookmakers = await prisma.bookmaker.findMany({ where: { active: true } })
+  const bookmakers = await prisma.bookmaker.findMany({
+    where: { active: true, OR: [{ isDefault: true }, { userId }] },
+  })
   const EXTRACT_PROMPT = buildPrompt(bookmakers.map(b => b.name))
 
   const modelsToTry = modelId === AI_MODELS.smart
@@ -138,7 +141,7 @@ export async function extractBetsFromImage(
       lastErr = err?.message ?? String(err)
       const isUnavailable = lastErr.includes('404') || lastErr.includes('model_not_found') || lastErr.includes('does not exist')
       if (!isUnavailable || tryModel === modelsToTry[modelsToTry.length - 1]) {
-        await logExtraction(tryModel, 0, 0, 0, 0, false, lastErr)
+        await logExtraction(userId, tryModel, 0, 0, 0, 0, false, lastErr)
         throw new Error(`Groq API error (model: ${tryModel}): ${lastErr}`)
       }
       // model unavailable → try next
@@ -153,7 +156,7 @@ export async function extractBetsFromImage(
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
     if (jsonMatch) parsed = JSON.parse(jsonMatch[0])
   } catch {
-    await logExtraction(modelId, 0, 0, inputTokens, outputTokens, false, 'JSON inválido')
+    await logExtraction(userId, modelId, 0, 0, inputTokens, outputTokens, false, 'JSON inválido')
     throw new Error('IA retornou resposta em formato inválido')
   }
 
@@ -224,7 +227,7 @@ export async function extractBetsFromImage(
     }
   })
 
-  const log = await logExtraction(usedModel, bets.length, 0, inputTokens, outputTokens, true)
+  const log = await logExtraction(userId, usedModel, bets.length, 0, inputTokens, outputTokens, true)
 
   return {
     extractionId: log.id,
@@ -236,14 +239,15 @@ export async function extractBetsFromImage(
   }
 }
 
-export async function confirmExtraction(extractionId: number, confirmedCount: number) {
+export async function confirmExtraction(userId: number, extractionId: number, confirmedCount: number) {
   return prisma.aiExtractionLog.update({
-    where: { id: extractionId },
+    where: { id: extractionId, userId },
     data:  { betsConfirmed: confirmedCount },
   })
 }
 
 async function logExtraction(
+  userId:        number,
   modelUsed:     string,
   betsDetected:  number,
   betsConfirmed: number,
@@ -253,6 +257,6 @@ async function logExtraction(
   errorMessage?: string
 ) {
   return prisma.aiExtractionLog.create({
-    data: { modelUsed, betsDetected, betsConfirmed, inputTokens, outputTokens, success, errorMessage },
+    data: { userId, modelUsed, betsDetected, betsConfirmed, inputTokens, outputTokens, success, errorMessage },
   })
 }

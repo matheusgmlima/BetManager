@@ -5,7 +5,7 @@ import { DashboardPeriod } from '../types/dashboard.types'
 export async function getDashboard(req: Request, res: Response, next: NextFunction) {
   try {
     const period = (req.query.period as DashboardPeriod) ?? 'month'
-    const data = await dashboardService.getDashboard(period)
+    const data = await dashboardService.getDashboard(req.user!.userId, period)
     res.json({ data })
   } catch (err) { next(err) }
 }
