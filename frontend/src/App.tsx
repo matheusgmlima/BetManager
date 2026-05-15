@@ -15,6 +15,7 @@ import Analytics from './pages/Analytics'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
+import { Tutorial, useTutorial } from './components/Tutorial'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -130,26 +131,9 @@ function FloatingNewBet() {
 // ─── Unit toggle ──────────────────────────────────────────────────────────────
 
 function UnitToggle() {
-  const { showU, unitVal, setShowU, setUnitVal } = useUnit()
+  const { showU, setShowU } = useUnit()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-      {showU && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>1u =</span>
-          <input
-            type="number"
-            value={unitVal}
-            min={1}
-            onChange={e => setUnitVal(parseFloat(e.target.value) || 1)}
-            style={{
-              width: 60, background: 'var(--bg-card)', border: '1px solid var(--border)',
-              borderRadius: 6, padding: '3px 8px', color: 'var(--text-primary)',
-              fontSize: 12, outline: 'none', textAlign: 'right',
-            }}
-          />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$</span>
-        </div>
-      )}
       <button
         onClick={() => setShowU(!showU)}
         title={showU ? 'Mostrar em R$' : 'Mostrar em unidades'}
@@ -332,6 +316,8 @@ function Layout({ children }: { children: React.ReactNode }) {
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth()
+  const { show: showTutorial, close: closeTutorial } = useTutorial(user?.id)
+
   if (loading) return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando…</p>
@@ -349,6 +335,7 @@ function ProtectedRoutes() {
         <Route path="/configuracoes" element={<Settings />} />
         <Route path="*"              element={<Navigate to="/" replace />} />
       </Routes>
+      {showTutorial && <Tutorial onClose={closeTutorial} />}
     </Layout>
   )
 }
