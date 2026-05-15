@@ -33,7 +33,7 @@ export const batchBetSchema = z.object({
 
 export const betFiltersSchema = z.object({
   page: z.coerce.number().int().positive().default(1),
-  perPage: z.coerce.number().int().positive().max(100).default(25),
+  perPage: z.coerce.number().int().positive().max(5000).default(25),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   result: z.enum(['won', 'lost', 'void', 'pending']).optional(),

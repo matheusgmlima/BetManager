@@ -355,6 +355,118 @@ export async function getProfileDetail(userId: number, profileIdParam: string | 
   }
 }
 
+export async function getTipsterDetail(userId: number, tipsterIdParam: string | undefined) {
+  let where: any = { userId, result: { not: 'pending' } }
+
+  if (tipsterIdParam === undefined || tipsterIdParam === '') {
+    // aggregate ALL tipsters
+  } else if (tipsterIdParam === 'null') {
+    where.tipsterId = null
+  } else {
+    where.tipsterId = parseInt(tipsterIdParam)
+  }
+
+  const bets = await prisma.bet.findMany({ where, orderBy: { date: 'asc' } })
+
+  if (!bets.length) {
+    return {
+      totalBets: 0, won: 0, lost: 0,
+      oddsRanges: [], simpleVsCombined: null,
+      bingos: null, sweetSpot: null, streaks: null,
+      topWins: [], worstLosses: [],
+      avgOddsWon: null, avgOddsLost: null,
+    }
+  }
+
+  const won  = bets.filter(b => b.result === 'won').length
+  const lost = bets.filter(b => b.result === 'lost').length
+
+  const oddsRanges = ODDS_RANGES.map(r => {
+    const rb   = bets.filter(b => { const o = Number(b.odds); return o >= r.min && o < r.max })
+    const rWon = rb.filter(b => b.result === 'won').length
+    const rLost = rb.filter(b => b.result === 'lost').length
+    const settled = rWon + rLost
+    const totalWagered = rb.reduce((s, b) => s + Number(b.amountWagered), 0)
+    const totalProfit  = rb.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
+    const oddsVals = rb.filter(b => b.odds != null)
+    const avgOdds = oddsVals.length > 0
+      ? oddsVals.reduce((s, b) => s + Number(b.odds), 0) / oddsVals.length
+      : null
+    const expectedHitRatePct = avgOdds ? parseFloat((100 / avgOdds).toFixed(1)) : null
+    return {
+      label: r.label, emoji: r.emoji, total: rb.length, won: rWon, lost: rLost,
+      hitRatePct: settled > 0 ? parseFloat(((rWon / settled) * 100).toFixed(1)) : null,
+      expectedHitRatePct,
+      avgOdds: avgOdds ? parseFloat(avgOdds.toFixed(2)) : null,
+      roi: totalWagered > 0 ? parseFloat(((totalProfit / totalWagered) * 100).toFixed(1)) : null,
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
+    }
+  }).filter(r => r.total > 0)
+
+  const calcType = (type: 'simple' | 'combined') => {
+    const tb = bets.filter(b => b.betType === type)
+    const w  = tb.filter(b => b.result === 'won').length
+    const l  = tb.filter(b => b.result === 'lost').length
+    const tw = tb.reduce((s, b) => s + Number(b.amountWagered), 0)
+    const tp = tb.reduce((s, b) => {
+      const a = Number(b.amountWagered)
+      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+    }, 0)
+    return {
+      total: tb.length, won: w, lost: l,
+      hitRatePct: w + l > 0 ? parseFloat(((w / (w + l)) * 100).toFixed(1)) : null,
+      roi: tw > 0 ? parseFloat(((tp / tw) * 100).toFixed(1)) : null,
+      totalProfit: parseFloat(tp.toFixed(2)),
+    }
+  }
+  const simpleVsCombined = { simple: calcType('simple'), combined: calcType('combined') }
+
+  const bingoBets = bets.filter(b => Number(b.odds) >= 3)
+  const bingoWon  = bingoBets.filter(b => b.result === 'won')
+  const superBets = bets.filter(b => Number(b.odds) >= 5)
+  const superWon  = superBets.filter(b => b.result === 'won')
+  const bingos = {
+    total: bingoBets.length, won: bingoWon.length,
+    hitRatePct: bingoBets.length > 0 ? parseFloat(((bingoWon.length / bingoBets.length) * 100).toFixed(1)) : null,
+    biggestOdds: bingoWon.length > 0 ? parseFloat(Math.max(...bingoWon.map(b => Number(b.odds))).toFixed(2)) : null,
+    super: {
+      total: superBets.length, won: superWon.length,
+      hitRatePct: superBets.length > 0 ? parseFloat(((superWon.length / superBets.length) * 100).toFixed(1)) : null,
+    },
+  }
+
+  const qualified = oddsRanges.filter(r => r.total >= 3 && r.roi !== null && r.roi > 0)
+  const sweetSpot = qualified.length ? qualified.reduce((a, b) => (b.roi! > a.roi! ? b : a)) : null
+  const streaks   = calcStreaks(bets)
+
+  const withProfit = bets.map(b => {
+    const a = Number(b.amountWagered)
+    const profit = b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a)
+    return { ...b, profit }
+  })
+
+  const topWins = [...withProfit].filter(b => b.profit > 0).sort((a, b) => b.profit - a.profit).slice(0, 5)
+    .map(b => ({ match: b.match ?? '—', market: b.market, odds: Number(b.odds), profit: parseFloat(b.profit.toFixed(2)), date: b.date.toISOString().split('T')[0], isCombined: b.betType === 'combined' }))
+
+  const worstLosses = [...withProfit].filter(b => b.profit < 0).sort((a, b) => a.profit - b.profit).slice(0, 5)
+    .map(b => ({ match: b.match ?? '—', market: b.market, odds: Number(b.odds), loss: parseFloat(Math.abs(b.profit).toFixed(2)), date: b.date.toISOString().split('T')[0], isCombined: b.betType === 'combined' }))
+
+  const wonBets  = bets.filter(b => b.result === 'won')
+  const lostBets = bets.filter(b => b.result === 'lost')
+  const avgOddsWon  = wonBets.length  ? parseFloat((wonBets.reduce((s, b) => s + Number(b.odds), 0) / wonBets.length).toFixed(2))  : null
+  const avgOddsLost = lostBets.length ? parseFloat((lostBets.reduce((s, b) => s + Number(b.odds), 0) / lostBets.length).toFixed(2)) : null
+
+  return {
+    totalBets: bets.length, won, lost,
+    oddsRanges, simpleVsCombined, bingos,
+    sweetSpot: sweetSpot ? { label: sweetSpot.label, emoji: sweetSpot.emoji, roi: sweetSpot.roi, hitRatePct: sweetSpot.hitRatePct, total: sweetSpot.total } : null,
+    streaks, topWins, worstLosses, avgOddsWon, avgOddsLost,
+  }
+}
+
 export async function getMonthlyStats(userId: number): Promise<MonthlyStats[]> {
   const bets = await prisma.bet.findMany({
     where: {

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
-import { useProfileDetail } from '../hooks/useDashboard'
+import { useTipsterDetail } from '../hooks/useDashboard'
 import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
 import { useUnit } from '../contexts/UnitContext'
 
@@ -349,7 +349,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
   profileName: string
   onClose: () => void
 }) {
-  const { data, isLoading } = useProfileDetail(profileId, true)
+  const { data, isLoading } = useTipsterDetail(profileId, true)
   const { fmtMoney: fmtV } = useUnit()
 
   // derive initials for avatar
@@ -393,7 +393,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
             letterSpacing: '0.03em', flexShrink: 0,
           }}>{initials}</div>
           <div>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Perfil</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 2 }}>Tipster / VIP</p>
             <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{profileName}</h3>
           </div>
         </div>
@@ -843,9 +843,9 @@ export default function Goals() {
         <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, padding: 24, marginTop: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-              Desempenho por perfil — {year}
+              Desempenho por Tipster / VIP — {year}
             </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Clique num perfil para ver análise detalhada →</p>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Clique num tipster para ver análise detalhada →</p>
           </div>
           <ProfileTableSimple
             profiles={yearData.profileBreakdown}

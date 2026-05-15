@@ -11,6 +11,8 @@ import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats } from 
 import { DashboardPeriod } from '../types/dashboard.types'
 import { useState } from 'react'
 import { useUnit } from '../contexts/UnitContext'
+import { useQuery } from 'react-query'
+import { bankrollService } from '../services/bankrollService'
 
 // ─── Tooltip style ────────────────────────────────────────────────────────────
 const ttStyle     = { backgroundColor: '#0a0a12', border: '1px solid #2d1f5e', borderRadius: '10px', fontSize: '12px' }
@@ -198,6 +200,8 @@ export default function Dashboard() {
   const { data: sportStats = [] } = useSportStats()
   const { data: bookmakerStats = [] } = useBookmakerStats()
   const { data: tipsterStats = [] } = useTipsterStats()
+  const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
+  const { data: dashAll } = useDashboard('all')
 
   const { showU, unitVal } = useUnit()
   const summary = dash?.summary
@@ -376,6 +380,73 @@ export default function Dashboard() {
             </div>
           </Section>
         </div>
+
+        {/* ── BANCA ────────────────────────────────────────── */}
+        {bankroll && (bankroll.balance > 0 || bankroll.data.length > 0) && (() => {
+          const entries      = bankroll.data
+          const inicial      = entries.find(e => e.type === 'initial')
+          const totalDep     = entries.filter(e => e.type === 'deposit').reduce((s, e) => s + e.amount, 0)
+          const totalSaq     = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
+          const allProfit    = dashAll?.summary?.totalProfit ?? 0
+          const saldoReal    = bankroll.balance + allProfit
+          const saldoPos     = saldoReal >= 0
+          const retornoPct   = bankroll.balance > 0 ? ((allProfit / bankroll.balance) * 100) : 0
+          return (
+            <div className="anim-slide-up" style={{ animationDelay: '120ms' }}>
+              <Section label="Banca" icon="◈">
+                <div style={{
+                  background: 'linear-gradient(135deg, rgba(16,10,40,0.9) 0%, rgba(10,8,20,0.95) 100%)',
+                  border: '1px solid rgba(124,58,237,0.25)',
+                  borderRadius: 16, padding: isMobile ? '20px 16px' : '24px 28px',
+                  display: 'flex', flexDirection: isMobile ? 'column' : 'row',
+                  gap: isMobile ? 20 : 32, alignItems: isMobile ? 'stretch' : 'center',
+                  position: 'relative', overflow: 'hidden',
+                }}>
+                  {/* glow bg */}
+                  <div style={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,58,237,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+                  {/* Saldo principal */}
+                  <div style={{ flex: 1, minWidth: 0, position: 'relative', zIndex: 1 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', color: '#6d5a9a', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Saldo estimado da banca
+                    </p>
+                    <p style={{ fontSize: isMobile ? 36 : 48, fontWeight: 900, letterSpacing: '-0.03em', lineHeight: 1, color: saldoPos ? '#22c55e' : '#ef4444', margin: 0 }}>
+                      {showU ? '' : 'R$ '}{(showU && unitVal > 0 ? Math.abs(saldoReal) / unitVal : Math.abs(saldoReal)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+                    </p>
+                    <p style={{ fontSize: 12, color: '#6d5a9a', marginTop: 6 }}>
+                      Capital:{' '}
+                      <span style={{ color: '#a78bfa', fontWeight: 700 }}>
+                        {showU ? '' : 'R$ '}{(showU && unitVal > 0 ? bankroll.balance / unitVal : bankroll.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+                      </span>
+                      {' · '}Lucro total:{' '}
+                      <span style={{ color: allProfit >= 0 ? '#22c55e' : '#ef4444', fontWeight: 700 }}>
+                        {allProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{(showU && unitVal > 0 ? allProfit / unitVal : allProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+                      </span>
+                    </p>
+                  </div>
+
+                  {/* Separador */}
+                  {!isMobile && <div style={{ width: 1, alignSelf: 'stretch', background: 'rgba(124,58,237,0.2)' }} />}
+
+                  {/* Mini KPIs */}
+                  <div style={{ display: 'flex', gap: isMobile ? 12 : 24, flexWrap: 'wrap', position: 'relative', zIndex: 1 }}>
+                    {[
+                      { label: 'Banca inicial', value: inicial ? `${showU ? '' : 'R$ '}${(showU && unitVal > 0 ? inicial.amount / unitVal : inicial.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${showU ? 'u' : ''}` : '—', color: '#c084fc' },
+                      { label: 'Depósitos', value: totalDep > 0 ? `+${showU ? '' : 'R$ '}${(showU && unitVal > 0 ? totalDep / unitVal : totalDep).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${showU ? 'u' : ''}` : '—', color: '#34d399' },
+                      { label: 'Saques', value: totalSaq > 0 ? `-${showU ? '' : 'R$ '}${(showU && unitVal > 0 ? totalSaq / unitVal : totalSaq).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}${showU ? 'u' : ''}` : '—', color: '#f87171' },
+                      { label: 'Retorno', value: `${retornoPct >= 0 ? '+' : ''}${retornoPct.toFixed(1)}%`, color: retornoPct >= 0 ? '#22c55e' : '#ef4444' },
+                    ].map(k => (
+                      <div key={k.label} style={{ padding: '12px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', minWidth: 90 }}>
+                        <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 4 }}>{k.label}</p>
+                        <p style={{ fontSize: 16, fontWeight: 800, color: k.color, lineHeight: 1 }}>{k.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Section>
+            </div>
+          )
+        })()}
 
         {/* ── TIPSTERS ─────────────────────────────────────── */}
         {tipsterStats.length > 0 && (

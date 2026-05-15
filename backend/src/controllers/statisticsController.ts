@@ -44,6 +44,14 @@ export async function profileDetail(req: Request, res: Response, next: NextFunct
   } catch (err) { next(err) }
 }
 
+export async function tipsterDetail(req: Request, res: Response, next: NextFunction) {
+  try {
+    const tipsterId = req.query.tipsterId as string | undefined
+    const data = await statsService.getTipsterDetail(req.user!.userId, tipsterId)
+    res.json({ data })
+  } catch (err) { next(err) }
+}
+
 export async function monthly(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await statsService.getMonthlyStats(req.user!.userId)

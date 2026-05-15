@@ -22,6 +22,11 @@ export const dashboardService = {
       params: profileId === undefined ? {} : { profileId: profileId === null ? 'null' : profileId },
     }).then((r) => r.data.data),
 
+  getTipsterDetail: (tipsterId: number | null | undefined) =>
+    api.get<{ data: any }>('/api/stats/tipsters/detail', {
+      params: tipsterId === undefined ? {} : { tipsterId: tipsterId === null ? 'null' : tipsterId },
+    }).then((r) => r.data.data),
+
   getBetTypeStats: () =>
     api.get<{ data: BetTypeStat[]; recommendation: string }>('/api/stats/bet-types').then((r) => r.data),
 

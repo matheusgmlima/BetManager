@@ -26,7 +26,7 @@ export async function listGoals(userId: number) {
 
       const bets = await prisma.bet.findMany({
         where: { userId, date: { gte: from, lte: to } },
-        include: { bettingProfile: true },
+        include: { tipster: true },
       })
 
       const stats        = calcBetStats(bets)
@@ -38,16 +38,16 @@ export async function listGoals(userId: number) {
       const isCurrentMonth =
         goal.month === now.getMonth() + 1 && goal.year === now.getFullYear()
 
-      const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+      const tipsterMap = new Map<string, { tipsterId: number | null; bets: any[] }>()
       for (const b of bets.filter((b) => b.result !== 'pending')) {
-        const name = b.bettingProfile?.name ?? 'Sem perfil'
-        const id   = b.bettingProfileId ?? null
-        if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
-        profileMap.get(name)!.bets.push(b)
+        const name = (b as any).tipster?.name ?? 'Sem tipster'
+        const id   = b.tipsterId ?? null
+        if (!tipsterMap.has(name)) tipsterMap.set(name, { tipsterId: id, bets: [] })
+        tipsterMap.get(name)!.bets.push(b)
       }
-      const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
-        const ps = calcBetStats(pb)
-        return { profile, profileId, ...ps }
+      const tipsterBreakdown = Array.from(tipsterMap.entries()).map(([tipster, { tipsterId, bets: tb }]) => {
+        const ps = calcBetStats(tb)
+        return { profile: tipster, profileId: tipsterId, ...ps }
       })
 
       return {
@@ -65,7 +65,7 @@ export async function listGoals(userId: number) {
         progressPct,
         achieved:         stats.totalProfit >= targetProfit,
         isCurrentMonth,
-        profileBreakdown,
+        profileBreakdown: tipsterBreakdown,
       }
     })
   )
@@ -78,7 +78,7 @@ export async function getYearAnalytics(userId: number, year: number) {
   const [allBets, goals] = await Promise.all([
     prisma.bet.findMany({
       where: { userId, date: { gte: from, lte: to } },
-      include: { bettingProfile: true },
+      include: { tipster: true },
     }),
     prisma.goal.findMany({ where: { userId, year } }),
   ])
@@ -128,16 +128,16 @@ export async function getYearAnalytics(userId: number, year: number) {
     ? withBets.reduce((a, b) => (b.totalProfit < a.totalProfit ? b : a))
     : null
 
-  const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+  const tipsterMap = new Map<string, { tipsterId: number | null; bets: any[] }>()
   for (const b of allBets.filter((b) => b.result !== 'pending')) {
-    const name = b.bettingProfile?.name ?? 'Sem perfil'
-    const id   = b.bettingProfileId ?? null
-    if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
-    profileMap.get(name)!.bets.push(b)
+    const name = (b as any).tipster?.name ?? 'Sem tipster'
+    const id   = b.tipsterId ?? null
+    if (!tipsterMap.has(name)) tipsterMap.set(name, { tipsterId: id, bets: [] })
+    tipsterMap.get(name)!.bets.push(b)
   }
-  const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
-    const ps = calcBetStats(pb)
-    return { profile, profileId, ...ps }
+  const profileBreakdown = Array.from(tipsterMap.entries()).map(([tipster, { tipsterId, bets: tb }]) => {
+    const ps = calcBetStats(tb)
+    return { profile: tipster, profileId: tipsterId, ...ps }
   })
 
   return {
@@ -169,21 +169,21 @@ export async function getPeriodAnalytics(userId: number, dateFrom: string, dateT
 
   const bets = await prisma.bet.findMany({
     where: { userId, date: { gte: from, lte: to } },
-    include: { bettingProfile: true },
+    include: { tipster: true },
   })
 
   const overall = calcBetStats(bets)
 
-  const profileMap = new Map<string, { profileId: number | null; bets: any[] }>()
+  const tipsterMap = new Map<string, { tipsterId: number | null; bets: any[] }>()
   for (const b of bets.filter((b) => b.result !== 'pending')) {
-    const name = b.bettingProfile?.name ?? 'Sem perfil'
-    const id   = b.bettingProfileId ?? null
-    if (!profileMap.has(name)) profileMap.set(name, { profileId: id, bets: [] })
-    profileMap.get(name)!.bets.push(b)
+    const name = (b as any).tipster?.name ?? 'Sem tipster'
+    const id   = b.tipsterId ?? null
+    if (!tipsterMap.has(name)) tipsterMap.set(name, { tipsterId: id, bets: [] })
+    tipsterMap.get(name)!.bets.push(b)
   }
-  const profileBreakdown = Array.from(profileMap.entries()).map(([profile, { profileId, bets: pb }]) => {
-    const ps = calcBetStats(pb)
-    return { profile, profileId, ...ps }
+  const profileBreakdown = Array.from(tipsterMap.entries()).map(([tipster, { tipsterId, bets: tb }]) => {
+    const ps = calcBetStats(tb)
+    return { profile: tipster, profileId: tipsterId, ...ps }
   })
 
   return {

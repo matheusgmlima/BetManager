@@ -17,14 +17,18 @@ Retorne APENAS um JSON válido, sem markdown, sem \`\`\`, sem explicações.
 Uma aposta COMBINADA (múltipla) com várias seleções é UMA ÚNICA aposta, não várias.
 Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/ticket.
 
+ATENÇÃO: Um bilhete combinado pode conter múltiplos JOGOS DIFERENTES (ex: um jogo de futebol + um jogo de basquete).
+Todos os jogos do mesmo bilhete formam UMA única aposta combinada.
+Identifique CADA jogo e CADA seleção separadamente, mesmo que apareçam em seções visuais distintas na tela.
+
 ════ FORMATO OBRIGATÓRIO ════
 {
   "apostas": [
     {
       "tipo": "simples|combinada",
       "data": "DD/MM ou null",
-      "jogo": "Time A x Time B (simples) | 'Jogo1; Jogo2' (combinada) | null",
-      "mercado": "seleção (simples) | 'Jogo1 {Sel1}; Jogo2 {Sel2}' (combinada)",
+      "jogo": "Time A x Time B (simples) | 'Jogo1; Jogo2; Jogo3' separados por ponto-e-vírgula (combinada) | null",
+      "mercado": "Seleção escolhida (simples) | 'Jogo1 {Seleção1}; Jogo2 {Seleção2}; Jogo3 {Seleção3}' (combinada — OBRIGATÓRIO incluir o nome do jogo antes de cada {} )",
       "valor_apostado": 20.00,
       "casa": "nome da casa ou null",
       "odd": 2.08,
@@ -35,16 +39,66 @@ Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/tick
   ]
 }
 
+════ EXEMPLO DE COMBINADA ════
+Bilhete com seleções de jogos diferentes:
+  - Sport Recife x Náutico → Resultado Final: Sport Recife
+  - São Paulo x Santos → Mais de 2.5 Gols
+  - Flamengo x Vasco → Ambos Marcam
+
+Saída correta:
+{
+  "tipo": "combinada",
+  "jogo": "Sport Recife x Náutico; São Paulo x Santos; Flamengo x Vasco",
+  "mercado": "Sport Recife x Náutico {Resultado Final: Sport Recife}; São Paulo x Santos {Mais de 2.5 Gols}; Flamengo x Vasco {Ambos Marcam}",
+  "odd": 8.45,
+  "odds_multiplas": [1.85, 2.10, 2.17]
+}
+
+Bilhete com MÚLTIPLAS seleções do MESMO jogo (Sport Recife x ASA):
+  - Resultado Final: Sport Recife
+  - ASA - Menos de 2 Gols
+  - Mais de 5 Escanteios
+
+Saída correta — agrupe todas as seleções do mesmo jogo dentro de UM ÚNICO {}:
+{
+  "tipo": "combinada",
+  "jogo": "Sport Recife x ASA",
+  "mercado": "Sport Recife x ASA {Resultado Final: Sport Recife, ASA - Menos de 2 Gols, Mais de 5 Escanteios}",
+  "odd": 5.12,
+  "odds_multiplas": [1.85, 1.60, 1.73]
+}
+
+Bilhete com JOGOS DIFERENTES no mesmo bilhete combinado:
+  Jogo 1 (futebol): Sport Recife x ASA
+    - Resultado Final: Sport Recife
+    - ASA - Menos de 2 Gols
+    - Mais de 5 Escanteios
+  Jogo 2 (basquete): SA Spurs x MIN Timberwolves
+    - SA Spurs Para Ganhar
+
+Saída correta — liste TODOS os jogos no "jogo" e combine seleções por jogo no "mercado":
+{
+  "tipo": "combinada",
+  "jogo": "Sport Recife x ASA; SA Spurs x MIN Timberwolves",
+  "mercado": "Sport Recife x ASA {Resultado Final: Sport Recife, ASA - Menos de 2 Gols, Mais de 5 Escanteios}; SA Spurs x MIN Timberwolves {SA Spurs Para Ganhar}",
+  "odd": 2.08,
+  "odds_multiplas": [1.66, 1.25]
+}
+
 ════ RESULTADO — PALAVRAS-CHAVE ════
 "won"     → Retorno Obtido / Ganhou / Won / Cash Out
 "lost"    → Perdeu / Sem Retorno / Lost
 "void"    → Nula / Void / Cancelada
 "pending" → Ao Vivo / Pendente / Em aberto / sem resultado visível
 
-════ REGRAS GERAIS ════
+════ REGRAS PARA COMBINADAS ════
+- "mercado" DEVE ter o formato: "Jogo {Seleção}; Jogo2 {Seleção2}" com chaves {}
+- Se um jogo tem múltiplas seleções: "Jogo {Sel1, Sel2, Sel3}" — separe com vírgula dentro das chaves
+- "jogo" DEVE listar TODOS os jogos únicos separados por ponto-e-vírgula (;)
+- Nunca quebre uma aposta combinada em múltiplas entradas
+- Varredure a imagem INTEIRA para identificar todos os jogos do bilhete, mesmo em seções diferentes
 - Use null para campos não identificáveis
-- Valores monetários SEMPRE como número
-- Nunca quebre uma aposta combinada em múltiplas entradas`
+- Valores monetários SEMPRE como número`
 }
 
 export async function extractBetsFromImage(
@@ -147,8 +201,28 @@ export async function extractBetsFromImage(
       }
     }
 
+    const betType: 'simple' | 'combined' =
+      a.tipo === 'combinada' ? 'combined' : 'simple'
+
     let odd: number | null = a.odd ?? null
 
+    if (betType === 'combined') {
+      // Para combinadas a IA frequentemente coloca apenas uma leg em "odd".
+      // Recalcular pelo produto das odds individuais é mais confiável.
+      if (Array.isArray(a.odds_multiplas) && a.odds_multiplas.length > 1) {
+        const product = (a.odds_multiplas as number[]).reduce((acc: number, o: number) => acc * o, 1)
+        if (product > 1) odd = parseFloat(product.toFixed(4))
+      }
+      // Se ganhou e tem retorno: payout/apostado é a fonte mais precisa
+      if (
+        a.resultado === 'won' &&
+        a.valor_apostado > 0 && a.retorno_total > a.valor_apostado
+      ) {
+        odd = parseFloat((a.retorno_total / a.valor_apostado).toFixed(4))
+      }
+    }
+
+    // Fallbacks gerais
     if (!odd && Array.isArray(a.odds_multiplas) && a.odds_multiplas.length > 0) {
       const product = (a.odds_multiplas as number[]).reduce((acc, o) => acc * o, 1)
       if (product > 0) odd = parseFloat(product.toFixed(4))
@@ -158,13 +232,61 @@ export async function extractBetsFromImage(
       odd = parseFloat((a.retorno_total / a.valor_apostado).toFixed(4))
     }
 
-    const betType: 'simple' | 'combined' =
-      a.tipo === 'combinada' ? 'combined' : 'simple'
+    // Para combinadas: garante formato "Jogo {Seleção1, Seleção2}; Jogo2 {Seleção3}"
+    let market: string | null = a.mercado ?? null
+    let match:  string | null = a.jogo    ?? null
+
+    if (betType === 'combined') {
+      // Normaliza match: troca "+" por ";"
+      if (match && !match.includes(';') && match.includes('+')) {
+        match = match.split('+').map((s: string) => s.trim()).join('; ')
+      }
+
+      if (market && !market.includes('{')) {
+        // IA não usou {}: reconstrói cruzando jogo[] com mercado[]
+        const games = match ? match.split(';').map((s: string) => s.trim()).filter(Boolean) : []
+        const sels  = market.split(';').map((s: string) => s.trim()).filter(Boolean)
+        if (games.length > 0 && sels.length > 0) {
+          market = games.map((g: string, idx: number) => {
+            const sel = sels[idx] ?? ''
+            return sel ? `${g} {${sel}}` : g
+          }).join('; ')
+          match = games.join('; ')
+        } else if (sels.length > 0) {
+          market = sels.map((s: string, idx: number) => `Seleção ${idx + 1} {${s}}`).join('; ')
+        }
+      }
+
+      if (market && market.includes('{')) {
+        // Agrupa seleções do mesmo jogo: "Jogo {Sel1}; Jogo {Sel2}" → "Jogo {Sel1, Sel2}"
+        const gameMap = new Map<string, string[]>()
+        const gameOrder: string[] = []
+        const blocks = market.split(';').map((s: string) => s.trim()).filter(Boolean)
+        for (const block of blocks) {
+          const braceStart = block.indexOf('{')
+          const braceEnd   = block.lastIndexOf('}')
+          if (braceStart === -1 || braceEnd === -1) {
+            if (!gameMap.has(block)) { gameMap.set(block, []); gameOrder.push(block) }
+            continue
+          }
+          const game = block.slice(0, braceStart).trim()
+          const sel  = block.slice(braceStart + 1, braceEnd).trim()
+          if (!gameMap.has(game)) { gameMap.set(game, []); gameOrder.push(game) }
+          if (sel) gameMap.get(game)!.push(sel)
+        }
+        market = gameOrder.map(g => {
+          const sels = gameMap.get(g) ?? []
+          return sels.length > 0 ? `${g} {${sels.join(', ')}}` : g
+        }).join('; ')
+        // Atualiza match com jogos únicos
+        match = gameOrder.join('; ')
+      }
+    }
 
     return {
       date:          parsedDate ?? null,
-      match:         a.jogo ?? null,
-      market:        a.mercado ?? null,
+      match,
+      market,
       bookmaker:     a.casa ?? null,
       bookmakerId:   foundBookmaker?.id ?? null,
       amountWagered: a.valor_apostado ?? null,

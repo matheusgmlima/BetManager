@@ -44,3 +44,12 @@ export function useTipsterStats(dateFrom?: string, dateTo?: string) {
     dashboardService.getTipsterStats(dateFrom, dateTo)
   )
 }
+
+// tipsterId = undefined → all, null → no tipster, number → specific tipster
+export function useTipsterDetail(tipsterId: number | null | undefined, enabled: boolean) {
+  return useQuery(
+    ['stats', 'tipster-detail', tipsterId],
+    () => dashboardService.getTipsterDetail(tipsterId),
+    { enabled, keepPreviousData: true }
+  )
+}

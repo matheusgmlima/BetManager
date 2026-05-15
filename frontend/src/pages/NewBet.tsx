@@ -245,7 +245,7 @@ function ManualTab() {
   })
   const [errors, setErrors] = useState<Partial<Record<keyof ManualFormState, string>>>({})
   const [success, setSuccess] = useState(false)
-  const [multiMatches, setMultiMatches] = useState<string[]>(['', ''])
+  const [multiMatches, setMultiMatches] = useState<{ game: string; selection: string }[]>([{ game: '', selection: '' }, { game: '', selection: '' }])
 
   const set = (k: keyof ManualFormState, v: string | BetType | BetResult) => {
     setErrors(e => ({ ...e, [k]: undefined }))
@@ -269,13 +269,23 @@ function ManualTab() {
     })
   }
 
+  // Formato esperado pelo Spreadsheet:
+  //   match  = "Jogo1; Jogo2; Jogo3"
+  //   market = "Jogo1 {Seleção1}; Jogo2 {Seleção2}"
   const computedMatch = form.betType === 'combined'
-    ? multiMatches.filter(m => m.trim()).join(' + ') || null
+    ? multiMatches.filter(m => m.game.trim()).map(m => m.game.trim()).join('; ') || null
     : (form.match || null)
 
-  const addMatch    = () => setMultiMatches(p => [...p, ''])
+  const computedMarket = form.betType === 'combined'
+    ? multiMatches.filter(m => m.game.trim()).map(m =>
+        m.selection.trim() ? `${m.game.trim()} {${m.selection.trim()}}` : m.game.trim()
+      ).join('; ')
+    : form.market
+
+  const addMatch    = () => setMultiMatches(p => [...p, { game: '', selection: '' }])
   const removeMatch = (i: number) => setMultiMatches(p => p.filter((_, idx) => idx !== i))
-  const updateMatch = (i: number, v: string) => setMultiMatches(p => p.map((m, idx) => idx === i ? v : m))
+  const updateMatch = (i: number, field: 'game' | 'selection', v: string) =>
+    setMultiMatches(p => p.map((m, idx) => idx === i ? { ...m, [field]: v } : m))
 
   const profit = form.result === 'lost'
     ? -(parseFloat(form.amountWagered || '0'))
@@ -285,7 +295,8 @@ function ManualTab() {
     const e: typeof errors = {}
     if (!form.date)        e.date        = 'Obrigatório'
     if (!form.tipsterId)   e.tipsterId   = 'Obrigatório'
-    if (!form.market)      e.market      = 'Obrigatório'
+    if (form.betType === 'simple' && !form.market) e.market = 'Obrigatório'
+    if (form.betType === 'combined' && multiMatches.filter(m => m.game.trim()).length < 2) e.market = 'Mínimo 2 jogos'
     if (!form.bookmakerId) e.bookmakerId = 'Obrigatório'
     if (!form.amountWagered || parseFloat(form.amountWagered) <= 0) e.amountWagered = 'Deve ser > 0'
     if (form.payout === '' || parseFloat(form.payout) < 0)          e.payout        = 'Obrigatório'
@@ -297,7 +308,7 @@ function ManualTab() {
     const errs = validate()
     if (Object.keys(errs).length) { setErrors(errs); return }
     const payload: BetCreateInput = {
-      date: form.date, match: computedMatch, market: form.market,
+      date: form.date, match: computedMatch, market: computedMarket || form.market,
       bookmakerId: Number(form.bookmakerId), betType: form.betType,
       amountWagered: parseFloat(form.amountWagered),
       odds: form.odds ? parseFloat(form.odds) : null,
@@ -420,23 +431,34 @@ function ManualTab() {
             </Field>
           </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Jogos da múltipla</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Jogo</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Seleção (mercado)</span>
+            </div>
             {multiMatches.map((m, i) => (
               <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, minWidth: 20, textAlign: 'right' }}>{i + 1}.</span>
-                <input type="text" value={m} placeholder={`Jogo ${i + 1}`}
-                  onChange={e => updateMatch(i, e.target.value)}
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, minWidth: 18, textAlign: 'right', flexShrink: 0 }}>{i + 1}.</span>
+                <input type="text" value={m.game} placeholder={`Ex: Flamengo x Vasco`}
+                  onChange={e => updateMatch(i, 'game', e.target.value)}
+                  onFocus={focus} onBlur={blur}
+                  style={{ ...inp, flex: 1 }}
+                />
+                <input type="text" value={m.selection} placeholder={`Ex: Ambos marcam`}
+                  onChange={e => updateMatch(i, 'selection', e.target.value)}
                   onFocus={focus} onBlur={blur}
                   style={{ ...inp, flex: 1 }}
                 />
                 {multiMatches.length > 2 && (
                   <button type="button" onClick={() => removeMatch(i)}
-                    style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--red)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+                    style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--red)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
                   >×</button>
                 )}
               </div>
             ))}
+            {errors.market && (
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--red)' }}>{errors.market}</p>
+            )}
             <button type="button" onClick={addMatch} style={{
               padding: '8px', borderRadius: 8, border: '1px dashed var(--border-purple)',
               background: 'transparent', color: 'var(--purple-400)', fontSize: 13,
@@ -444,19 +466,12 @@ function ManualTab() {
             }}>
               + Adicionar jogo
             </button>
-            {multiMatches.some(m => m.trim()) && (
+            {multiMatches.some(m => m.game.trim()) && (
               <div style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(139,92,246,0.06)', border: '1px solid rgba(139,92,246,0.15)' }}>
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Preview: </span>
-                <span style={{ fontSize: 12, color: 'var(--purple-300)', fontWeight: 600 }}>{computedMatch}</span>
+                <span style={{ fontSize: 12, color: 'var(--purple-300)', fontWeight: 600 }}>{computedMarket}</span>
               </div>
             )}
-            <Field label="Mercado da Múltipla *" error={errors.market}>
-              <input type="text" value={form.market} placeholder="Ex: Todos ganham, BTTS Sim em todos"
-                onChange={e => set('market', e.target.value)}
-                onFocus={focus} onBlur={blur}
-                style={{ ...inp, borderColor: errors.market ? 'var(--red)' : 'var(--border)' }}
-              />
-            </Field>
           </div>
         )}
       </SectionCard>
@@ -471,11 +486,16 @@ function ManualTab() {
               style={{ ...inp, borderColor: errors.amountWagered ? 'var(--red)' : 'var(--border)' }}
             />
           </Field>
-          <Field label="Odd">
+          <Field label={form.betType === 'combined' ? 'Odd Total da Múltipla' : 'Odd'}>
             <input type="number" min="1" step="0.01" value={form.odds}
               placeholder="1.00" onChange={e => set('odds', e.target.value)}
               onFocus={focus} onBlur={blur} style={inp}
             />
+            {form.betType === 'combined' && (
+              <p style={{ margin: '4px 0 0', fontSize: 10, color: 'var(--text-muted)' }}>
+                Odd combinada = produto de todas as seleções
+              </p>
+            )}
           </Field>
           <Field label="Retorno Total (R$) *" error={errors.payout}>
             <input type="number" min="0" step="0.01" value={form.payout}
@@ -636,6 +656,7 @@ function AiTab() {
   const [bulkTipsterId,   setBulkTipsterId]   = useState('')
   const [bulkProfileId,   setBulkProfileId]   = useState('')
   const [bulkSportId,     setBulkSportId]     = useState('')
+  const [bulkBarHidden,   setBulkBarHidden]   = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const tipstersRef = useRef(tipsters)
@@ -768,7 +789,7 @@ function AiTab() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: selectedBets.length >= 2 && !bulkBarHidden ? 100 : 0, transition: 'padding-bottom 0.3s cubic-bezier(0.16,1,0.3,1)' }}>
 
       {/* ── Drop zone card ───────────────────────────────────────── */}
       <div style={{
@@ -960,87 +981,125 @@ function AiTab() {
             )}
           </div>
 
-          {/* ── Bulk edit drawer (fixed right panel) ─────────────── */}
+          {/* ── Bulk edit bottom bar ─────────────────────────────── */}
           <div style={{
-            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 200,
-            width: 280,
-            transform: selectedBets.length >= 2 ? 'translateX(0)' : 'translateX(100%)',
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
+            transform: selectedBets.length >= 2 && !bulkBarHidden ? 'translateY(0)' : 'translateY(100%)',
             transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
-            display: 'flex', flexDirection: 'column',
-            background: 'rgba(10,6,28,0.97)',
-            backdropFilter: 'blur(20px)',
-            borderLeft: '1px solid rgba(124,58,237,0.25)',
-            boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+            background: 'rgba(8,5,22,0.96)',
+            backdropFilter: 'blur(24px)',
+            borderTop: '1px solid rgba(124,58,237,0.3)',
+            boxShadow: '0 -8px 40px rgba(0,0,0,0.6)',
           }}>
-            {/* Glow line */}
-            <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, rgba(124,58,237,0.6), transparent)', pointerEvents: 'none' }} />
+            {/* purple top glow line */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(to right, transparent 0%, rgba(124,58,237,0.7) 30%, rgba(167,139,250,0.9) 50%, rgba(124,58,237,0.7) 70%, transparent 100%)', pointerEvents: 'none' }} />
 
-            {/* Header */}
-            <div style={{
-              padding: '20px 20px 16px',
-              borderBottom: '1px solid rgba(124,58,237,0.15)',
-              background: 'linear-gradient(180deg, rgba(109,40,217,0.12) 0%, transparent 100%)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+
+              {/* Count badge */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                 <div style={{
-                  width: 30, height: 30, borderRadius: 9,
+                  width: 28, height: 28, borderRadius: 8,
                   background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 13, boxShadow: '0 0 14px rgba(124,58,237,0.5)',
-                }}>⚡</div>
-                <div>
-                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#e9d5ff', letterSpacing: '-0.01em' }}>Edição em Lote</p>
-                  <p style={{ margin: 0, fontSize: 11, color: '#7c3aed' }}>{selectedBets.length} apostas selecionadas</p>
+                  fontSize: 12, fontWeight: 900, color: '#fff',
+                  boxShadow: '0 0 12px rgba(124,58,237,0.5)',
+                }}>
+                  {selectedBets.length}
                 </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#c4b5fd', whiteSpace: 'nowrap' }}>apostas</span>
               </div>
-              <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Deixe em branco para manter o valor atual de cada aposta.
-              </p>
-            </div>
 
-            {/* Fields */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {[
-                { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
-                { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
-                { label: 'Perfil',          value: bulkProfileId,   set: setBulkProfileId,   opts: profiles.filter(p => p.active).map(p => ({ id: p.id, name: p.name })) },
-                { label: 'Esporte',         value: bulkSportId,     set: setBulkSportId,     opts: sports.filter(s => s.active).map(s => ({ id: s.id, name: s.icon ? `${s.icon} ${s.name}` : s.name })) },
-              ].map(({ label, value, set, opts }) => (
-                <div key={label}>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#7c6dab', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>{label}</label>
-                  <select value={value} onChange={e => set(e.target.value)} style={{
-                    ...inp,
-                    background: value ? 'rgba(109,40,217,0.12)' : 'var(--bg-primary)',
-                    borderColor: value ? 'rgba(124,58,237,0.5)' : 'var(--border)',
-                  }}>
-                    <option value="">— manter —</option>
-                    {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                  </select>
-                </div>
-              ))}
-            </div>
+              {/* Divider */}
+              <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />
 
-            {/* Footer */}
-            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(124,58,237,0.15)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button type="button" onClick={() => {
-                applyBulkEdit()
-                setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId('')
-              }} style={{
-                width: '100%', padding: '13px', borderRadius: 12, border: 'none',
+              {/* Selects */}
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                {[
+                  { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
+                  { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
+                  { label: 'Perfil',          value: bulkProfileId,   set: setBulkProfileId,   opts: profiles.filter(p => p.active).map(p => ({ id: p.id, name: p.name })) },
+                  { label: 'Esporte',         value: bulkSportId,     set: setBulkSportId,     opts: sports.filter(s => s.active).map(s => ({ id: s.id, name: s.icon ? `${s.icon} ${s.name}` : s.name })) },
+                ].map(({ label, value, set, opts }) => (
+                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <label style={{ fontSize: 9, fontWeight: 700, color: value ? '#a78bfa' : '#4b3a6e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+                    <select value={value} onChange={e => set(e.target.value)} style={{
+                      ...inp,
+                      padding: '7px 10px',
+                      fontSize: 12,
+                      background: value ? 'rgba(109,40,217,0.18)' : 'rgba(255,255,255,0.04)',
+                      borderColor: value ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)',
+                      color: value ? '#e9d5ff' : 'var(--text-muted)',
+                    }}>
+                      <option value="">— manter —</option>
+                      {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Divider */}
+              <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />
+
+              {/* Actions */}
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                <button type="button" onClick={() => { setBets(p => p.map(b => ({ ...b, selected: false }))); setBulkBarHidden(false) }} style={{
+                  padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Desmarcar
+                </button>
+                <button type="button" onClick={() => {
+                  applyBulkEdit()
+                  setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId(''); setBulkBarHidden(false)
+                }} style={{
+                  padding: '9px 20px', borderRadius: 10, border: 'none',
+                  background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+                  color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                  boxShadow: '0 0 18px rgba(124,58,237,0.45)',
+                  whiteSpace: 'nowrap',
+                }}>
+                  Aplicar
+                </button>
+                {/* Hide bar */}
+                <button type="button" title="Esconder barra" onClick={() => setBulkBarHidden(true)} style={{
+                  width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.08)',
+                  background: 'transparent', color: 'rgba(255,255,255,0.3)', fontSize: 16, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  transition: 'color 0.15s, border-color 0.15s',
+                }}>
+                  ↓
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Reopen pill (when bar is hidden) ─────────────────── */}
+          <div style={{
+            position: 'fixed', bottom: 90, right: 24, zIndex: 200,
+            transform: selectedBets.length >= 2 && bulkBarHidden ? 'translateY(0) scale(1)' : 'translateY(60px) scale(0.8)',
+            opacity: selectedBets.length >= 2 && bulkBarHidden ? 1 : 0,
+            pointerEvents: selectedBets.length >= 2 && bulkBarHidden ? 'auto' : 'none',
+            transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1), opacity 0.2s',
+          }}>
+            <button type="button" onClick={() => setBulkBarHidden(false)} style={{
+              display: 'flex', alignItems: 'center', gap: 8,
+              padding: '10px 16px', borderRadius: 50, border: '1px solid rgba(124,58,237,0.4)',
+              background: 'rgba(10,5,22,0.95)', backdropFilter: 'blur(16px)',
+              color: '#c4b5fd', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              boxShadow: '0 4px 24px rgba(0,0,0,0.5), 0 0 16px rgba(124,58,237,0.2)',
+            }}>
+              <span style={{
+                width: 20, height: 20, borderRadius: 6,
                 background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
-                color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
-                boxShadow: '0 0 20px rgba(124,58,237,0.4)',
-                transition: 'opacity 0.2s',
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 11, fontWeight: 900, color: '#fff',
               }}>
-                Aplicar a {selectedBets.length} apostas
-              </button>
-              <button type="button" onClick={() => setBets(p => p.map(b => ({ ...b, selected: false })))} style={{
-                width: '100%', padding: '9px', borderRadius: 10, border: '1px solid var(--border)',
-                background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              }}>
-                Desmarcar todas
-              </button>
-            </div>
+                {selectedBets.length}
+              </span>
+              Edição em lote ↑
+            </button>
           </div>
 
           {/* Bet cards */}

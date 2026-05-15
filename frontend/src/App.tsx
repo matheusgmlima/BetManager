@@ -38,8 +38,8 @@ const FAB_KEY = 'fab-position'
 
 function FloatingNewBet() {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
   const isMobile = useMobile()
-
 
   const [pos, setPos] = useState<{ x: number; y: number }>(() => {
     try {
@@ -89,6 +89,8 @@ function FloatingNewBet() {
     if (!moved) navigate('/apostas/nova')
     else setPos(p => { localStorage.setItem(FAB_KEY, JSON.stringify(p)); return p })
   }
+
+  if (pathname === '/apostas/nova') return null
 
   return (
     <div

@@ -81,7 +81,7 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 function SkeletonRow() {
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 11 }).map((_, i) => (
         <td key={i} style={{ padding: '12px 14px' }}>
           <div style={{
             height: 13, borderRadius: 6,
@@ -491,9 +491,32 @@ function CombinedDetailsPopup({ bet, onClose }: { bet: Bet; onClose: () => void 
   )
 }
 
+// ─── BulkDeleteConfirm ────────────────────────────────────────────────────────
+
+function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: number; onClose: () => void; onConfirm: () => void; loading: boolean }) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ width: '100%', maxWidth: 380, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 16, padding: '28px 24px', boxShadow: '0 0 40px rgba(239,68,68,0.15)', textAlign: 'center' }}>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, marginLeft: 'auto', marginRight: 'auto', fontSize: 20, color: '#ef4444' }}>✕</div>
+        <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>Excluir {count} aposta{count !== 1 ? 's' : ''}?</p>
+        <p style={{ fontSize: 12, color: '#6d5a9a', margin: '0 0 20px' }}>Esta ação não pode ser desfeita.</p>
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+          <button onClick={onClose} disabled={loading} style={{ padding: '9px 20px', borderRadius: 8, background: 'none', border: '1px solid #2d1f5e', color: '#6d5a9a', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: loading ? 0.5 : 1 }}>Cancelar</button>
+          <button onClick={onConfirm} disabled={loading} style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', fontSize: 13, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+            {loading ? 'Excluindo…' : 'Excluir tudo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── BetRow ───────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
+function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete }: { bet: Bet; odd: boolean; selected: boolean; onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
   const [hovered,       setHovered]       = useState(false)
   const [showCombined,  setShowCombined]  = useState(false)
   const { fmtMoney }                      = useUnit()
@@ -567,12 +590,24 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
       <tr
         style={{
           borderBottom: '1px solid var(--border)',
-          background: hovered ? 'rgba(124,58,237,0.05)' : odd ? 'rgba(255,255,255,0.013)' : 'transparent',
+          background: selected ? 'rgba(124,58,237,0.08)' : hovered ? 'rgba(124,58,237,0.05)' : odd ? 'rgba(255,255,255,0.013)' : 'transparent',
           transition: 'background 0.12s',
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
       >
+      {/* Checkbox */}
+      <td style={{ ...td, width: 36, paddingRight: 4 }} onClick={e => { e.stopPropagation(); onToggle(bet.id) }}>
+        <div style={{
+          width: 16, height: 16, borderRadius: 4, cursor: 'pointer',
+          border: `2px solid ${selected ? '#7c3aed' : 'rgba(255,255,255,0.2)'}`,
+          background: selected ? '#7c3aed' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'all 0.15s', flexShrink: 0,
+        }}>
+          {selected && <span style={{ color: '#fff', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+        </div>
+      </td>
       <td style={{ ...td, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontFamily: 'monospace', fontSize: 11 }}>
         {fmtDate(bet.date)}
       </td>
@@ -661,7 +696,29 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
   )
 }
 
-// ─── BetTable (tabela + paginação — reutilizada por cada tab) ─────────────────
+// ─── Month group helpers ──────────────────────────────────────────────────────
+
+const MONTH_NAMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+function monthKey(iso: string) {
+  const [y, m] = iso.split('T')[0].split('-')
+  return `${y}-${m}`
+}
+function monthLabel(key: string) {
+  const [y, m] = key.split('-')
+  return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`
+}
+function calcMonthStats(bets: Bet[]) {
+  const settled = bets.filter(b => b.result !== 'pending')
+  const won     = settled.filter(b => b.result === 'won').length
+  const lost    = settled.filter(b => b.result === 'lost').length
+  const wagered = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
+  const profit  = bets.reduce((s, b) => s + Number(b.profit ?? 0), 0)
+  const hr      = settled.length > 0 ? (won / settled.length) * 100 : null
+  return { total: bets.length, won, lost, wagered, profit, hitRate: hr }
+}
+
+// ─── BetTable (tabela — reutilizada por cada tab) ─────────────────────────────
 
 const PAGE_SIZES = [10, 25, 50]
 
@@ -679,12 +736,21 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   const [showFilters, setShowFilters] = useState(false)
   const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [viewMode, setViewMode] = useState<'grouped' | 'paginated'>('grouped')
+  const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
   const [editingBet, setEditingBet] = useState<Bet | null>(null)
   const [deletingBet, setDeletingBet] = useState<Bet | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkLoading, setBulkLoading] = useState(false)
   const deleteBet = useDeleteBet()
 
+  // Grouped mode: fetch all bets at once (large perPage)
+  const effectivePage    = viewMode === 'grouped' ? 1 : page
+  const effectivePerPage = viewMode === 'grouped' ? 2000 : perPage
+
   const { data, isLoading, isError } = useBets({
-    page, perPage,
+    page: effectivePage, perPage: effectivePerPage,
     search:           search      || undefined,
     result:           resultF     || undefined,
     betType:          betTypeF    || undefined,
@@ -704,6 +770,43 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   const totalPages = pagination?.totalPages ?? 1
   const hasFilters = !!(search || resultF || betTypeF || sportIdF || bookmakerF || dateFrom || dateTo)
 
+  const allIdsOnPage = bets.map((b: Bet) => b.id)
+  const allSelected  = allIdsOnPage.length > 0 && allIdsOnPage.every((id: number) => selectedIds.has(id))
+  const someSelected = allIdsOnPage.some((id: number) => selectedIds.has(id))
+
+  function toggleMonth(key: string) {
+    setCollapsedMonths(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+
+  function toggleOne(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+  function toggleAll() {
+    if (allSelected) {
+      setSelectedIds(prev => { const next = new Set(prev); allIdsOnPage.forEach((id: number) => next.delete(id)); return next })
+    } else {
+      setSelectedIds(prev => { const next = new Set(prev); allIdsOnPage.forEach((id: number) => next.add(id)); return next })
+    }
+  }
+  async function handleBulkDelete() {
+    setBulkLoading(true)
+    try {
+      await Promise.all(Array.from(selectedIds).map(id => deleteBet.mutateAsync(id)))
+      setSelectedIds(new Set())
+      setBulkDeleting(false)
+    } finally {
+      setBulkLoading(false)
+    }
+  }
+
   const sorted = useMemo(() => {
     const rows = [...bets]
     rows.sort((a, b) => {
@@ -717,6 +820,18 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
     })
     return rows
   }, [bets, sortKey, sortDir])
+
+  // Month grouping — after sorted
+  const monthGroups = useMemo(() => {
+    if (viewMode !== 'grouped') return null
+    const map = new Map<string, Bet[]>()
+    for (const bet of sorted) {
+      const k = monthKey(bet.date)
+      if (!map.has(k)) map.set(k, [])
+      map.get(k)!.push(bet)
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => b.localeCompare(a))
+  }, [viewMode, sorted])
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -743,8 +858,10 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   }
   const thSortable: React.CSSProperties = { ...thBase, cursor: 'pointer' }
 
+  const selCount = selectedIds.size
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: selCount > 0 ? 80 : 0 }}>
       {editingBet && <EditModal bet={editingBet} onClose={() => setEditingBet(null)} />}
       {deletingBet && (
         <DeleteConfirm
@@ -753,6 +870,50 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
           onConfirm={async () => { await deleteBet.mutateAsync(deletingBet.id); setDeletingBet(null) }}
         />
       )}
+      {bulkDeleting && (
+        <BulkDeleteConfirm
+          count={selCount}
+          loading={bulkLoading}
+          onClose={() => setBulkDeleting(false)}
+          onConfirm={handleBulkDelete}
+        />
+      )}
+
+      {/* Barra de ação em lote */}
+      <div style={{
+        position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
+        transform: selCount > 0 ? 'translateY(0)' : 'translateY(100%)',
+        transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
+        background: 'rgba(8,5,22,0.96)', backdropFilter: 'blur(24px)',
+        borderTop: '1px solid rgba(239,68,68,0.3)',
+        padding: '12px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#ef4444' }}>✕</div>
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>{selCount} aposta{selCount !== 1 ? 's' : ''} selecionada{selCount !== 1 ? 's' : ''}</p>
+            <p style={{ margin: 0, fontSize: 11, color: '#6d5a9a' }}>Selecione mais ou confirme a ação</p>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            style={{ padding: '8px 16px', borderRadius: 8, background: 'none', border: '1px solid rgba(255,255,255,0.12)', color: '#a0a0c0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >Desmarcar</button>
+          <button
+            onClick={() => setBulkDeleting(true)}
+            style={{
+              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)',
+              color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.28)'; e.currentTarget.style.borderColor = '#ef4444' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)' }}
+          >🗑 Excluir {selCount}</button>
+        </div>
+      </div>
 
       {/* Summary cards */}
       {summary && (
@@ -768,8 +929,27 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
         </div>
       )}
 
-      {/* Filtros toggle */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Controles: view mode + filtros */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+        {/* View mode toggle */}
+        <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
+          {(['grouped', 'paginated'] as const).map(mode => (
+            <button
+              key={mode}
+              onClick={() => setViewMode(mode)}
+              style={{
+                padding: '5px 12px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                cursor: 'pointer', transition: 'all 0.15s', border: 'none',
+                background: viewMode === mode ? accentColor : 'transparent',
+                color: viewMode === mode ? '#fff' : 'var(--text-muted)',
+                boxShadow: viewMode === mode ? `0 0 10px ${accentColor}60` : 'none',
+              }}
+            >
+              {mode === 'grouped' ? '📅 Por mês' : '⊞ Paginado'}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={() => setShowFilters(v => !v)}
           style={{
@@ -813,84 +993,187 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
         </div>
       )}
 
-      {/* Tabela */}
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
-            <thead>
-              <tr>
-                <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
-                <th style={{ ...thSortable, minWidth: 200 }} onClick={() => handleSort('description')}>Descrição <SortIcon active={sortKey === 'description'} dir={sortDir} /></th>
-                <th style={thBase}>Esporte</th>
-                <th style={thBase}>Casa</th>
-                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('odds')}>Odd <SortIcon active={sortKey === 'odds'} dir={sortDir} /></th>
-                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('amountWagered')}>Apostado <SortIcon active={sortKey === 'amountWagered'} dir={sortDir} /></th>
-                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
-                <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
-                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
-                <th style={{ ...thBase, textAlign: 'right' }}>Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+      {/* ── Tabela compartilhada (thead reutilizado) ────────────────────── */}
+      {(() => {
+        const thead = (
+          <thead>
+            <tr>
+              <th style={{ ...thBase, width: 36, paddingRight: 4 }} onClick={toggleAll}>
+                <div style={{
+                  width: 16, height: 16, borderRadius: 4, cursor: 'pointer',
+                  border: `2px solid ${allSelected ? '#7c3aed' : someSelected ? '#7c3aed' : 'rgba(255,255,255,0.2)'}`,
+                  background: allSelected ? '#7c3aed' : someSelected ? 'rgba(124,58,237,0.3)' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                }}>
+                  {allSelected && <span style={{ color: '#fff', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                  {!allSelected && someSelected && <span style={{ color: '#a78bfa', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>—</span>}
+                </div>
+              </th>
+              <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
+              <th style={{ ...thSortable, minWidth: 200 }} onClick={() => handleSort('description')}>Descrição <SortIcon active={sortKey === 'description'} dir={sortDir} /></th>
+              <th style={thBase}>Esporte</th>
+              <th style={thBase}>Casa</th>
+              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('odds')}>Odd <SortIcon active={sortKey === 'odds'} dir={sortDir} /></th>
+              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('amountWagered')}>Apostado <SortIcon active={sortKey === 'amountWagered'} dir={sortDir} /></th>
+              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
+              <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
+              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
+              <th style={{ ...thBase, textAlign: 'right' }}>Ações</th>
+            </tr>
+          </thead>
+        )
+
+        // ── MODO AGRUPADO POR MÊS ──────────────────────────────────────────
+        if (viewMode === 'grouped') {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+              {isLoading && (
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                      {thead}
+                      <tbody>{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               {isError && (
-                <tr><td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
+                <div style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar.</div>
               )}
               {!isLoading && !isError && sorted.length === 0 && (
-                <tr><td colSpan={10} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
+                <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.
+                </div>
               )}
-              {!isLoading && sorted.map((bet: Bet, i: number) => (
-                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} onEdit={setEditingBet} onDelete={setDeletingBet} />
-              ))}
-            </tbody>
-            {summary && !isLoading && sorted.length > 0 && (
-              <tfoot>
-                <tr style={{ borderTop: '2px solid var(--border-purple)' }}>
-                  <td colSpan={4} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>
-                    Totais ({summary.totalBets} apostas)
-                  </td>
+              {!isLoading && monthGroups && monthGroups.map(([key, monthBets]) => {
+                const stats     = calcMonthStats(monthBets)
+                const collapsed = collapsedMonths.has(key)
+                const profitPos = stats.profit >= 0
+                return (
+                  <div key={key} style={{ marginBottom: 12 }}>
+                    {/* Month header */}
+                    <button
+                      onClick={() => toggleMonth(key)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        padding: '10px 18px', background: 'rgba(124,58,237,0.06)',
+                        border: '1px solid rgba(124,58,237,0.2)', borderRadius: collapsed ? 12 : '12px 12px 0 0',
+                        cursor: 'pointer', transition: 'all 0.15s', gap: 12,
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.10)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.06)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.2)' }}
+                    >
+                      {/* Left: chevron + month name */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ fontSize: 10, color: '#a78bfa', transition: 'transform 0.2s', display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▼</span>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: '#fff', letterSpacing: '-0.01em' }}>{monthLabel(key)}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{stats.total} aposta{stats.total !== 1 ? 's' : ''}</span>
+                      </div>
+                      {/* Right: mini stats */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          <span style={{ color: '#22c55e', fontWeight: 700 }}>{stats.won}G</span>
+                          {' · '}
+                          <span style={{ color: '#ef4444', fontWeight: 700 }}>{stats.lost}P</span>
+                          {stats.hitRate != null && <span style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 6 }}>{stats.hitRate.toFixed(0)}%</span>}
+                        </span>
+                        <span style={{ fontSize: 13, fontWeight: 800, color: profitPos ? '#22c55e' : '#ef4444', fontFamily: 'monospace', minWidth: 80, textAlign: 'right' }}>
+                          {profitPos ? '+' : ''}{fmtMoney(stats.profit)}
+                        </span>
+                      </div>
+                    </button>
 
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>{fmtMoney(summary.totalWagered)}</td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
-                  <td style={{ padding: '10px 14px', background: 'rgba(9,9,15,0.5)' }}>
-                    {summary.hitRatePct != null && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600 }}>{summary.hitRatePct.toFixed(1)}% acerto</span>}
-                  </td>
-                  <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, whiteSpace: 'nowrap', background: 'rgba(9,9,15,0.5)', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
-                    {summary.totalProfit >= 0 ? '+' : ''}{fmtMoney(summary.totalProfit)}
-                  </td>
-                  <td style={{ background: 'rgba(9,9,15,0.5)' }} />
-                </tr>
-              </tfoot>
+                    {/* Month rows */}
+                    {!collapsed && (
+                      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(124,58,237,0.15)', borderTop: 'none', borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
+                        <div style={{ overflowX: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                            {thead}
+                            <tbody>
+                              {monthBets.map((bet: Bet, i: number) => (
+                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} />
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )
+        }
+
+        // ── MODO PAGINADO (original) ───────────────────────────────────────
+        return (
+          <>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                  {thead}
+                  <tbody>
+                    {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
+                    {isError && (
+                      <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
+                    )}
+                    {!isLoading && !isError && sorted.length === 0 && (
+                      <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
+                    )}
+                    {!isLoading && sorted.map((bet: Bet, i: number) => (
+                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} />
+                    ))}
+                  </tbody>
+                  {summary && !isLoading && sorted.length > 0 && (
+                    <tfoot>
+                      <tr style={{ borderTop: '2px solid var(--border-purple)' }}>
+                        <td colSpan={5} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>
+                          Totais ({summary.totalBets} apostas)
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>{fmtMoney(summary.totalWagered)}</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                        <td style={{ padding: '10px 14px', background: 'rgba(9,9,15,0.5)' }}>
+                          {summary.hitRatePct != null && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600 }}>{summary.hitRatePct.toFixed(1)}% acerto</span>}
+                        </td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 14, fontWeight: 900, whiteSpace: 'nowrap', background: 'rgba(9,9,15,0.5)', color: summary.totalProfit >= 0 ? '#22c55e' : '#ef4444' }}>
+                          {summary.totalProfit >= 0 ? '+' : ''}{fmtMoney(summary.totalProfit)}
+                        </td>
+                        <td style={{ background: 'rgba(9,9,15,0.5)' }} />
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+            </div>
+
+            {/* Paginação */}
+            {pagination && totalPages > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Linhas por página:</span>
+                  <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }} style={{ ...inputStyle, padding: '5px 8px', fontSize: 12 }}>
+                    {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>
+                    {(page - 1) * perPage + 1}–{Math.min(page * perPage, pagination.total)} de {pagination.total}
+                  </span>
+                  <PagBtn label="«" disabled={page === 1} onClick={() => setPage(1)} />
+                  <PagBtn label="‹" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
+                    return <PagBtn key={p} label={String(p)} active={p === page} onClick={() => setPage(p)} />
+                  })}
+                  <PagBtn label="›" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} />
+                  <PagBtn label="»" disabled={page === totalPages} onClick={() => setPage(totalPages)} />
+                </div>
+              </div>
             )}
-          </table>
-        </div>
-      </div>
-
-      {/* Paginação */}
-      {pagination && totalPages > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Linhas por página:</span>
-            <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }} style={{ ...inputStyle, padding: '5px 8px', fontSize: 12 }}>
-              {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>
-              {(page - 1) * perPage + 1}–{Math.min(page * perPage, pagination.total)} de {pagination.total}
-            </span>
-            <PagBtn label="«" disabled={page === 1} onClick={() => setPage(1)} />
-            <PagBtn label="‹" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
-              return <PagBtn key={p} label={String(p)} active={p === page} onClick={() => setPage(p)} />
-            })}
-            <PagBtn label="›" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} />
-            <PagBtn label="»" disabled={page === totalPages} onClick={() => setPage(totalPages)} />
-          </div>
-        </div>
-      )}
+          </>
+        )
+      })()}
     </div>
   )
 }
