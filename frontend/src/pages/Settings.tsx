@@ -1,61 +1,327 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMobile } from '../hooks/useMobile'
+import { useAuth } from '../contexts/AuthContext'
+import { useBankroll, useAddBankroll, useRemoveBankroll } from '../hooks/useBankroll'
 import {
-  useSports,    useCreateSport,    useUpdateSport,    useToggleSport,
+  useSports, useCreateSport, useUpdateSport, useToggleSport,
   useBookmakers, useCreateBookmaker, useUpdateBookmaker, useToggleBookmaker,
-  useProfiles,  useCreateProfile,  useUpdateProfile,  useToggleProfile,
+  useProfiles, useCreateProfile, useUpdateProfile, useToggleProfile,
 } from '../hooks/useConfig'
 import { Sport, Bookmaker, BettingProfile } from '../types/bet.types'
 
-// ─── Design tokens ────────────────────────────────────────────────────────────
+// ─── Utils ────────────────────────────────────────────────────────────────────
 
-const inp: React.CSSProperties = {
-  width: '100%', background: 'var(--bg-primary)',
-  border: '1px solid var(--border)', borderRadius: 10,
-  padding: '9px 13px', color: 'var(--text-primary)',
-  fontSize: 14, outline: 'none',
-  transition: 'border-color 0.15s, box-shadow 0.15s', fontFamily: 'inherit',
+const fmt = (n: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n)
+
+const fmtDate = (d: string) =>
+  new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+// ─── Snake Runner ─────────────────────────────────────────────────────────────
+// Pixel-art snake that crawls along the bottom strip of the content panel
+
+function SnakeRunner() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d') as CanvasRenderingContext2D
+
+    const H   = 40
+    const DPR = window.devicePixelRatio || 1
+    let W = canvas.parentElement?.clientWidth || 600
+
+    canvas.width  = W * DPR
+    canvas.height = H * DPR
+    canvas.style.width  = W + 'px'
+    canvas.style.height = H + 'px'
+    ctx.imageSmoothingEnabled = false
+    ctx.scale(DPR, DPR)
+
+    // Same pixel unit & drawing as SnakeLogo — P=4 fits a 40px strip
+    const P     = 3
+    const HW    = 8 * P   // 24px
+    const HH    = 6 * P   // 18px
+    const BODY  = 16
+    const SPEED = 1.4
+
+    const PURPLE = '#7c3aed'
+    const DARK   = '#2d1f5e'
+    const LIGHT  = '#a78bfa'
+    const BORDER = '#1e0a3c'
+    const WHITE  = '#f0f0ff'
+    const PUPIL  = '#0a001a'
+    const TONGUE = '#f472b6'
+    const SHINE  = 'rgba(255,255,255,0.25)'
+
+    const cy = Math.floor(H / 2)
+    let hx   = HW + P
+    let dir  = 1
+    let trail: number[] = Array.from({ length: BODY + 1 }, (_, i) => hx - i * P * 3)
+    let tongueOut = false; let tongueT = 0
+    let blinking  = false; let blinkT  = 0
+    let animId: number
+
+    const resize = () => {
+      W = canvas.parentElement?.clientWidth || 600
+      canvas.width  = W * DPR
+      canvas.height = H * DPR
+      canvas.style.width = W + 'px'
+      ctx.scale(DPR, DPR)
+    }
+    const ro = new ResizeObserver(resize)
+    if (canvas.parentElement) ro.observe(canvas.parentElement)
+
+    function rnd(n: number) { return Math.round(n) }
+
+    function drawSegment(cx: number, idx: number) {
+      const ratio = 1 - idx / BODY
+      const segP  = Math.max(2, Math.floor(P * (0.55 + ratio * 0.55)))
+      const sz    = segP * 3
+      const alpha = 0.3 + ratio * 0.65
+      const sx    = rnd(cx - sz / 2)
+      const sy    = cy - rnd(sz / 2)
+      ctx.globalAlpha = alpha
+      ctx.fillStyle = BORDER
+      ctx.fillRect(sx, sy, sz, sz)
+      ctx.fillStyle = idx < 2 ? LIGHT : idx < 5 ? PURPLE : DARK
+      ctx.fillRect(sx + segP, sy + segP, sz - 2 * segP, sz - 2 * segP)
+      ctx.fillStyle = SHINE
+      ctx.fillRect(sx + segP, sy + segP, segP, segP)
+      ctx.globalAlpha = 1
+    }
+
+    function drawHead(x: number) {
+      const sx = dir > 0 ? rnd(x) : rnd(x) - HW
+      const sy = cy - rnd(HH / 2)
+
+      ctx.fillStyle = BORDER
+      ctx.fillRect(sx, sy, HW, HH)
+      ctx.fillStyle = PURPLE
+      ctx.fillRect(sx + P, sy + P, HW - 2 * P, HH - 2 * P)
+      ctx.fillStyle = LIGHT
+      ctx.fillRect(sx + P, sy + P, HW - 2 * P, P)
+      ctx.fillStyle = DARK
+      ctx.fillRect(sx + 2 * P, sy + 3 * P, P, P)
+      ctx.fillRect(sx + 4 * P, sy + 3 * P, P, P)
+
+      for (let s = 0; s < 2; s++) {
+        const eyeX = dir > 0
+          ? (s === 0 ? sx + 5 * P : sx + 2 * P)
+          : (s === 0 ? sx + 2 * P : sx + 5 * P)
+        const eyeY = sy + P
+        if (blinking) {
+          ctx.fillStyle = BORDER
+          ctx.fillRect(eyeX, eyeY + P, 2 * P, P)
+        } else {
+          ctx.fillStyle = WHITE
+          ctx.fillRect(eyeX, eyeY, 2 * P, 2 * P)
+          ctx.fillStyle = PUPIL
+          ctx.fillRect(dir > 0 ? eyeX + P : eyeX, eyeY, P, P)
+          ctx.fillStyle = 'rgba(255,255,255,0.8)'
+          ctx.fillRect(eyeX, eyeY, Math.max(1, Math.floor(P / 2)), Math.max(1, Math.floor(P / 2)))
+        }
+      }
+
+      if (tongueOut) {
+        const ty = sy + 3 * P
+        if (dir > 0) {
+          ctx.fillStyle = TONGUE
+          ctx.fillRect(sx + HW,           ty,     2 * P, P)
+          ctx.fillRect(sx + HW + 2 * P,   ty - P, P,     P)
+          ctx.fillRect(sx + HW + 2 * P,   ty + P, P,     P)
+        } else {
+          ctx.fillStyle = TONGUE
+          ctx.fillRect(sx - 2 * P,         ty,     2 * P, P)
+          ctx.fillRect(sx - 3 * P,         ty - P, P,     P)
+          ctx.fillRect(sx - 3 * P,         ty + P, P,     P)
+        }
+      }
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, W, H)
+
+      ctx.fillStyle = 'rgba(124,58,237,0.07)'
+      for (let i = 0; i < Math.floor(W / 8); i++) {
+        ctx.fillRect(i * 8 + 3, cy, 2, 1)
+      }
+
+      hx += dir * SPEED
+      const margin = HW + 3 * P
+      if (hx > W - margin) { hx = W - margin; dir = -1 }
+      if (hx < margin)     { hx = margin;      dir  =  1 }
+
+      trail.unshift(hx)
+      trail = trail.slice(0, BODY + 1)
+
+      for (let i = BODY - 1; i >= 0; i--) {
+        if (trail[i + 1] !== undefined) drawSegment(trail[i + 1], i)
+      }
+      drawHead(hx)
+
+      blinkT++
+      if (blinkT > 150) blinking = true
+      if (blinkT > 156) { blinking = false; blinkT = 0 }
+
+      tongueT++
+      if (tongueT > 110 && tongueT < 128) tongueOut = true
+      else { tongueOut = false; if (tongueT > 150) tongueT = 0 }
+
+      animId = requestAnimationFrame(draw)
+    }
+
+    draw()
+    return () => { cancelAnimationFrame(animId); ro.disconnect() }
+  }, [])
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ display: 'block', imageRendering: 'pixelated', width: '100%', height: '40px' }}
+    />
+  )
 }
 
-const focus = (e: React.FocusEvent<any>) => {
+// ─── Design tokens ────────────────────────────────────────────────────────────
+
+const field: React.CSSProperties = {
+  width: '100%',
+  background: 'var(--bg-primary)',
+  border: '1px solid var(--border)',
+  borderRadius: 8,
+  padding: '9px 12px',
+  color: 'var(--text-primary)',
+  fontSize: 13,
+  outline: 'none',
+  fontFamily: 'inherit',
+  transition: 'border-color 0.15s, box-shadow 0.15s',
+}
+
+const onFocus = (e: React.FocusEvent<any>) => {
   e.target.style.borderColor = '#7c3aed'
   e.target.style.boxShadow   = '0 0 0 3px rgba(124,58,237,0.12)'
 }
-const blur = (e: React.FocusEvent<any>) => {
+const onBlur = (e: React.FocusEvent<any>) => {
   e.target.style.borderColor = 'var(--border)'
   e.target.style.boxShadow   = 'none'
 }
 
-// ─── Preset colors ────────────────────────────────────────────────────────────
+const primaryBtn: React.CSSProperties = {
+  padding: '8px 18px', borderRadius: 7, border: 'none',
+  background: '#7c3aed', color: '#fff', fontSize: 13,
+  fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+}
 
-const PRESET_COLORS = [
-  '#7c3aed','#6366f1','#ec4899','#22c55e','#f59e0b',
-  '#ef4444','#06b6d4','#8b5cf6','#10b981','#f97316',
-  '#3b82f6','#a855f7','#14b8a6','#eab308','#64748b',
+const ghostBtn: React.CSSProperties = {
+  padding: '8px 18px', borderRadius: 7,
+  border: '1px solid var(--border-purple)',
+  background: 'transparent', color: 'var(--text-secondary)',
+  fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+}
+
+const editCard: React.CSSProperties = {
+  padding: '14px 16px', borderRadius: 8,
+  border: '1px solid #5b21b6',
+  background: 'rgba(91,33,182,0.08)',
+}
+
+const itemRow: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12,
+  padding: '10px 14px', borderRadius: 8,
+  border: '1px solid var(--border)',
+  background: 'var(--bg-primary)',
+}
+
+const addBtn: React.CSSProperties = {
+  width: '100%', padding: 9, borderRadius: 8,
+  border: '1px dashed var(--border-purple)',
+  background: 'transparent', color: '#7878a0',
+  fontSize: 13, cursor: 'pointer',
+  transition: 'border-color 0.15s, color 0.15s',
+}
+
+// Section label with gradient shimmer
+function SLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <span style={{
+        fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
+        textTransform: 'uppercase',
+        background: 'linear-gradient(90deg,#a78bfa,#c4b5fd,#a78bfa)',
+        backgroundSize: '200% auto',
+        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+        backgroundClip: 'text',
+        animation: 'shimmer 4s linear infinite',
+      }}>
+        {children}
+      </span>
+      <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right,rgba(124,58,237,0.25),transparent)' }} />
+    </div>
+  )
+}
+
+function Skeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+      {[1, 2, 3].map(i => (
+        <div key={i} style={{
+          height: 44, borderRadius: 8, background: 'rgba(124,58,237,0.06)',
+          animation: 'pulse 1.4s ease infinite', animationDelay: `${i * 60}ms`,
+        }} />
+      ))}
+    </div>
+  )
+}
+
+function Toggle({ active, onToggle, disabled }: { active: boolean; onToggle: () => void; disabled?: boolean }) {
+  return (
+    <button type="button" onClick={onToggle} disabled={disabled} style={{
+      flexShrink: 0, width: 36, height: 20, borderRadius: 10, padding: 2,
+      border: 'none',
+      background: active ? '#7c3aed' : 'rgba(255,255,255,0.08)',
+      cursor: disabled ? 'not-allowed' : 'pointer',
+      transition: 'background 0.2s', display: 'flex', alignItems: 'center',
+      opacity: disabled ? 0.5 : 1,
+      boxShadow: active ? '0 0 8px rgba(124,58,237,0.4)' : 'none',
+    }}>
+      <div style={{
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        transform: active ? 'translateX(16px)' : 'translateX(0)',
+        transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
+      }} />
+    </button>
+  )
+}
+
+const COLORS = [
+  '#7c3aed','#6366f1','#3b82f6','#06b6d4','#10b981',
+  '#22c55e','#f59e0b','#f97316','#ef4444','#ec4899',
+  '#a855f7','#8b5cf6','#14b8a6','#eab308','#64748b',
 ]
 
 function ColorPicker({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
     <div>
-      <input
-        type="text" value={value}
-        onChange={e => onChange(e.target.value)}
-        onFocus={focus} onBlur={blur}
-        placeholder="#6B7280"
-        style={{ ...inp, paddingLeft: 40 }}
-      />
-      <div style={{
-        position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)',
-        width: 18, height: 18, borderRadius: 6,
-        background: /^#[0-9A-Fa-f]{6}$/.test(value) ? value : '#6B7280',
-        border: '1px solid rgba(255,255,255,0.1)',
-      }} />
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-        {PRESET_COLORS.map(c => (
+      <div style={{ position: 'relative' }}>
+        <span style={{
+          position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
+          width: 16, height: 16, borderRadius: 4, pointerEvents: 'none',
+          background: /^#[0-9A-Fa-f]{6}$/.test(value) ? value : '#6B7280',
+          border: '1px solid rgba(255,255,255,0.08)',
+        }} />
+        <input type="text" value={value} onChange={e => onChange(e.target.value)}
+          onFocus={onFocus} onBlur={onBlur}
+          placeholder="#6B7280"
+          style={{ ...field, paddingLeft: 36 }} />
+      </div>
+      <div style={{ display: 'flex', gap: 5, marginTop: 8, flexWrap: 'wrap' }}>
+        {COLORS.map(c => (
           <button key={c} type="button" onClick={() => onChange(c)} style={{
-            width: 22, height: 22, borderRadius: 6, background: c, border: 'none',
-            cursor: 'pointer', outline: value === c ? '2px solid #fff' : 'none',
-            outlineOffset: 2, transition: 'transform 0.1s',
+            width: 20, height: 20, borderRadius: 5, background: c, border: 'none',
+            cursor: 'pointer', outline: value === c ? `2px solid ${c}` : 'none',
+            outlineOffset: 2, opacity: value === c ? 1 : 0.7,
           }} />
         ))}
       </div>
@@ -63,261 +329,455 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
   )
 }
 
-// ─── Toggle switch ────────────────────────────────────────────────────────────
+// ─── BANCA ────────────────────────────────────────────────────────────────────
 
-function Toggle({ active, onToggle, loading }: { active: boolean; onToggle: () => void; loading?: boolean }) {
+function BancaSection() {
+  const { data, isLoading } = useBankroll()
+  const addEntry    = useAddBankroll()
+  const removeEntry = useRemoveBankroll()
+
+  const [mode,   setMode]   = useState<null | 'initial' | 'deposit' | 'withdrawal'>(null)
+  const [amount, setAmount] = useState('')
+  const [note,   setNote]   = useState('')
+
+  const balance  = data?.balance ?? 0
+  const entries  = data?.data ?? []
+  const hasInit  = entries.some(e => e.type === 'initial')
+  const deposited = entries.filter(e => e.type !== 'withdrawal').reduce((s, e) => s + e.amount, 0)
+  const withdrawn = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
+
+  const typeLabel = (t: string) =>
+    t === 'initial' ? 'Banca inicial' : t === 'deposit' ? 'Depósito' : 'Saque'
+
   return (
-    <button type="button" onClick={onToggle} disabled={loading} style={{
-      width: 40, height: 22, borderRadius: 999, padding: '2px',
-      background: active ? '#7c3aed' : 'rgba(255,255,255,0.08)',
-      border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
-      transition: 'background 0.2s', display: 'flex', alignItems: 'center',
-      opacity: loading ? 0.5 : 1,
-    }}>
-      <div style={{
-        width: 18, height: 18, borderRadius: '50%', background: '#fff',
-        transform: active ? 'translateX(18px)' : 'translateX(0)',
-        transition: 'transform 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-      }} />
-    </button>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        {[
+          { label: 'Saldo atual',    value: isLoading ? '—' : fmt(balance),    accent: true },
+          { label: 'Total depositado', value: isLoading ? '—' : fmt(deposited), accent: false },
+          { label: 'Total sacado',   value: isLoading ? '—' : fmt(withdrawn),  accent: false },
+        ].map(k => (
+          <div key={k.label} style={{
+            background: 'var(--bg-primary)',
+            border: `1px solid ${k.accent ? '#2a1d54' : 'var(--border)'}`,
+            borderRadius: 9, padding: '14px 16px',
+            boxShadow: k.accent ? 'inset 0 0 20px rgba(124,58,237,0.05)' : 'none',
+          }}>
+            <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              {k.label}
+            </p>
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: '-0.3px', color: k.accent ? '#a78bfa' : 'var(--text-primary)' }}>
+              {k.value}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Action buttons */}
+      {!mode && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {!hasInit && (
+            <button onClick={() => setMode('initial')} style={primaryBtn}>
+              Definir banca inicial
+            </button>
+          )}
+          {hasInit && (
+            <>
+              <button onClick={() => setMode('deposit')} style={primaryBtn}>Registrar depósito</button>
+              <button onClick={() => setMode('withdrawal')} style={ghostBtn}>Registrar saque</button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Form */}
+      {mode && (
+        <div style={editCard}>
+          <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>
+            {mode === 'initial' ? 'Banca inicial' : mode === 'deposit' ? 'Depósito' : 'Saque'}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 12 }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Valor (R$)</p>
+              <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+                onFocus={onFocus} onBlur={onBlur}
+                placeholder="0,00" min="0.01" step="0.01" style={field} autoFocus />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Observação</p>
+              <input type="text" value={note} onChange={e => setNote(e.target.value)}
+                onFocus={onFocus} onBlur={onBlur}
+                placeholder="Opcional" style={field} />
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setMode(null); setAmount(''); setNote('') }} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!mode || parseFloat(amount) <= 0) return
+              await addEntry.mutateAsync({ amount: parseFloat(amount), type: mode, note: note.trim() || undefined })
+              setMode(null); setAmount(''); setNote('')
+            }} disabled={addEntry.isLoading || !amount || parseFloat(amount) <= 0} style={primaryBtn}>
+              {addEntry.isLoading ? 'Salvando...' : 'Confirmar'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* History */}
+      <div>
+        <SLabel>Histórico</SLabel>
+        {isLoading && <Skeleton />}
+        {!isLoading && entries.length === 0 && (
+          <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Nenhuma movimentação registrada.</p>
+        )}
+        {entries.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {entries.map(e => (
+              <div key={e.id} style={itemRow}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, background: e.type === 'withdrawal' ? 'var(--red)' : '#16a34a' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>
+                    {typeLabel(e.type)}
+                    {e.note && <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> &middot; {e.note}</span>}
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmtDate(e.date)}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, flexShrink: 0, minWidth: 80, textAlign: 'right', color: e.type === 'withdrawal' ? 'var(--red)' : '#16a34a' }}>
+                  {e.type === 'withdrawal' ? '-' : '+'}{fmt(e.amount)}
+                </span>
+                <button onClick={() => removeEntry.mutate(e.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18, lineHeight: 1, padding: '0 2px' }}>&times;</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
-// ─── Bookmakers Section ───────────────────────────────────────────────────────
+// ─── UNIDADE ──────────────────────────────────────────────────────────────────
+
+function UnidadeSection() {
+  const { user, updateUnit } = useAuth()
+  const { data: bankroll }   = useBankroll()
+
+  const [value,  setValue]  = useState(String(user?.unitValue ?? 10))
+  const [saving, setSaving] = useState(false)
+  const [saved,  setSaved]  = useState(false)
+
+  const unitNum = parseFloat(value) || 0
+  const balance = bankroll?.balance ?? 0
+  const pct     = balance > 0 ? ((unitNum / balance) * 100) : null
+
+  const handleSave = async () => {
+    if (unitNum <= 0) return
+    setSaving(true)
+    await updateUnit(unitNum)
+    setSaving(false); setSaved(true)
+    setTimeout(() => setSaved(false), 2200)
+  }
+
+  const quickValues = balance > 0
+    ? [1, 2, 3, 5].map(p => ({ label: `${p}%`, amount: parseFloat(((balance * p) / 100).toFixed(2)) }))
+    : [{ label: 'R$ 5', amount: 5 }, { label: 'R$ 10', amount: 10 }, { label: 'R$ 25', amount: 25 }, { label: 'R$ 50', amount: 50 }]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Current */}
+      <div style={{
+        background: 'var(--bg-primary)', border: '1px solid #2a1d54',
+        borderRadius: 9, padding: '16px 20px',
+        boxShadow: 'inset 0 0 24px rgba(124,58,237,0.05)',
+      }}>
+        <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+          Unidade atual
+        </p>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
+          <span style={{ fontSize: 26, fontWeight: 700, color: '#a78bfa', letterSpacing: '-0.5px' }}>
+            {fmt(user?.unitValue ?? 0)}
+          </span>
+          {pct !== null && (
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+              {pct.toFixed(2)}% da banca
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Edit */}
+      <div>
+        <SLabel>Alterar unidade</SLabel>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {quickValues.map(q => {
+            const isActive = parseFloat(value) === q.amount
+            return (
+              <button key={q.label} onClick={() => setValue(String(q.amount))} style={{
+                flex: 1, padding: '7px 0', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                border: `1px solid ${isActive ? '#7c3aed' : 'var(--border)'}`,
+                background: isActive ? 'rgba(124,58,237,0.15)' : 'transparent',
+                color: isActive ? '#a78bfa' : 'var(--text-muted)',
+                boxShadow: isActive ? '0 0 8px rgba(124,58,237,0.2)' : 'none',
+                transition: 'all 0.15s',
+              }}>
+                {q.label}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'var(--text-muted)', pointerEvents: 'none' }}>R$</span>
+            <input type="number" value={value} onChange={e => setValue(e.target.value)}
+              onFocus={onFocus} onBlur={onBlur}
+              placeholder="10.00" min="0.01" step="0.01"
+              style={{ ...field, paddingLeft: 34 }} />
+          </div>
+          <button onClick={handleSave} disabled={saving || unitNum <= 0} style={{
+            ...primaryBtn,
+            background: saved ? '#16a34a' : '#7c3aed',
+            transition: 'background 0.3s',
+          }}>
+            {saving ? 'Salvando...' : saved ? '✓ Salvo' : 'Salvar'}
+          </button>
+        </div>
+        {balance > 0 && unitNum > 0 && (
+          <p style={{ margin: '7px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+            {fmt(unitNum)} &rarr; <strong style={{ color: 'var(--text-secondary)' }}>{((unitNum / balance) * 100).toFixed(2)}%</strong> de {fmt(balance)}
+          </p>
+        )}
+      </div>
+
+      {/* Reference table */}
+      <div>
+        <SLabel>Referência de gestão</SLabel>
+        <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 9 }}>
+          {[
+            { perfil: 'Conservador', pct: '1 – 2%', desc: 'Baixo risco, proteção da banca' },
+            { perfil: 'Moderado',    pct: '2 – 3%', desc: 'Equilíbrio entre risco e retorno' },
+            { perfil: 'Agressivo',   pct: '3 – 5%', desc: 'Maior variância, maior potencial' },
+          ].map((r, i, arr) => (
+            <div key={r.perfil} style={{
+              display: 'flex', alignItems: 'center', gap: 16,
+              padding: '12px 16px',
+              borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', width: 52, flexShrink: 0 }}>{r.pct}</span>
+              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', width: 100, flexShrink: 0 }}>{r.perfil}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{r.desc}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── CASAS ────────────────────────────────────────────────────────────────────
 
 function BookmakersSection() {
   const { data: bookmakers = [], isLoading } = useBookmakers()
-  const createBookmaker  = useCreateBookmaker()
-  const updateBookmaker  = useUpdateBookmaker()
-  const toggleBookmaker  = useToggleBookmaker()
+  const create = useCreateBookmaker()
+  const update = useUpdateBookmaker()
+  const toggle = useToggleBookmaker()
 
-  const [adding,   setAdding]   = useState(false)
-  const [newName,  setNewName]  = useState('')
-  const [newColor, setNewColor] = useState('#7c3aed')
-  const [editId,   setEditId]   = useState<number | null>(null)
-  const [editName, setEditName] = useState('')
-  const [editColor,setEditColor]= useState('')
+  const [adding,    setAdding]   = useState(false)
+  const [newName,   setNewName]  = useState('')
+  const [newColor,  setNewColor] = useState('#7c3aed')
+  const [editId,    setEditId]   = useState<number | null>(null)
+  const [editName,  setEditName] = useState('')
+  const [editColor, setEditColor]= useState('')
 
-  const startEdit = (b: Bookmaker) => {
-    setEditId(b.id); setEditName(b.name); setEditColor(b.color); setAdding(false)
-  }
-  const cancelEdit = () => setEditId(null)
-  const cancelAdd  = () => { setAdding(false); setNewName(''); setNewColor('#7c3aed') }
-
-  const handleAdd = async () => {
-    if (!newName.trim()) return
-    await createBookmaker.mutateAsync({ name: newName.trim(), color: newColor })
-    cancelAdd()
-  }
-
-  const handleUpdate = async () => {
-    if (!editId || !editName.trim()) return
-    await updateBookmaker.mutateAsync({ id: editId, data: { name: editName.trim(), color: editColor } })
-    cancelEdit()
-  }
+  const startEdit = (b: Bookmaker) => { setEditId(b.id); setEditName(b.name); setEditColor(b.color); setAdding(false) }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {isLoading && <Skeleton />}
 
-      {bookmakers.map(b => (
-        editId === b.id ? (
-          <div key={b.id} style={editCard}>
-            <div style={{ position: 'relative' }}>
+      {bookmakers.map(b => editId === b.id ? (
+        <div key={b.id} style={editCard}>
+          <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome</p>
               <input value={editName} onChange={e => setEditName(e.target.value)}
-                onFocus={focus} onBlur={blur}
-                style={{ ...inp, marginBottom: 10 }}
-                placeholder="Nome da casa"
-              />
+                onFocus={onFocus} onBlur={onBlur} style={field} placeholder="Nome da casa" />
             </div>
-            <div style={{ position: 'relative' }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Cor</p>
               <ColorPicker value={editColor} onChange={setEditColor} />
             </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button onClick={cancelEdit} style={btnSecondary}>Cancelar</button>
-              <button onClick={handleUpdate} disabled={updateBookmaker.isLoading} style={btnPrimary}>
-                {updateBookmaker.isLoading ? 'Salvando…' : 'Salvar'}
-              </button>
-            </div>
           </div>
-        ) : (
-          <div key={b.id} style={itemRow(b.active)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              <div style={{ width: 10, height: 10, borderRadius: '50%', background: b.color, flexShrink: 0, boxShadow: `0 0 6px ${b.color}88` }} />
-              <span style={{ fontSize: 14, fontWeight: 600, color: b.active ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {b.name}
-              </span>
-              {!b.active && <span style={inactiveBadge}>inativa</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <button onClick={() => startEdit(b)} style={iconBtn} title="Editar">✎</button>
-              <Toggle active={b.active} onToggle={() => toggleBookmaker.mutate(b.id)} loading={toggleBookmaker.isLoading} />
-            </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setEditId(null)} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!editName.trim()) return
+              await update.mutateAsync({ id: editId!, data: { name: editName.trim(), color: editColor } })
+              setEditId(null)
+            }} disabled={update.isLoading} style={primaryBtn}>{update.isLoading ? 'Salvando...' : 'Salvar'}</button>
           </div>
-        )
+        </div>
+      ) : (
+        <div key={b.id} style={{ ...itemRow, opacity: b.active ? 1 : 0.5 }}>
+          <div style={{ width: 9, height: 9, borderRadius: '50%', background: b.color, flexShrink: 0, boxShadow: `0 0 6px ${b.color}88` }} />
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{b.name}</span>
+          {!b.active && <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>inativa</span>}
+          <button onClick={() => startEdit(b)} style={{ ...ghostBtn, padding: '4px 12px', fontSize: 12 }}>Editar</button>
+          <Toggle active={b.active} onToggle={() => toggle.mutate(b.id)} disabled={toggle.isLoading} />
+        </div>
       ))}
 
       {adding ? (
         <div style={editCard}>
-          <input value={newName} onChange={e => setNewName(e.target.value)}
-            onFocus={focus} onBlur={blur}
-            style={{ ...inp, marginBottom: 10 }}
-            placeholder="Nome da casa (ex: Betano)"
-            autoFocus
-          />
-          <div style={{ position: 'relative' }}>
-            <ColorPicker value={newColor} onChange={setNewColor} />
+          <div style={{ display: 'grid', gap: 10, marginBottom: 12 }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome</p>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                onFocus={onFocus} onBlur={onBlur} style={field} placeholder="Ex: Betano" autoFocus />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Cor</p>
+              <ColorPicker value={newColor} onChange={setNewColor} />
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-            <button onClick={cancelAdd} style={btnSecondary}>Cancelar</button>
-            <button onClick={handleAdd} disabled={createBookmaker.isLoading || !newName.trim()} style={btnPrimary}>
-              {createBookmaker.isLoading ? 'Criando…' : '+ Adicionar'}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setAdding(false); setNewName(''); setNewColor('#7c3aed') }} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!newName.trim()) return
+              await create.mutateAsync({ name: newName.trim(), color: newColor })
+              setAdding(false); setNewName(''); setNewColor('#7c3aed')
+            }} disabled={create.isLoading || !newName.trim()} style={primaryBtn}>
+              {create.isLoading ? 'Criando...' : 'Adicionar'}
             </button>
           </div>
         </div>
       ) : (
         <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>
-          + Nova casa de apostas
+          + Adicionar casa de apostas
         </button>
       )}
     </div>
   )
 }
 
-// ─── Sports Section ───────────────────────────────────────────────────────────
+// ─── ESPORTES ─────────────────────────────────────────────────────────────────
+
+const SPORT_ICONS = ['⚽','🏀','🎾','🏈','⚾','🏒','🏉','🏐','🎱','🏓','🥊','🏊','🏇','🚴','🏋️','🎯','🏆']
 
 function SportsSection() {
   const { data: sports = [], isLoading } = useSports()
-  const createSport  = useCreateSport()
-  const updateSport  = useUpdateSport()
-  const toggleSport  = useToggleSport()
+  const create = useCreateSport()
+  const update = useUpdateSport()
+  const toggle = useToggleSport()
 
-  const [adding,  setAdding]  = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newIcon, setNewIcon] = useState('')
-  const [editId,  setEditId]  = useState<number | null>(null)
-  const [editName,setEditName]= useState('')
-  const [editIcon,setEditIcon]= useState('')
+  const [adding,   setAdding]  = useState(false)
+  const [newName,  setNewName] = useState('')
+  const [newIcon,  setNewIcon] = useState('')
+  const [editId,   setEditId]  = useState<number | null>(null)
+  const [editName, setEditName]= useState('')
+  const [editIcon, setEditIcon]= useState('')
 
   const startEdit = (s: Sport) => { setEditId(s.id); setEditName(s.name); setEditIcon(s.icon ?? ''); setAdding(false) }
-  const cancelEdit = () => setEditId(null)
-  const cancelAdd  = () => { setAdding(false); setNewName(''); setNewIcon('') }
 
-  const handleAdd = async () => {
-    if (!newName.trim()) return
-    await createSport.mutateAsync({ name: newName.trim(), icon: newIcon.trim() || null })
-    cancelAdd()
-  }
-
-  const handleUpdate = async () => {
-    if (!editId || !editName.trim()) return
-    await updateSport.mutateAsync({ id: editId, data: { name: editName.trim(), icon: editIcon.trim() || null } })
-    cancelEdit()
-  }
-
-  const SPORT_ICONS = ['⚽','🏀','🎾','🏈','⚾','🏒','🏉','🏐','🎱','🏓','🥊','🏊','🎽','🏇','🚴','🏋️','🤼','🎯','🎮','🏆']
+  const IconGrid = ({ sel, onSel }: { sel: string; onSel: (i: string) => void }) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+      {SPORT_ICONS.map(ic => (
+        <button key={ic} type="button" onClick={() => onSel(ic)} style={{
+          width: 32, height: 32, borderRadius: 6, fontSize: 15,
+          border: `1px solid ${sel === ic ? '#7c3aed' : 'var(--border)'}`,
+          background: sel === ic ? 'rgba(124,58,237,0.15)' : 'transparent',
+          cursor: 'pointer',
+          boxShadow: sel === ic ? '0 0 6px rgba(124,58,237,0.25)' : 'none',
+        }}>{ic}</button>
+      ))}
+    </div>
+  )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {isLoading && <Skeleton />}
 
-      {sports.map(s => (
-        editId === s.id ? (
-          <div key={s.id} style={editCard}>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
+      {sports.map(s => editId === s.id ? (
+        <div key={s.id} style={editCard}>
+          <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 10, marginBottom: 8 }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Ícone</p>
               <input value={editIcon} onChange={e => setEditIcon(e.target.value)}
-                onFocus={focus} onBlur={blur}
-                style={{ ...inp, width: 56, textAlign: 'center', fontSize: 18, padding: '9px 8px' }}
-                placeholder="⚽" maxLength={4}
-              />
+                onFocus={onFocus} onBlur={onBlur}
+                style={{ ...field, textAlign: 'center', fontSize: 18, padding: '7px 4px' }} maxLength={4} />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome</p>
               <input value={editName} onChange={e => setEditName(e.target.value)}
-                onFocus={focus} onBlur={blur}
-                style={{ ...inp, flex: 1 }}
-                placeholder="Nome do esporte"
-              />
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-              {SPORT_ICONS.map(ic => (
-                <button key={ic} type="button" onClick={() => setEditIcon(ic)} style={{
-                  width: 34, height: 34, borderRadius: 8, fontSize: 16, border: editIcon === ic ? '2px solid #7c3aed' : '1px solid var(--border)',
-                  background: editIcon === ic ? 'rgba(124,58,237,0.15)' : 'var(--bg-primary)', cursor: 'pointer',
-                }}>
-                  {ic}
-                </button>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={cancelEdit} style={btnSecondary}>Cancelar</button>
-              <button onClick={handleUpdate} disabled={updateSport.isLoading} style={btnPrimary}>
-                {updateSport.isLoading ? 'Salvando…' : 'Salvar'}
-              </button>
+                onFocus={onFocus} onBlur={onBlur} style={field} placeholder="Nome do esporte" />
             </div>
           </div>
-        ) : (
-          <div key={s.id} style={itemRow(s.active)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              {s.icon && <span style={{ fontSize: 20, lineHeight: 1 }}>{s.icon}</span>}
-              <span style={{ fontSize: 14, fontWeight: 600, color: s.active ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {s.name}
-              </span>
-              {!s.active && <span style={inactiveBadge}>inativo</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <button onClick={() => startEdit(s)} style={iconBtn} title="Editar">✏️</button>
-              <Toggle active={s.active} onToggle={() => toggleSport.mutate(s.id)} loading={toggleSport.isLoading} />
-            </div>
+          <IconGrid sel={editIcon} onSel={setEditIcon} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button onClick={() => setEditId(null)} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!editName.trim()) return
+              await update.mutateAsync({ id: editId!, data: { name: editName.trim(), icon: editIcon || null } })
+              setEditId(null)
+            }} disabled={update.isLoading} style={primaryBtn}>{update.isLoading ? 'Salvando...' : 'Salvar'}</button>
           </div>
-        )
+        </div>
+      ) : (
+        <div key={s.id} style={{ ...itemRow, opacity: s.active ? 1 : 0.5 }}>
+          {s.icon
+            ? <span style={{ fontSize: 18, width: 22, textAlign: 'center', flexShrink: 0 }}>{s.icon}</span>
+            : <span style={{ width: 22, flexShrink: 0 }} />}
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{s.name}</span>
+          {!s.active && <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>inativo</span>}
+          <button onClick={() => startEdit(s)} style={{ ...ghostBtn, padding: '4px 12px', fontSize: 12 }}>Editar</button>
+          <Toggle active={s.active} onToggle={() => toggle.mutate(s.id)} disabled={toggle.isLoading} />
+        </div>
       ))}
 
       {adding ? (
         <div style={editCard}>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-            <input value={newIcon} onChange={e => setNewIcon(e.target.value)}
-              onFocus={focus} onBlur={blur}
-              style={{ ...inp, width: 56, textAlign: 'center', fontSize: 18, padding: '9px 8px' }}
-              placeholder="⚽" maxLength={4}
-            />
-            <input value={newName} onChange={e => setNewName(e.target.value)}
-              onFocus={focus} onBlur={blur}
-              style={{ ...inp, flex: 1 }}
-              placeholder="Nome do esporte"
-              autoFocus
-            />
+          <div style={{ display: 'grid', gridTemplateColumns: '52px 1fr', gap: 10, marginBottom: 8 }}>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Ícone</p>
+              <input value={newIcon} onChange={e => setNewIcon(e.target.value)}
+                onFocus={onFocus} onBlur={onBlur}
+                style={{ ...field, textAlign: 'center', fontSize: 18, padding: '7px 4px' }} maxLength={4} />
+            </div>
+            <div>
+              <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome</p>
+              <input value={newName} onChange={e => setNewName(e.target.value)}
+                onFocus={onFocus} onBlur={onBlur} style={field} placeholder="Ex: Futebol" autoFocus />
+            </div>
           </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-            {SPORT_ICONS.map(ic => (
-              <button key={ic} type="button" onClick={() => setNewIcon(ic)} style={{
-                width: 34, height: 34, borderRadius: 8, fontSize: 16, border: newIcon === ic ? '2px solid #7c3aed' : '1px solid var(--border)',
-                background: newIcon === ic ? 'rgba(124,58,237,0.15)' : 'var(--bg-primary)', cursor: 'pointer',
-              }}>
-                {ic}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={cancelAdd} style={btnSecondary}>Cancelar</button>
-            <button onClick={handleAdd} disabled={createSport.isLoading || !newName.trim()} style={btnPrimary}>
-              {createSport.isLoading ? 'Criando…' : '+ Adicionar'}
+          <IconGrid sel={newIcon} onSel={setNewIcon} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            <button onClick={() => { setAdding(false); setNewName(''); setNewIcon('') }} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!newName.trim()) return
+              await create.mutateAsync({ name: newName.trim(), icon: newIcon || null })
+              setAdding(false); setNewName(''); setNewIcon('')
+            }} disabled={create.isLoading || !newName.trim()} style={primaryBtn}>
+              {create.isLoading ? 'Criando...' : 'Adicionar'}
             </button>
           </div>
         </div>
       ) : (
-        <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>
-          + Novo esporte
-        </button>
+        <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>+ Adicionar esporte</button>
       )}
     </div>
   )
 }
 
-// ─── Profiles Section ─────────────────────────────────────────────────────────
+// ─── PERFIS ───────────────────────────────────────────────────────────────────
+
+const PROFILE_PALETTE = ['#7c3aed','#6366f1','#3b82f6','#10b981','#f59e0b','#ec4899']
 
 function ProfilesSection() {
   const { data: profiles = [], isLoading } = useProfiles()
-  const createProfile = useCreateProfile()
-  const updateProfile = useUpdateProfile()
-  const toggleProfile = useToggleProfile()
+  const create = useCreateProfile()
+  const update = useUpdateProfile()
+  const toggle = useToggleProfile()
 
   const [adding,   setAdding]  = useState(false)
   const [newName,  setNewName] = useState('')
@@ -325,261 +785,246 @@ function ProfilesSection() {
   const [editName, setEditName]= useState('')
 
   const startEdit = (p: BettingProfile) => { setEditId(p.id); setEditName(p.name); setAdding(false) }
-  const cancelEdit = () => setEditId(null)
-  const cancelAdd  = () => { setAdding(false); setNewName('') }
-
-  const handleAdd = async () => {
-    if (!newName.trim()) return
-    await createProfile.mutateAsync({ name: newName.trim() })
-    cancelAdd()
-  }
-
-  const handleUpdate = async () => {
-    if (!editId || !editName.trim()) return
-    await updateProfile.mutateAsync({ id: editId, data: { name: editName.trim() } })
-    cancelEdit()
-  }
-
-  const PROFILE_COLORS = ['#a78bfa','#818cf8','#c084fc','#f472b6','#34d399','#60a5fa']
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {isLoading && <Skeleton />}
 
       {profiles.map((p, i) => {
-        const cor   = PROFILE_COLORS[i % PROFILE_COLORS.length]
-        const sigla = p.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
-
+        const color   = PROFILE_PALETTE[i % PROFILE_PALETTE.length]
+        const initials = p.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
         return editId === p.id ? (
           <div key={p.id} style={editCard}>
+            <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome do perfil</p>
             <input value={editName} onChange={e => setEditName(e.target.value)}
-              onFocus={focus} onBlur={blur}
-              style={{ ...inp, marginBottom: 10 }}
-              placeholder="Nome do perfil"
-            />
+              onFocus={onFocus} onBlur={onBlur} style={{ ...field, marginBottom: 12 }} placeholder="Nome" />
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={cancelEdit} style={btnSecondary}>Cancelar</button>
-              <button onClick={handleUpdate} disabled={updateProfile.isLoading} style={btnPrimary}>
-                {updateProfile.isLoading ? 'Salvando…' : 'Salvar'}
-              </button>
+              <button onClick={() => setEditId(null)} style={ghostBtn}>Cancelar</button>
+              <button onClick={async () => {
+                if (!editName.trim()) return
+                await update.mutateAsync({ id: editId!, data: { name: editName.trim() } })
+                setEditId(null)
+              }} disabled={update.isLoading} style={primaryBtn}>{update.isLoading ? 'Salvando...' : 'Salvar'}</button>
             </div>
           </div>
         ) : (
-          <div key={p.id} style={itemRow(p.active)}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: 10, flexShrink: 0,
-                background: `${cor}20`, border: `1px solid ${cor}40`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, color: cor,
-              }}>
-                {sigla}
-              </div>
-              <span style={{ fontSize: 14, fontWeight: 600, color: p.active ? 'var(--text-primary)' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.name}
-              </span>
-              {!p.active && <span style={inactiveBadge}>inativo</span>}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-              <button onClick={() => startEdit(p)} style={iconBtn} title="Editar">✏️</button>
-              <Toggle active={p.active} onToggle={() => toggleProfile.mutate(p.id)} loading={toggleProfile.isLoading} />
-            </div>
+          <div key={p.id} style={{ ...itemRow, opacity: p.active ? 1 : 0.5 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+              background: `${color}18`, border: `1px solid ${color}35`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 800, color,
+            }}>{initials}</div>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{p.name}</span>
+            {!p.active && <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>inativo</span>}
+            <button onClick={() => startEdit(p)} style={{ ...ghostBtn, padding: '4px 12px', fontSize: 12 }}>Editar</button>
+            <Toggle active={p.active} onToggle={() => toggle.mutate(p.id)} disabled={toggle.isLoading} />
           </div>
         )
       })}
 
       {adding ? (
         <div style={editCard}>
+          <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome do perfil</p>
           <input value={newName} onChange={e => setNewName(e.target.value)}
-            onFocus={focus} onBlur={blur}
-            style={{ ...inp, marginBottom: 10 }}
-            placeholder="Nome do perfil (ex: VIP Premium)"
-            autoFocus
-          />
+            onFocus={onFocus} onBlur={onBlur}
+            style={{ ...field, marginBottom: 12 }} placeholder="Ex: Valor, Back, Lay..." autoFocus />
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={cancelAdd} style={btnSecondary}>Cancelar</button>
-            <button onClick={handleAdd} disabled={createProfile.isLoading || !newName.trim()} style={btnPrimary}>
-              {createProfile.isLoading ? 'Criando…' : '+ Adicionar'}
+            <button onClick={() => { setAdding(false); setNewName('') }} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!newName.trim()) return
+              await create.mutateAsync({ name: newName.trim() })
+              setAdding(false); setNewName('')
+            }} disabled={create.isLoading || !newName.trim()} style={primaryBtn}>
+              {create.isLoading ? 'Criando...' : 'Adicionar'}
             </button>
           </div>
         </div>
       ) : (
-        <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>
-          + Novo perfil VIP
-        </button>
+        <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>+ Adicionar perfil</button>
       )}
     </div>
   )
 }
 
-// ─── Shared micro-components ──────────────────────────────────────────────────
+// ─── CONTA ────────────────────────────────────────────────────────────────────
 
-function Skeleton() {
+function ContaSection() {
+  const { user } = useAuth()
   return (
-    <>
-      {[1, 2, 3].map(i => (
-        <div key={i} style={{
-          height: 56, borderRadius: 12, background: 'rgba(255,255,255,0.04)',
-          animation: 'pulse 1.5s ease infinite', animationDelay: `${i * 100}ms`,
-        }} />
-      ))}
-    </>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 48, height: 48, borderRadius: 12, flexShrink: 0,
+          background: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 20, fontWeight: 800, color: '#fff',
+          boxShadow: '0 0 16px rgba(124,58,237,0.4)',
+        }}>
+          {user?.username?.[0]?.toUpperCase() ?? '?'}
+        </div>
+        <div>
+          <p style={{ margin: 0, fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{user?.username}</p>
+          <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{user?.email}</p>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 9 }}>
+        {[
+          { label: 'Usuário', value: user?.username ?? '—' },
+          { label: 'Email',   value: user?.email    ?? '—' },
+          { label: 'Senha',   value: '••••••••••' },
+        ].map((item, i, arr) => (
+          <div key={item.label} style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '12px 16px',
+            borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none',
+          }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 500 }}>{item.label}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 500 }}>{item.value}</span>
+          </div>
+        ))}
+      </div>
+
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        Alteração de email e senha estará disponível em breve.
+      </p>
+    </div>
   )
 }
 
-const itemRow = (active: boolean): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', gap: 12,
-  padding: '12px 16px', borderRadius: 12,
-  border: '1px solid var(--border)',
-  background: active ? 'var(--bg-card)' : 'rgba(255,255,255,0.02)',
-  transition: 'border-color 0.15s',
-})
+// ─── PÁGINA ───────────────────────────────────────────────────────────────────
 
-const editCard: React.CSSProperties = {
-  padding: '16px', borderRadius: 12,
-  border: '1px solid #7c3aed',
-  background: 'rgba(124,58,237,0.06)',
-}
-
-const inactiveBadge: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
-  background: 'rgba(255,255,255,0.06)', color: 'var(--text-muted)',
-  border: '1px solid rgba(255,255,255,0.08)',
-}
-
-const iconBtn: React.CSSProperties = {
-  width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)',
-  background: 'transparent', cursor: 'pointer', fontSize: 13,
-  display: 'flex', alignItems: 'center', justifyContent: 'center',
-  transition: 'border-color 0.15s',
-}
-
-const btnPrimary: React.CSSProperties = {
-  flex: 1, padding: '9px 0', borderRadius: 9, border: 'none',
-  background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
-  color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-  boxShadow: '0 0 14px rgba(124,58,237,0.3)',
-}
-
-const btnSecondary: React.CSSProperties = {
-  flex: 1, padding: '9px 0', borderRadius: 9,
-  border: '1px solid var(--border)', background: 'transparent',
-  color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-}
-
-const addBtn: React.CSSProperties = {
-  width: '100%', padding: '11px', borderRadius: 12,
-  border: '1px dashed rgba(124,58,237,0.4)', background: 'transparent',
-  color: '#a78bfa', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-  transition: 'all 0.15s',
-}
-
-// ─── Settings Panel ───────────────────────────────────────────────────────────
-
-interface TabConfig {
-  key: string
-  icon: string
-  label: string
-  description: string
-  component: React.ReactNode
-}
-
-// ─── Page ─────────────────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'banca',      label: 'Banca',           desc: 'Movimentações e saldo'          },
+  { key: 'unidade',    label: 'Unidade',          desc: 'Tamanho da unidade de aposta'   },
+  { key: 'bookmakers', label: 'Casas de Apostas', desc: 'Casas onde você aposta'         },
+  { key: 'sports',     label: 'Esportes',         desc: 'Esportes disponíveis'           },
+  { key: 'profiles',   label: 'Perfis',           desc: 'Perfis de apostador'            },
+  { key: 'conta',      label: 'Conta',            desc: 'Informações da conta'           },
+]
 
 export default function Settings() {
   const isMobile = useMobile()
-  const [tab, setTab] = useState('bookmakers')
+  const [tab, setTab] = useState('banca')
 
-  const tabs: TabConfig[] = [
-    {
-      key: 'bookmakers', icon: '◈', label: 'Casas de Apostas',
-      description: 'Gerencie as casas onde você aposta',
-      component: <BookmakersSection />,
-    },
-    {
-      key: 'sports', icon: '◇', label: 'Esportes',
-      description: 'Configure os esportes disponíveis',
-      component: <SportsSection />,
-    },
-    {
-      key: 'profiles', icon: '◉', label: 'Perfis VIP',
-      description: 'Perfis de apostadores associados às suas apostas',
-      component: <ProfilesSection />,
-    },
-  ]
+  const content: Record<string, React.ReactNode> = {
+    banca:      <BancaSection />,
+    unidade:    <UnidadeSection />,
+    bookmakers: <BookmakersSection />,
+    sports:     <SportsSection />,
+    profiles:   <ProfilesSection />,
+    conta:      <ContaSection />,
+  }
 
-  const active = tabs.find(t => t.key === tab)!
+  const activeTab = TABS.find(t => t.key === tab)!
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 32px' : '32px 40px' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 40px' : '36px 44px' }}>
+      <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
-      {/* Header */}
-      <div style={{ marginBottom: 32 }}>
-        <h1 style={{
-          margin: 0, fontSize: isMobile ? 22 : 26, fontWeight: 900,
-          background: 'linear-gradient(135deg, var(--purple-400), var(--purple-300))',
-          WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-        }}>
-          Configurações
-        </h1>
-        <p style={{ margin: '6px 0 0', color: 'var(--text-muted)', fontSize: 13 }}>
-          Personalize casas de apostas, esportes e perfis
-        </p>
-      </div>
-
-      <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '220px 1fr', gap: 24, alignItems: 'start' }}>
-
-        {/* Sidebar tabs */}
-        <div style={{
-          background: 'var(--bg-card)', border: '1px solid var(--border)',
-          borderRadius: 16, overflow: 'hidden',
-          marginBottom: isMobile ? 20 : 0,
-        }}>
-          {tabs.map((t, i) => (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{
-              width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-              padding: '14px 18px', border: 'none', cursor: 'pointer',
-              background: tab === t.key ? 'rgba(124,58,237,0.12)' : 'transparent',
-              borderLeft: `3px solid ${tab === t.key ? '#7c3aed' : 'transparent'}`,
-              borderBottom: i < tabs.length - 1 ? '1px solid var(--border)' : 'none',
-              transition: 'all 0.15s', textAlign: 'left',
+        {/* ── Header ── */}
+        <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 34, height: 34, borderRadius: 9, flexShrink: 0,
+            background: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18,
+            boxShadow: '0 0 14px rgba(124,58,237,0.35)',
+          }}>🐍</div>
+          <div>
+            <h1 style={{
+              margin: 0, fontSize: 18, fontWeight: 700,
+              background: 'linear-gradient(90deg,#a78bfa,#c4b5fd)',
+              WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             }}>
-              <span style={{ fontSize: 18, lineHeight: 1 }}>{t.icon}</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: tab === t.key ? '#a78bfa' : 'var(--text-secondary)' }}>
-                {t.label}
-              </span>
-            </button>
-          ))}
+              Configurações
+            </h1>
+            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+              Banca &middot; Unidade &middot; Casas &middot; Esportes &middot; Perfis &middot; Conta
+            </p>
+          </div>
         </div>
 
-        {/* Content panel */}
-        <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-          {/* Panel header */}
-          <div style={{
-            padding: '18px 24px', borderBottom: '1px solid var(--border)',
-            background: 'rgba(124,58,237,0.04)',
-            display: 'flex', alignItems: 'center', gap: 12,
+        <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '188px 1fr', gap: 16, alignItems: 'start' }}>
+
+          {/* ── Sidebar ── */}
+          <nav style={{
+            background: 'var(--bg-card)',
+            border: '1px solid #1e1040',
+            borderRadius: 10,
+            overflow: 'hidden',
+            marginBottom: isMobile ? 14 : 0,
           }}>
-            <span style={{ fontSize: 22 }}>{active.icon}</span>
-            <div>
-              <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>{active.label}</p>
-              <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{active.description}</p>
+            {TABS.map((t, i) => {
+              const isActive = tab === t.key
+              return (
+                <button key={t.key} onClick={() => setTab(t.key)} style={{
+                  width: '100%', display: 'block',
+                  padding: '11px 16px', textAlign: 'left',
+                  border: 'none',
+                  borderLeft: `2px solid ${isActive ? '#7c3aed' : 'transparent'}`,
+                  borderBottom: i < TABS.length - 1 ? '1px solid #1c1c2e' : 'none',
+                  background: isActive ? 'rgba(124,58,237,0.1)' : 'transparent',
+                  cursor: 'pointer',
+                  transition: 'all 0.12s',
+                  boxShadow: isActive ? 'inset 0 0 20px rgba(124,58,237,0.05)' : 'none',
+                }}>
+                  <span style={{
+                    fontSize: 13, display: 'block',
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? '#a78bfa' : 'var(--text-muted)',
+                  }}>
+                    {t.label}
+                  </span>
+                </button>
+              )
+            })}
+          </nav>
+
+          {/* ── Content ── */}
+          <div style={{
+            background: 'var(--bg-card)',
+            border: '1px solid #1e1040',
+            borderRadius: 10,
+            overflow: 'hidden',
+          }}>
+            {/* top accent */}
+            <div style={{ height: 2, background: 'linear-gradient(90deg,#7c3aed,rgba(124,58,237,0.2),transparent)' }} />
+
+            {/* panel header */}
+            <div style={{ padding: '13px 20px', borderBottom: '1px solid #1c1c2e', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
+                background: 'linear-gradient(90deg,#a78bfa,#c4b5fd,#a78bfa)',
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                animation: 'shimmer 4s linear infinite',
+              }}>
+                ◈ {activeTab.label}
+              </span>
+              <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right,rgba(124,58,237,0.25),transparent)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{activeTab.desc}</span>
+            </div>
+
+            {/* body */}
+            <div style={{ padding: '20px' }}>
+              {content[tab]}
+            </div>
+
+            {/* snake runner strip */}
+            <div style={{ borderTop: '1px solid #1c1c2e', background: 'var(--bg-primary)', overflow: 'hidden' }}>
+              <SnakeRunner />
             </div>
           </div>
 
-          {/* Panel body */}
-          <div style={{ padding: '20px 24px' }}>
-            {active.component}
-          </div>
         </div>
-
       </div>
 
       <style>{`
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+        @keyframes shimmer { to { background-position: -200% center; } }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
       `}</style>
-      </div>
     </div>
   )
 }

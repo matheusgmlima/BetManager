@@ -26,139 +26,87 @@ function buildVerificationEmail(username: string, link: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Confirme seu email</title>
 </head>
-<body style="margin:0;padding:0;background:#0f0f14;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<body style="margin:0;padding:0;background:#08080e;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0">
+  <tr>
+    <td align="center" style="padding:48px 16px;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr>
-      <td align="center" style="padding:48px 16px;">
+      <table width="520" cellpadding="0" cellspacing="0" border="0"
+             style="background:#111120;border-radius:20px;overflow:hidden;max-width:520px;width:100%;">
 
-        <table width="520" cellpadding="0" cellspacing="0" border="0"
-               style="background:#16161f;border-radius:16px;border:1px solid #2a2a3a;overflow:hidden;max-width:520px;width:100%;">
+        <!-- top accent bar -->
+        <tr>
+          <td style="height:3px;background:linear-gradient(90deg,#5b21b6,#7c3aed,#a78bfa);font-size:0;line-height:0;">&nbsp;</td>
+        </tr>
 
-          <!-- Purple top bar -->
-          <tr>
-            <td style="background:linear-gradient(135deg,#5b21b6,#7c3aed,#a855f7);height:4px;font-size:0;line-height:0;">&nbsp;</td>
-          </tr>
+        <!-- brand -->
+        <tr>
+          <td style="padding:36px 44px 0;">
+            <table cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td style="vertical-align:middle;">
+                  <span style="font-size:20px;font-weight:900;color:#ededf5;letter-spacing:-0.5px;">Bet</span><span style="font-size:20px;font-weight:900;background:linear-gradient(135deg,#7c3aed,#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">Manager</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
 
-          <!-- Header -->
-          <tr>
-            <td align="center" style="padding:36px 40px 28px;">
-              <table cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="center"
-                      style="width:52px;height:52px;background:linear-gradient(135deg,#5b21b6,#7c3aed);border-radius:14px;text-align:center;vertical-align:middle;">
-                    <span style="font-size:26px;line-height:52px;">&#x1F40D;</span>
-                  </td>
-                  <td style="padding-left:12px;vertical-align:middle;">
-                    <span style="font-size:22px;font-weight:800;color:#f4f4f8;letter-spacing:-0.5px;">BetManager</span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+        <!-- body -->
+        <tr>
+          <td style="padding:28px 44px 0;">
+            <p style="margin:0 0 10px;font-size:24px;font-weight:800;color:#ededf5;line-height:1.2;">
+              Ol&#xe1;, ${username} &#x1F44B;
+            </p>
+            <p style="margin:0;font-size:15px;color:#7878a0;line-height:1.7;">
+              Sua conta no BetManager est&#xe1; quase pronta.<br/>
+              S&#xf3; falta confirmar seu email para come&#xe7;ar a gerenciar sua banca.
+            </p>
+          </td>
+        </tr>
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:0 40px 36px;">
+        <!-- cta -->
+        <tr>
+          <td style="padding:32px 44px;">
+            <table cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td align="center">
+                  <a href="${link}"
+                     style="display:inline-block;padding:15px 44px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#fff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.02em;">
+                    Confirmar meu email
+                  </a>
+                </td>
+              </tr>
+            </table>
 
-              <p style="margin:0 0 6px;font-size:22px;font-weight:700;color:#f4f4f8;">
-                Ol&#xe1;, ${username}! &#x1F44B;
-              </p>
-              <p style="margin:0 0 28px;font-size:15px;color:#9494aa;line-height:1.6;">
-                Voc&#xea; est&#xe1; a um clique de ativar sua conta e come&#xe7;ar a gerenciar sua banca com precis&#xe3;o.
-              </p>
+            <p style="margin:20px 0 0;font-size:12px;color:#46465e;text-align:center;line-height:1.6;">
+              Link v&#xe1;lido por 24 horas &nbsp;&#xb7;&nbsp; Bot&#xe3;o n&#xe3;o funciona?<br/>
+              <a href="${link}" style="color:#7c3aed;word-break:break-all;">${link}</a>
+            </p>
+          </td>
+        </tr>
 
-              <!-- Divider -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:28px;">
-                <tr>
-                  <td style="border-top:1px solid #2a2a3a;font-size:0;line-height:0;">&nbsp;</td>
-                </tr>
-              </table>
+        <!-- divider -->
+        <tr>
+          <td style="padding:0 44px;">
+            <div style="height:1px;background:#1c1c2e;font-size:0;line-height:0;">&nbsp;</div>
+          </td>
+        </tr>
 
-              <!-- Info box -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0"
-                     style="background:#1e1e2e;border-radius:12px;border:1px solid #2a2a3a;margin-bottom:28px;">
-                <tr>
-                  <td style="padding:20px 24px;">
-                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                      <tr>
-                        <td style="width:36px;vertical-align:top;padding-top:2px;">
-                          <span style="font-size:20px;">&#x1F4E7;</span>
-                        </td>
-                        <td style="vertical-align:top;padding-left:12px;">
-                          <p style="margin:0 0 4px;font-size:13px;font-weight:600;color:#a78bfa;letter-spacing:0.05em;text-transform:uppercase;">Confirmar conta</p>
-                          <p style="margin:0;font-size:13px;color:#9494aa;line-height:1.5;">
-                            Clique no bot&#xe3;o abaixo para verificar seu email e ativar sua conta. O link expira em <strong style="color:#f4f4f8;">24 horas</strong>.
-                          </p>
-                        </td>
-                      </tr>
-                    </table>
-                  </td>
-                </tr>
-              </table>
+        <!-- footer -->
+        <tr>
+          <td style="padding:24px 44px;">
+            <p style="margin:0;font-size:12px;color:#46465e;line-height:1.7;">
+              Se voc&#xea; n&#xe3;o criou esta conta, pode ignorar este email com seguran&#xe7;a.<br/>
+              &copy; ${year} BetManager
+            </p>
+          </td>
+        </tr>
 
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
-                <tr>
-                  <td align="center">
-                    <a href="${link}"
-                       style="display:inline-block;padding:15px 40px;background:linear-gradient(135deg,#5b21b6,#7c3aed);color:#ffffff;text-decoration:none;border-radius:12px;font-size:15px;font-weight:700;letter-spacing:0.01em;">
-                      &#x2705;&nbsp;&nbsp;Confirmar meu email
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <!-- Fallback link -->
-              <p style="margin:0 0 24px;font-size:12px;color:#5a5a72;text-align:center;line-height:1.5;">
-                Bot&#xe3;o n&#xe3;o funciona? Cole este link no seu navegador:<br/>
-                <a href="${link}" style="color:#7c3aed;word-break:break-all;text-decoration:none;">${link}</a>
-              </p>
-
-              <!-- Divider -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:24px;">
-                <tr>
-                  <td style="border-top:1px solid #2a2a3a;font-size:0;line-height:0;">&nbsp;</td>
-                </tr>
-              </table>
-
-              <!-- Features -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td width="33%" style="text-align:center;padding:0 8px;">
-                    <p style="margin:0 0 4px;font-size:18px;">&#x1F4CA;</p>
-                    <p style="margin:0;font-size:11px;color:#5a5a72;font-weight:600;">Dashboard</p>
-                  </td>
-                  <td width="33%" style="text-align:center;padding:0 8px;">
-                    <p style="margin:0 0 4px;font-size:18px;">&#x1F916;</p>
-                    <p style="margin:0;font-size:11px;color:#5a5a72;font-weight:600;">Extra&#xe7;&#xe3;o por IA</p>
-                  </td>
-                  <td width="33%" style="text-align:center;padding:0 8px;">
-                    <p style="margin:0 0 4px;font-size:18px;">&#x1F3AF;</p>
-                    <p style="margin:0;font-size:11px;color:#5a5a72;font-weight:600;">Metas &amp; Analytics</p>
-                  </td>
-                </tr>
-              </table>
-
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background:#0f0f14;padding:20px 40px;border-top:1px solid #2a2a3a;">
-              <p style="margin:0;font-size:11px;color:#3a3a52;text-align:center;line-height:1.6;">
-                Se voc&#xea; n&#xe3;o criou uma conta no BetManager, ignore este email com seguran&#xe7;a.<br/>
-                &copy; ${year} BetManager &mdash; Todos os direitos reservados.
-              </p>
-            </td>
-          </tr>
-
-        </table>
-
-      </td>
-    </tr>
-  </table>
-
+      </table>
+    </td>
+  </tr>
+</table>
 </body>
 </html>`
 }
@@ -178,7 +126,7 @@ export async function sendVerificationEmail(email: string, username: string, tok
   await transporter.sendMail({
     from: SMTP_FROM,
     to: email,
-    subject: '✅ Confirme seu email — BetManager',
+    subject: 'Confirme seu email — BetManager',
     html: buildVerificationEmail(username, link),
   })
 }
