@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useCreateBet, useCreateBetsBatch, useExtractBets } from '../hooks/useBets'
-import { useSports, useBookmakers, useProfiles } from '../hooks/useConfig'
+import { useSports, useBookmakers, useProfiles, useTipsters } from '../hooks/useConfig'
 import { betsService } from '../services/betsService'
 import { useMobile } from '../hooks/useMobile'
-import { BetResult, BetType, AiExtractedBet, AiExtractionResponse, BetCreateInput } from '../types/bet.types'
+import { BetResult, BetType, AiExtractedBet, BetCreateInput } from '../types/bet.types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -225,7 +225,7 @@ function PreviewCard({ form, profiles, bookmakers, profit }: {
 interface ManualFormState {
   date: string; match: string; market: string
   sportId: string; bookmakerId: string; betType: BetType
-  bettingProfileId: string; amountWagered: string
+  tipsterId: string; bettingProfileId: string; amountWagered: string
   odds: string; payout: string; result: BetResult; notes: string
 }
 
@@ -235,11 +235,12 @@ function ManualTab() {
   const { data: sports    = [] } = useSports()
   const { data: bookmakers = [] } = useBookmakers()
   const { data: profiles  = [] } = useProfiles()
+  const { data: tipsters  = [] } = useTipsters()
   const createBet = useCreateBet()
 
   const [form, setForm] = useState<ManualFormState>({
     date: today(), match: '', market: '', sportId: '', bookmakerId: '',
-    betType: 'simple', bettingProfileId: '', amountWagered: '',
+    betType: 'simple', tipsterId: '', bettingProfileId: '', amountWagered: '',
     odds: '', payout: '', result: 'pending', notes: '',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof ManualFormState, string>>>({})
@@ -282,10 +283,10 @@ function ManualTab() {
 
   const validate = () => {
     const e: typeof errors = {}
-    if (!form.date)             e.date             = 'Obrigatório'
-    if (!form.market)           e.market           = 'Obrigatório'
-    if (!form.bookmakerId)      e.bookmakerId      = 'Obrigatório'
-    if (!form.bettingProfileId) e.bettingProfileId = 'Obrigatório'
+    if (!form.date)        e.date        = 'Obrigatório'
+    if (!form.tipsterId)   e.tipsterId   = 'Obrigatório'
+    if (!form.market)      e.market      = 'Obrigatório'
+    if (!form.bookmakerId) e.bookmakerId = 'Obrigatório'
     if (!form.amountWagered || parseFloat(form.amountWagered) <= 0) e.amountWagered = 'Deve ser > 0'
     if (form.payout === '' || parseFloat(form.payout) < 0)          e.payout        = 'Obrigatório'
     return e
@@ -303,6 +304,7 @@ function ManualTab() {
       payout: parseFloat(form.payout), result: form.result,
       notes: form.notes || undefined,
       sportId: form.sportId ? Number(form.sportId) : undefined,
+      tipsterId: form.tipsterId ? Number(form.tipsterId) : null,
       bettingProfileId: form.bettingProfileId ? Number(form.bettingProfileId) : null,
     }
     await createBet.mutateAsync(payload)
@@ -354,7 +356,7 @@ function ManualTab() {
           </Field>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14, marginTop: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 14, marginTop: 14 }}>
           {/* Tipo */}
           <Field label="Tipo de Aposta">
             <div style={{ display: 'flex', gap: 8 }}>
@@ -373,13 +375,24 @@ function ManualTab() {
             </div>
           </Field>
 
-          {/* Perfil */}
-          <Field label="Perfil VIP *" error={errors.bettingProfileId}>
-            <select value={form.bettingProfileId} onChange={e => set('bettingProfileId', e.target.value)}
-              onFocus={focus} onBlur={blur}
-              style={{ ...inp, borderColor: errors.bettingProfileId ? 'var(--red)' : 'var(--border)' }}
+          {/* Tipster / VIP */}
+          <Field label="Tipster / VIP *" error={errors.tipsterId}>
+            <select value={form.tipsterId} onChange={e => set('tipsterId', e.target.value)}
+              onFocus={focus} onBlur={blur} style={{ ...inp, borderColor: errors.tipsterId ? 'var(--red)' : 'var(--border)' }}
             >
-              <option value="">Selecionar perfil…</option>
+              <option value="">Nenhum</option>
+              {tipsters.filter(t => t.active).map(t => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          </Field>
+
+          {/* Perfil de estratégia */}
+          <Field label="Perfil">
+            <select value={form.bettingProfileId} onChange={e => set('bettingProfileId', e.target.value)}
+              onFocus={focus} onBlur={blur} style={inp}
+            >
+              <option value="">Nenhum</option>
               {profiles.filter(p => p.active).map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
@@ -555,7 +568,7 @@ interface ExtractedBetEdit extends AiExtractedBet {
   selected: boolean; dateEdit: string; matchEdit: string; marketEdit: string
   amountWageredEdit: string; oddsEdit: string; payoutEdit: string
   resultEdit: BetResult; bookmakerId: number | null; bettingProfileId: number | null
-  sportId: number | null; expanded: boolean
+  tipsterId: number | null; sportId: number | null; expanded: boolean
 }
 
 // Scanning steps animation
@@ -598,46 +611,108 @@ function ScanningAnimation() {
   )
 }
 
+interface PhotoEntry { url: string; name: string; status: 'processing' | 'done' | 'error' }
+
 function AiTab() {
   const navigate   = useNavigate()
   const isMobile   = useMobile()
   const { data: bookmakers = [] } = useBookmakers()
   const { data: profiles   = [] } = useProfiles()
+  const { data: tipsters   = [] } = useTipsters()
   const { data: sports     = [] } = useSports()
   const extractBets  = useExtractBets()
   const createBatch  = useCreateBetsBatch()
 
-  const model = 'haiku' // Scout (único modelo disponível)
-  const [dragging, setDragging] = useState(false)
-  const [preview, setPreview]   = useState<string | null>(null)
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [extraction, setExtraction] = useState<AiExtractionResponse | null>(null)
-  const [bets, setBets]         = useState<ExtractedBetEdit[]>([])
+  const model = 'haiku'
+  const [dragging, setDragging]       = useState(false)
+  const [photos, setPhotos]           = useState<PhotoEntry[]>([])
+  const [extractionIds, setExtractionIds] = useState<number[]>([])
+  const [bets, setBets]               = useState<ExtractedBetEdit[]>([])
   const [validationErrors, setValidationErrors] = useState<Record<number, string[]>>({})
-  const [saved, setSaved]       = useState(false)
+  const [saved, setSaved]             = useState(false)
+  const [processingCount, setProcessingCount] = useState(0)
+  // bulk edit
+  const [bulkBookmakerId, setBulkBookmakerId] = useState('')
+  const [bulkTipsterId,   setBulkTipsterId]   = useState('')
+  const [bulkProfileId,   setBulkProfileId]   = useState('')
+  const [bulkSportId,     setBulkSportId]     = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const processFile = useCallback(async (file: File) => {
-    if (!file.type.startsWith('image/')) return
-    setPreview(URL.createObjectURL(file))
-    setFileName(file.name)
-    setExtraction(null); setBets([])
-    const result = await extractBets.mutateAsync({ file, model })
-    setExtraction(result)
-    setBets(result.bets.map(b => ({
-      ...b, selected: true, expanded: true,
-      dateEdit: b.date ?? today(), matchEdit: b.match ?? '',
-      marketEdit: b.market ?? '', amountWageredEdit: String(b.amountWagered ?? ''),
-      oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
-      resultEdit: b.result ?? 'pending', bookmakerId: b.bookmakerId, bettingProfileId: null, sportId: null,
-    })))
-  }, [model, extractBets])
+  const tipstersRef = useRef(tipsters)
+  useEffect(() => { tipstersRef.current = tipsters }, [tipsters])
+
+  const fixDate = (d: string | null | undefined): string => {
+    const base = d ?? today()
+    if (new Date(base + 'T00:00:00') > new Date(today() + 'T23:59:59')) {
+      const [y, m, day] = base.split('-')
+      return `${Number(y) - 1}-${m}-${day}`
+    }
+    return base
+  }
+
+  const processFiles = useCallback(async (files: File[]) => {
+    const imageFiles = files.filter(f => f.type.startsWith('image/'))
+    if (!imageFiles.length) return
+
+    for (const file of imageFiles) {
+      const url = URL.createObjectURL(file)
+      const entry: PhotoEntry = { url, name: file.name, status: 'processing' }
+      setPhotos(prev => [...prev, entry])
+      setProcessingCount(c => c + 1)
+      try {
+        const result = await extractBets.mutateAsync({ file, model })
+        setPhotos(prev => prev.map(p => p.url === url ? { ...p, status: 'done' } : p))
+        setExtractionIds(prev => [...prev, result.extractionId])
+        const activeTipsters = tipstersRef.current.filter(t => t.active)
+        const defaultTipster = activeTipsters.find(t => t.name === 'Aposta Própria') ?? activeTipsters[0] ?? null
+        setBets(prev => [
+          ...prev,
+          ...result.bets.map(b => ({
+            ...b, selected: true, expanded: true,
+            dateEdit: fixDate(b.date), matchEdit: b.match ?? '',
+            marketEdit: b.market ?? '', amountWageredEdit: String(b.amountWagered ?? ''),
+            oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
+            resultEdit: b.result ?? 'pending' as BetResult,
+            bookmakerId: b.bookmakerId, bettingProfileId: null,
+            tipsterId: defaultTipster?.id ?? null, sportId: null,
+          }))
+        ])
+      } catch {
+        setPhotos(prev => prev.map(p => p.url === url ? { ...p, status: 'error' } : p))
+      } finally {
+        setProcessingCount(c => c - 1)
+      }
+    }
+  }, [extractBets, model])
+
+  const clearAll = () => {
+    setPhotos([]); setBets([]); setExtractionIds([])
+    setValidationErrors({}); setProcessingCount(0)
+  }
+
+  const applyBulkEdit = () => {
+    setBets(prev => prev.map(b => {
+      if (!b.selected) return b
+      return {
+        ...b,
+        ...(bulkBookmakerId ? { bookmakerId: Number(bulkBookmakerId) } : {}),
+        ...(bulkTipsterId   ? { tipsterId:   Number(bulkTipsterId)   } : {}),
+        ...(bulkProfileId   ? { bettingProfileId: Number(bulkProfileId) } : {}),
+        ...(bulkSportId     ? { sportId:     Number(bulkSportId)     } : {}),
+      }
+    }))
+  }
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) processFile(file)
-  }, [processFile])
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length) processFiles(files)
+  }, [processFiles])
+
+  const isDateFuture = (dateStr: string) => {
+    if (!dateStr) return false
+    return new Date(dateStr + 'T00:00:00') > new Date(today() + 'T23:59:59')
+  }
 
   const toggleBet   = (i: number) => setBets(p => p.map((b, idx) => idx === i ? { ...b, selected: !b.selected } : b))
   const expandBet   = (i: number) => setBets(p => p.map((b, idx) => idx === i ? { ...b, expanded: !b.expanded } : b))
@@ -645,15 +720,16 @@ function AiTab() {
   const selectedBets = bets.filter(b => b.selected)
 
   const handleConfirm = async () => {
-    if (!extraction || selectedBets.length === 0) return
+    if (extractionIds.length === 0 || selectedBets.length === 0) return
 
     // Validate required fields per bet
     const errors: Record<number, string[]> = {}
     selectedBets.forEach((b) => {
       const idx = bets.indexOf(b)
       const errs: string[] = []
-      if (!b.bookmakerId)      errs.push('casa')
-      if (!b.bettingProfileId) errs.push('perfil')
+      if (!b.bookmakerId) errs.push('casa')
+      if (!b.tipsterId)   errs.push('tipster')
+      if (isDateFuture(b.dateEdit)) errs.push('data')
       if (errs.length) errors[idx] = errs
     })
     if (Object.keys(errors).length > 0) {
@@ -674,10 +750,11 @@ function AiTab() {
       payout: parseFloat(b.payoutEdit) || 0,
       result: b.resultEdit,
       bettingProfileId: b.bettingProfileId,
+      tipsterId: b.tipsterId,
       sportId: b.sportId ?? undefined,
     }))
     await createBatch.mutateAsync(payload)
-    await betsService.confirmExtraction(extraction.extractionId, selectedBets.length)
+    await Promise.all(extractionIds.map(id => betsService.confirmExtraction(id, selectedBets.length)))
     setSaved(true)
     setTimeout(() => navigate('/planilha'), 1600)
   }
@@ -689,8 +766,6 @@ function AiTab() {
       <p style={{ color: 'var(--text-muted)', fontSize: 13, margin: 0 }}>Redirecionando para a planilha…</p>
     </div>
   )
-
-  const hasResults = bets.length > 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -710,8 +785,8 @@ function AiTab() {
         {/* Glow top edge */}
         <div style={{ position: 'absolute', top: 0, left: '15%', right: '15%', height: 1, background: 'linear-gradient(90deg, transparent, rgba(124,58,237,0.5), transparent)', pointerEvents: 'none' }} />
 
-        <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }}
-          onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f) }}
+        <input ref={inputRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
+          onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) processFiles(files); e.target.value = '' }}
         />
 
         {/* Top bar */}
@@ -729,16 +804,17 @@ function AiTab() {
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Llama 4 Scout</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>via Groq</span>
           </div>
-          {preview && !extractBets.isLoading ? (
-            <button type="button"
-              onClick={() => { setPreview(null); setFileName(null); setExtraction(null); setBets([]) }}
-              style={{
-                fontSize: 11, fontWeight: 600, color: 'var(--text-muted)',
-                background: 'transparent', border: '1px solid var(--border)',
-                borderRadius: 8, padding: '4px 12px', cursor: 'pointer',
-              }}>
-              ↩ Trocar
-            </button>
+          {photos.length > 0 ? (
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" onClick={() => inputRef.current?.click()}
+                style={{ fontSize: 11, fontWeight: 600, color: '#a78bfa', background: 'rgba(124,58,237,0.1)', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
+                + Adicionar foto
+              </button>
+              <button type="button" onClick={clearAll}
+                style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 12px', cursor: 'pointer' }}>
+                ✕ Limpar
+              </button>
+            </div>
           ) : (
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 999,
@@ -753,15 +829,15 @@ function AiTab() {
           onDragOver={e => { e.preventDefault(); setDragging(true) }}
           onDragLeave={() => setDragging(false)}
           onDrop={onDrop}
-          onClick={() => !preview && inputRef.current?.click()}
+          onClick={() => !photos.length && inputRef.current?.click()}
           style={{
             margin: '0 16px 16px',
             borderRadius: 14,
-            border: `1.5px dashed ${dragging ? '#7c3aed' : preview ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.22)'}`,
-            padding: preview ? '14px' : isMobile ? '44px 20px' : '56px 24px',
+            border: `1.5px dashed ${dragging ? '#7c3aed' : photos.length ? 'rgba(124,58,237,0.15)' : 'rgba(124,58,237,0.22)'}`,
+            padding: photos.length ? '14px' : isMobile ? '44px 20px' : '56px 24px',
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
-            cursor: preview ? 'default' : 'pointer',
-            background: preview ? 'rgba(0,0,0,0.15)' : 'transparent',
+            cursor: photos.length ? 'default' : 'pointer',
+            background: photos.length ? 'rgba(0,0,0,0.15)' : 'transparent',
             transition: 'all 0.2s', position: 'relative', overflow: 'hidden',
           }}
         >
@@ -772,10 +848,29 @@ function AiTab() {
             </div>
           )}
 
-          {preview ? (
-            <div style={{ width: '100%', textAlign: 'center' }}>
-              <img src={preview} alt="preview" style={{ maxHeight: 300, maxWidth: '100%', borderRadius: 10, objectFit: 'contain', display: 'block', margin: '0 auto', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }} />
-              {fileName && <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>{fileName}</p>}
+          {photos.length > 0 ? (
+            <div style={{ width: '100%' }}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                {photos.map((p, i) => (
+                  <div key={i} style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: `2px solid ${p.status === 'error' ? '#ef4444' : p.status === 'processing' ? '#7c3aed' : '#22c55e'}` }}>
+                    <img src={p.url} alt={p.name} style={{ height: 90, width: 'auto', maxWidth: 140, objectFit: 'cover', display: 'block' }} />
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: p.status === 'processing' ? 'rgba(0,0,0,0.5)' : 'transparent' }}>
+                      {p.status === 'processing' && <div style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#a78bfa', animation: 'spin 0.8s linear infinite' }} />}
+                      {p.status === 'done' && <div style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%', background: '#22c55e', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 800 }}>✓</div>}
+                      {p.status === 'error' && <div style={{ position: 'absolute', top: 4, right: 4, width: 18, height: 18, borderRadius: '50%', background: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 800 }}>✕</div>}
+                    </div>
+                  </div>
+                ))}
+                {/* Add more tile */}
+                <div onClick={() => inputRef.current?.click()} style={{ height: 90, width: 80, borderRadius: 10, border: '1.5px dashed rgba(124,58,237,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', gap: 4, color: '#7c3aed' }}>
+                  <span style={{ fontSize: 22, lineHeight: 1 }}>+</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, opacity: 0.7 }}>ADICIONAR</span>
+                </div>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center' }}>
+                {photos.filter(p => p.status === 'done').length} de {photos.length} foto{photos.length !== 1 ? 's' : ''} processada{photos.length !== 1 ? 's' : ''}
+                {processingCount > 0 ? ` · processando ${processingCount}...` : ''}
+              </p>
             </div>
           ) : (
             <>
@@ -812,44 +907,31 @@ function AiTab() {
           )}
         </div>
 
-        {/* Loading */}
-        {extractBets.isLoading && (
+        {/* Loading indicator */}
+        {processingCount > 0 && (
           <div style={{ padding: '0 16px 16px' }}>
             <ScanningAnimation />
           </div>
         )}
 
-        {/* Error */}
-        {extractBets.isError && (
+        {/* Error photos */}
+        {photos.some(p => p.status === 'error') && (
           <div style={{ margin: '0 16px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
             <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#ef4444' }}>Falha ao processar imagem</p>
-              {extractBets.error instanceof Error && (
-                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#ef444488', fontFamily: 'monospace', wordBreak: 'break-all' }}>
-                  {(extractBets.error as any)?.response?.data?.detail ?? extractBets.error.message}
-                </p>
-              )}
+              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#ef4444' }}>
+                {photos.filter(p => p.status === 'error').length} foto{photos.filter(p => p.status === 'error').length !== 1 ? 's' : ''} com falha ao processar
+              </p>
               <button onClick={() => inputRef.current?.click()} style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: '#a78bfa', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}>
-                Tentar novamente →
+                Adicionar novamente →
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Warnings */}
-        {extraction?.warnings && extraction.warnings.length > 0 && (
-          <div style={{ margin: '0 16px 16px', display: 'flex', gap: 10, alignItems: 'flex-start', padding: '12px 14px', borderRadius: 10, background: 'rgba(234,179,8,0.06)', border: '1px solid rgba(234,179,8,0.2)' }}>
-            <span style={{ fontSize: 15, flexShrink: 0 }}>⚠</span>
-            <div style={{ fontSize: 12, color: '#eab308', lineHeight: 1.6 }}>
-              {extraction.warnings.map((w, i) => <p key={i} style={{ margin: 0 }}>{w}</p>)}
             </div>
           </div>
         )}
       </div>
 
       {/* ── Extracted bets ────────────────────────────────────────── */}
-      {hasResults && (
+      {bets.length > 0 && (
         <>
           {/* Header strip */}
           <div style={{
@@ -862,9 +944,9 @@ function AiTab() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#a78bfa', fontWeight: 800 }}>✦</div>
               <div>
-                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#c4b5fd' }}>{bets.length} apostas detectadas</p>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#c4b5fd' }}>{bets.length} apostas detectadas · {photos.length} foto{photos.length !== 1 ? 's' : ''}</p>
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
-                  Casa e perfil são obrigatórios em cada aposta
+                  Casa e tipster são obrigatórios em cada aposta
                 </p>
               </div>
             </div>
@@ -876,6 +958,89 @@ function AiTab() {
                 </span>
               </div>
             )}
+          </div>
+
+          {/* ── Bulk edit drawer (fixed right panel) ─────────────── */}
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 200,
+            width: 280,
+            transform: selectedBets.length >= 2 ? 'translateX(0)' : 'translateX(100%)',
+            transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
+            display: 'flex', flexDirection: 'column',
+            background: 'rgba(10,6,28,0.97)',
+            backdropFilter: 'blur(20px)',
+            borderLeft: '1px solid rgba(124,58,237,0.25)',
+            boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+          }}>
+            {/* Glow line */}
+            <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: 1, background: 'linear-gradient(to bottom, transparent, rgba(124,58,237,0.6), transparent)', pointerEvents: 'none' }} />
+
+            {/* Header */}
+            <div style={{
+              padding: '20px 20px 16px',
+              borderBottom: '1px solid rgba(124,58,237,0.15)',
+              background: 'linear-gradient(180deg, rgba(109,40,217,0.12) 0%, transparent 100%)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                <div style={{
+                  width: 30, height: 30, borderRadius: 9,
+                  background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 13, boxShadow: '0 0 14px rgba(124,58,237,0.5)',
+                }}>⚡</div>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 800, color: '#e9d5ff', letterSpacing: '-0.01em' }}>Edição em Lote</p>
+                  <p style={{ margin: 0, fontSize: 11, color: '#7c3aed' }}>{selectedBets.length} apostas selecionadas</p>
+                </div>
+              </div>
+              <p style={{ margin: '10px 0 0', fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Deixe em branco para manter o valor atual de cada aposta.
+              </p>
+            </div>
+
+            {/* Fields */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {[
+                { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
+                { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
+                { label: 'Perfil',          value: bulkProfileId,   set: setBulkProfileId,   opts: profiles.filter(p => p.active).map(p => ({ id: p.id, name: p.name })) },
+                { label: 'Esporte',         value: bulkSportId,     set: setBulkSportId,     opts: sports.filter(s => s.active).map(s => ({ id: s.id, name: s.icon ? `${s.icon} ${s.name}` : s.name })) },
+              ].map(({ label, value, set, opts }) => (
+                <div key={label}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#7c6dab', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 7 }}>{label}</label>
+                  <select value={value} onChange={e => set(e.target.value)} style={{
+                    ...inp,
+                    background: value ? 'rgba(109,40,217,0.12)' : 'var(--bg-primary)',
+                    borderColor: value ? 'rgba(124,58,237,0.5)' : 'var(--border)',
+                  }}>
+                    <option value="">— manter —</option>
+                    {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(124,58,237,0.15)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button type="button" onClick={() => {
+                applyBulkEdit()
+                setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId('')
+              }} style={{
+                width: '100%', padding: '13px', borderRadius: 12, border: 'none',
+                background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+                color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer',
+                boxShadow: '0 0 20px rgba(124,58,237,0.4)',
+                transition: 'opacity 0.2s',
+              }}>
+                Aplicar a {selectedBets.length} apostas
+              </button>
+              <button type="button" onClick={() => setBets(p => p.map(b => ({ ...b, selected: false })))} style={{
+                width: '100%', padding: '9px', borderRadius: 10, border: '1px solid var(--border)',
+                background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+              }}>
+                Desmarcar todas
+              </button>
+            </div>
           </div>
 
           {/* Bet cards */}
@@ -1001,24 +1166,24 @@ function AiTab() {
                             ))}
                           </select>
                         </Field>
-                        <Field label="Perfil VIP *" error={hasError && betErrors.includes('perfil') ? 'Obrigatório' : undefined}>
+                        <Field label="Tipster / VIP *" error={hasError && betErrors.includes('tipster') ? 'Obrigatório' : undefined}>
                           <select
-                            value={bet.bettingProfileId ?? ''}
+                            value={bet.tipsterId ?? ''}
                             onChange={e => {
-                              updateBet(i, { bettingProfileId: e.target.value ? Number(e.target.value) : null })
+                              updateBet(i, { tipsterId: e.target.value ? Number(e.target.value) : null })
                               setValidationErrors(prev => {
                                 const next = { ...prev }
-                                if (next[i]) next[i] = next[i].filter(x => x !== 'perfil')
+                                if (next[i]) next[i] = next[i].filter(x => x !== 'tipster')
                                 if (next[i]?.length === 0) delete next[i]
                                 return next
                               })
                             }}
                             onFocus={focus} onBlur={blur}
-                            style={{ ...inp, borderColor: hasError && betErrors.includes('perfil') ? '#ef4444' : 'var(--border)' }}
+                            style={{ ...inp, borderColor: hasError && betErrors.includes('tipster') ? '#ef4444' : 'var(--border)' }}
                           >
-                            <option value="">Selecionar perfil...</option>
-                            {profiles.filter(p => p.active).map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
+                            <option value="">Selecionar tipster...</option>
+                            {tipsters.filter(t => t.active).map(t => (
+                              <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
                           </select>
                         </Field>
@@ -1039,11 +1204,17 @@ function AiTab() {
 
                       {/* Numeric fields */}
                       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
-                        <Field label="Data">
+                        <Field label="Data" error={hasError && betErrors.includes('data') ? 'Data futura — corrija para hoje ou antes' : undefined}>
                           <input type="date" value={bet.dateEdit} max={today()}
                             onChange={e => updateBet(i, { dateEdit: e.target.value })}
-                            onFocus={focus} onBlur={blur} style={inp}
+                            onFocus={focus} onBlur={blur}
+                            style={{ ...inp, borderColor: hasError && betErrors.includes('data') ? '#ef4444' : isDateFuture(bet.dateEdit) ? '#f59e0b' : 'var(--border)' }}
                           />
+                          {isDateFuture(bet.dateEdit) && !betErrors.includes('data') && (
+                            <p style={{ margin: '4px 0 0', fontSize: 11, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              ⚠ Data futura detectada — a aposta deve ser do dia atual ou anterior
+                            </p>
+                          )}
                         </Field>
                         <Field label="Apostado (R$)">
                           <input type="number" min="0" step="0.01" value={bet.amountWageredEdit}
@@ -1209,3 +1380,4 @@ export default function NewBet() {
     </div>
   )
 }
+

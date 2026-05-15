@@ -22,6 +22,13 @@ export async function byBetType(req: Request, res: Response, next: NextFunction)
   } catch (err) { next(err) }
 }
 
+export async function byTipster(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await statsService.getStatsByTipster(req.user!.userId, req.query as any)
+    res.json({ data })
+  } catch (err) { next(err) }
+}
+
 export async function byProfile(req: Request, res: Response, next: NextFunction) {
   try {
     const data = await statsService.getStatsByProfile(req.user!.userId, req.query as any)

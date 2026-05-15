@@ -1,5 +1,5 @@
 import { api } from './api'
-import { DashboardData, DashboardPeriod, SportStat, BookmakerStat, BetTypeStat, Goal, ProfileStat } from '../types/dashboard.types'
+import { DashboardData, DashboardPeriod, SportStat, BookmakerStat, BetTypeStat, Goal, ProfileStat, TipsterStat } from '../types/dashboard.types'
 
 export const dashboardService = {
   get: (period: DashboardPeriod = 'month') =>
@@ -13,6 +13,9 @@ export const dashboardService = {
 
   getProfileStats: (dateFrom?: string, dateTo?: string) =>
     api.get<{ data: ProfileStat[] }>('/api/stats/profiles', { params: { dateFrom, dateTo } }).then((r) => r.data.data),
+
+  getTipsterStats: (dateFrom?: string, dateTo?: string) =>
+    api.get<{ data: TipsterStat[] }>('/api/stats/tipsters', { params: { dateFrom, dateTo } }).then((r) => r.data.data),
 
   getProfileDetail: (profileId: number | null | undefined) =>
     api.get<{ data: any }>('/api/stats/profiles/detail', {

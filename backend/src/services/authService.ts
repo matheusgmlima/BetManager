@@ -40,6 +40,9 @@ export async function register(username: string, email: string, password: string
     },
   })
 
+  // Auto-create default tipster for new user
+  await prisma.tipster.create({ data: { userId: user.id, name: 'Aposta Própria' } })
+
   await sendVerificationEmail(email, username, token)
   return { message: 'Conta criada! Verifique seu email para ativar.' }
 }

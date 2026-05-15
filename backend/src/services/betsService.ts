@@ -17,6 +17,8 @@ const betSelect = {
   market: true,
   sport: { select: { id: true, name: true, icon: true } },
   bookmaker: { select: { id: true, name: true, color: true } },
+  bettingProfile: { select: { id: true, name: true } },
+  tipster: { select: { id: true, name: true } },
   betType: true,
   isCombined: true,
   amountWagered: true,
@@ -47,7 +49,7 @@ function formatBet(bet: any): BetWithRelations {
 export async function listBets(userId: number, filters: BetFiltersInput): Promise<PaginatedBets> {
   const {
     page: _page, perPage: _perPage,
-    dateFrom, dateTo, result, sportId, bookmakerId, betType, bettingProfileId, search,
+    dateFrom, dateTo, result, sportId, bookmakerId, betType, bettingProfileId, tipsterId, search,
     orderBy: _orderBy, orderDir: _orderDir,
   } = filters
   const page     = _page     ?? 1
@@ -63,6 +65,7 @@ export async function listBets(userId: number, filters: BetFiltersInput): Promis
   if (bookmakerId) where.bookmakerId = bookmakerId
   if (betType) where.betType = betType
   if (bettingProfileId) where.bettingProfileId = bettingProfileId
+  if (tipsterId) where.tipsterId = tipsterId
   if (search) where.OR = [
     { market: { contains: search, mode: 'insensitive' } },
     { match:  { contains: search, mode: 'insensitive' } },
@@ -119,6 +122,7 @@ export async function createBet(userId: number, data: CreateBetInput): Promise<B
       notes: data.notes,
       combinedId: data.combinedId,
       bettingProfileId: data.bettingProfileId,
+      tipsterId: data.tipsterId,
     },
     select: betSelect,
   })
@@ -145,6 +149,8 @@ export async function updateBet(userId: number, id: number, data: UpdateBetInput
       ...(data.payout !== undefined && { payout: data.payout }),
       ...(data.result && { result: data.result }),
       ...(data.notes !== undefined && { notes: data.notes }),
+      ...(data.bettingProfileId !== undefined && { bettingProfileId: data.bettingProfileId }),
+      ...(data.tipsterId !== undefined && { tipsterId: data.tipsterId }),
     },
     select: betSelect,
   })

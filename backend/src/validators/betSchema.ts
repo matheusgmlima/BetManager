@@ -17,6 +17,7 @@ export const createBetSchema = z.object({
   notes: z.string().max(1000).optional().nullable(),
   combinedId: z.number().int().positive().optional().nullable(),
   bettingProfileId: z.number().int().positive().optional().nullable(),
+  tipsterId: z.number().int().positive().optional().nullable(),
 })
 
 export const updateBetSchema = createBetSchema.partial()
@@ -40,6 +41,7 @@ export const betFiltersSchema = z.object({
   bookmakerId: z.coerce.number().int().positive().optional(),
   betType: z.enum(['simple', 'combined']).optional(),
   bettingProfileId: z.coerce.number().int().positive().optional(),
+  tipsterId: z.coerce.number().int().positive().optional(),
   search: z.string().optional(),
   orderBy: z.string().default('date'),
   orderDir: z.enum(['asc', 'desc']).default('desc'),

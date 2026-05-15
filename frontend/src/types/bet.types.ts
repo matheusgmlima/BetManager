@@ -21,6 +21,12 @@ export interface BettingProfile {
   active: boolean
 }
 
+export interface Tipster {
+  id: number
+  name: string
+  active: boolean
+}
+
 export interface Bet {
   id: number
   date: string
@@ -38,6 +44,8 @@ export interface Bet {
   notes: string | null
   source: 'manual' | 'ai_extract'
   createdAt: string
+  bettingProfile?: { id: number; name: string } | null
+  tipster?: { id: number; name: string } | null
 }
 
 export interface BetCreateInput {
@@ -53,6 +61,7 @@ export interface BetCreateInput {
   result: BetResult
   notes?: string
   bettingProfileId?: number | null
+  tipsterId?: number | null
 }
 
 export interface BetFilters {
@@ -65,6 +74,7 @@ export interface BetFilters {
   bookmakerId?: number
   betType?: BetType
   bettingProfileId?: number
+  tipsterId?: number
   search?: string
 }
 

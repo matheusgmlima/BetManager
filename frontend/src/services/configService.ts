@@ -1,5 +1,5 @@
 import { api } from './api'
-import { Sport, Bookmaker, BettingProfile } from '../types/bet.types'
+import { Sport, Bookmaker, BettingProfile, Tipster } from '../types/bet.types'
 
 export const configService = {
   // ── Sports ──────────────────────────────────────────────────────────────────
@@ -40,4 +40,20 @@ export const configService = {
 
   toggleProfile: (id: number) =>
     api.patch(`/api/config/profiles/${id}/toggle`).then((r) => r.data),
+
+  // ── Tipsters ─────────────────────────────────────────────────────────────────
+  getTipsters: () =>
+    api.get<{ data: Tipster[] }>('/api/config/tipsters').then((r) => r.data.data),
+
+  createTipster: (data: { name: string }) =>
+    api.post<{ data: Tipster }>('/api/config/tipsters', data).then((r) => r.data.data),
+
+  updateTipster: (id: number, data: { name?: string }) =>
+    api.put<{ data: Tipster }>(`/api/config/tipsters/${id}`, data).then((r) => r.data.data),
+
+  toggleTipster: (id: number) =>
+    api.patch(`/api/config/tipsters/${id}/toggle`).then((r) => r.data),
+
+  deleteTipster: (id: number) =>
+    api.delete(`/api/config/tipsters/${id}`).then((r) => r.data),
 }

@@ -87,3 +87,39 @@ export function useToggleProfile() {
     onSuccess: () => qc.invalidateQueries(['config', 'profiles']),
   })
 }
+
+// ── Tipsters ──────────────────────────────────────────────────────────────────
+
+export function useTipsters() {
+  return useQuery(['config', 'tipsters'], () => configService.getTipsters())
+}
+
+export function useCreateTipster() {
+  const qc = useQueryClient()
+  return useMutation(configService.createTipster, {
+    onSuccess: () => qc.invalidateQueries(['config', 'tipsters']),
+  })
+}
+
+export function useUpdateTipster() {
+  const qc = useQueryClient()
+  return useMutation(
+    ({ id, data }: { id: number; data: { name?: string } }) =>
+      configService.updateTipster(id, data),
+    { onSuccess: () => qc.invalidateQueries(['config', 'tipsters']) },
+  )
+}
+
+export function useToggleTipster() {
+  const qc = useQueryClient()
+  return useMutation(configService.toggleTipster, {
+    onSuccess: () => qc.invalidateQueries(['config', 'tipsters']),
+  })
+}
+
+export function useDeleteTipster() {
+  const qc = useQueryClient()
+  return useMutation(configService.deleteTipster, {
+    onSuccess: () => qc.invalidateQueries(['config', 'tipsters']),
+  })
+}

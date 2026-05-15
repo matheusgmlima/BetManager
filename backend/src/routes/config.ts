@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { Request } from 'express'
 import { prisma } from '../lib/prisma'
 import { validate } from '../middlewares/validateRequest'
-import { createBookmakerSchema, updateBookmakerSchema, createSportSchema, updateSportSchema, createProfileSchema, updateProfileSchema } from '../validators/configSchema'
+import { createBookmakerSchema, updateBookmakerSchema, createSportSchema, updateSportSchema, createProfileSchema, updateProfileSchema, createTipsterSchema, updateTipsterSchema } from '../validators/configSchema'
 import { AppError } from '../middlewares/errorHandler'
 
 const router = Router()
@@ -148,6 +148,54 @@ router.delete('/profiles/:id', async (req: Request, res, next) => {
     if (!profile) throw new AppError('Perfil não encontrado', 404, 'PROFILE_NOT_FOUND')
     await prisma.bettingProfile.delete({ where: { id: profile.id } })
     res.json({ message: 'Perfil removido' })
+  } catch (err) { next(err) }
+})
+
+// ── Tipsters / VIPs ──────────────────────────────────────────────────────────
+
+router.get('/tipsters', async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const data = await prisma.tipster.findMany({ where: { userId }, orderBy: { name: 'asc' } })
+    res.json({ data })
+  } catch (err) { next(err) }
+})
+
+router.post('/tipsters', validate(createTipsterSchema), async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const data = await prisma.tipster.create({ data: { ...req.body, userId } })
+    res.status(201).json({ data })
+  } catch (err) { next(err) }
+})
+
+router.put('/tipsters/:id', validate(updateTipsterSchema), async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const tipster = await prisma.tipster.findFirst({ where: { id: Number(req.params.id), userId } })
+    if (!tipster) throw new AppError('Tipster não encontrado', 404, 'TIPSTER_NOT_FOUND')
+    const data = await prisma.tipster.update({ where: { id: tipster.id }, data: req.body })
+    res.json({ data })
+  } catch (err) { next(err) }
+})
+
+router.patch('/tipsters/:id/toggle', async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const tipster = await prisma.tipster.findFirst({ where: { id: Number(req.params.id), userId } })
+    if (!tipster) throw new AppError('Tipster não encontrado', 404, 'TIPSTER_NOT_FOUND')
+    const data = await prisma.tipster.update({ where: { id: tipster.id }, data: { active: !tipster.active } })
+    res.json({ data })
+  } catch (err) { next(err) }
+})
+
+router.delete('/tipsters/:id', async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const tipster = await prisma.tipster.findFirst({ where: { id: Number(req.params.id), userId } })
+    if (!tipster) throw new AppError('Tipster não encontrado', 404, 'TIPSTER_NOT_FOUND')
+    await prisma.tipster.delete({ where: { id: tipster.id } })
+    res.json({ message: 'Tipster removido' })
   } catch (err) { next(err) }
 })
 

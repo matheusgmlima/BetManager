@@ -212,11 +212,19 @@ const STEPS = [
     showSnake: true,
   },
   {
+    icon: '👤',
+    title: 'Tipsters & VIPs',
+    subtitle: 'Acompanhe quem você segue',
+    content: `Tipsters são canais, grupos ou pessoas cujas dicas você segue. Cadastre cada tipster em Configurações → Tipsters/VIPs e associe suas apostas a eles. Assim você sabe exatamente qual canal está te dando lucro — ou prejuízo.`,
+    highlight: 'Chega de seguir VIP às cegas. Os dados vão te dizer a verdade.',
+    showSnake: false,
+  },
+  {
     icon: '💼',
     title: 'Perfis de Aposta',
-    subtitle: 'Separe suas estratégias',
-    content: `Perfis permitem segmentar suas apostas por estratégia ou mercado. Por exemplo: "Valor Esperado", "Over/Under", "Lay" — cada perfil tem suas próprias estatísticas. Você pode criar e gerenciar perfis em Configurações → Perfis.`,
-    highlight: 'Útil para identificar qual estratégia te gera mais lucro.',
+    subtitle: 'Suas estratégias próprias',
+    content: `Perfis são as suas estratégias pessoais de aposta: "Valor Esperado", "Over/Under", "Lay no empate" — cada perfil acumula estatísticas separadas. Diferente de tipsters, perfis representam seu próprio método de análise.`,
+    highlight: 'Útil para identificar qual estratégia sua gera mais lucro.',
     showSnake: false,
   },
   {

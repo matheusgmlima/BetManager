@@ -420,3 +420,58 @@ export async function getHeatmap(userId: number) {
     }
   })
 }
+
+// ─── Stats by Tipster ─────────────────────────────────────────────────────────
+
+export async function getStatsByTipster(userId: number, filters: DateFilter) {
+  const where = {
+    userId,
+    ...(filters.dateFrom || filters.dateTo ? {
+      date: {
+        ...(filters.dateFrom ? { gte: new Date(filters.dateFrom) } : {}),
+        ...(filters.dateTo   ? { lte: new Date(filters.dateTo)   } : {}),
+      }
+    } : {}),
+  }
+
+  const allBets = await prisma.bet.findMany({
+    where: { ...where, result: { not: 'pending' } },
+    include: { tipster: true },
+  })
+  const totalBets = await prisma.bet.findMany({
+    where,
+    include: { tipster: true },
+  })
+
+  const grouped = new Map<string, { tipster: any; resolved: typeof allBets; total: typeof totalBets }>()
+
+  for (const bet of totalBets) {
+    const key = bet.tipster?.name ?? 'Sem tipster'
+    const entry = grouped.get(key) ?? { tipster: bet.tipster, resolved: [], total: [] }
+    entry.total.push(bet)
+    grouped.set(key, entry)
+  }
+  for (const bet of allBets) {
+    const key = bet.tipster?.name ?? 'Sem tipster'
+    const entry = grouped.get(key)
+    if (entry) entry.resolved.push(bet)
+  }
+
+  return Array.from(grouped.entries()).map(([name, { tipster, resolved, total }]) => {
+    const won = resolved.filter((b) => b.result === 'won').length
+    const lost = resolved.filter((b) => b.result === 'lost').length
+    const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
+    const totalProfit  = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    return {
+      tipster: name,
+      tipsterId: tipster?.id ?? null,
+      totalBets: total.length,
+      won,
+      lost,
+      hitRatePct: calculateHitRate(won, lost),
+      totalWagered: parseFloat(totalWagered.toFixed(2)),
+      totalProfit:  parseFloat(totalProfit.toFixed(2)),
+      roi: calculateRoi(totalProfit, totalWagered),
+    }
+  }).sort((a, b) => b.totalProfit - a.totalProfit)
+}

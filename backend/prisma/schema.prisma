@@ -52,6 +52,7 @@ model User {
   bets            Bet[]
   goals           Goal[]
   bettingProfiles BettingProfile[]
+  tipsters        Tipster[]
   bookmakers      Bookmaker[]
   sports          Sport[]
   bankrollEntries BankrollEntry[]
@@ -141,6 +142,22 @@ model BettingProfile {
   @@map("betting_profiles")
 }
 
+// ─── Tipsters / VIPs ──────────────────────────────────────────────────────────
+
+model Tipster {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  active    Boolean  @default(true)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bets Bet[]
+
+  @@index([userId])
+  @@map("tipsters")
+}
+
 // ─── Grupos de Apostas Combinadas ─────────────────────────────────────────────
 
 model CombinedBetGroup {
@@ -174,6 +191,8 @@ model Bet {
   bookmaker        Bookmaker        @relation(fields: [bookmakerId], references: [id])
   bettingProfileId Int?             @map("betting_profile_id")
   bettingProfile   BettingProfile?  @relation(fields: [bettingProfileId], references: [id])
+  tipsterId        Int?             @map("tipster_id")
+  tipster          Tipster?         @relation(fields: [tipsterId], references: [id])
   combinedId       Int?             @map("combined_id")
   combined         CombinedBetGroup? @relation(fields: [combinedId], references: [id])
   date             DateTime         @db.Date
@@ -197,6 +216,7 @@ model Bet {
   @@index([bookmakerId])
   @@index([betType])
   @@index([bettingProfileId])
+  @@index([tipsterId])
   @@map("bets")
 }
 

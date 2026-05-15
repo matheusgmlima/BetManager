@@ -38,3 +38,9 @@ export function useProfileDetail(profileId: number | null | undefined, enabled: 
     { enabled, keepPreviousData: true }
   )
 }
+
+export function useTipsterStats(dateFrom?: string, dateTo?: string) {
+  return useQuery(['stats', 'tipsters', dateFrom, dateTo], () =>
+    dashboardService.getTipsterStats(dateFrom, dateTo)
+  )
+}

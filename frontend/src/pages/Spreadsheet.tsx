@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useBets, useUpdateBet, useDeleteBet } from '../hooks/useBets'
-import { useSports, useBookmakers, useProfiles } from '../hooks/useConfig'
+import { useSports, useBookmakers, useTipsters, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
 import { useUnit } from '../contexts/UnitContext'
 
@@ -665,7 +665,7 @@ function BetRow({ bet, odd, onEdit, onDelete }: { bet: Bet; odd: boolean; onEdit
 
 const PAGE_SIZES = [10, 25, 50]
 
-function BetTable({ profileId, accentColor }: { profileId: number | null; accentColor: string }) {
+function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accentColor: string }) {
   const { fmtMoney } = useUnit()
   const [search,     setSearch]     = useState('')
   const [resultF,    setResultF]    = useState<BetResult | ''>('')
@@ -692,7 +692,7 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
     bookmakerId:      bookmakerF  || undefined,
     dateFrom:         dateFrom    || undefined,
     dateTo:           dateTo      || undefined,
-    bettingProfileId: profileId   ?? undefined,
+    tipsterId:        tipsterId   ?? undefined,
   })
 
   const { data: sports     = [] } = useSports()
@@ -898,13 +898,13 @@ function BetTable({ profileId, accentColor }: { profileId: number | null; accent
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Spreadsheet() {
-  const { data: profiles = [], isLoading: loadingProfiles } = useProfiles()
+  const { data: tipsters = [], isLoading: loadingTipsters } = useTipsters()
   const [activeTab, setActiveTab] = useState<number | null>(null) // null = Todas
 
-  // Tabs: "Todas" + uma por perfil
+  // Tabs: "Todas" + uma por tipster
   const tabs = [
     { id: null, label: 'Todas', color: '#8b5cf6' },
-    ...profiles.map((p, i) => ({ id: p.id, label: p.name, color: PROFILE_COLORS[i % PROFILE_COLORS.length] })),
+    ...tipsters.filter(t => t.active).map((t, i) => ({ id: t.id, label: t.name, color: PROFILE_COLORS[i % PROFILE_COLORS.length] })),
   ]
 
   const activeColor = tabs.find(t => t.id === activeTab)?.color ?? '#8b5cf6'
@@ -918,17 +918,17 @@ export default function Spreadsheet() {
           Planilha de Apostas
         </h1>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Filtre por perfil de apostas nas abas abaixo
+          Filtre por tipster / VIP nas abas abaixo
         </p>
       </div>
 
       {/* ── TABS ── */}
-      <Section label="Perfis de apostas" icon="◈">
+      <Section label="Tipsters / VIPs" icon="◈">
         <div style={{
           display: 'flex', gap: 8, flexWrap: 'wrap',
           borderBottom: '1px solid var(--border)', paddingBottom: 0,
         }}>
-          {loadingProfiles
+          {loadingTipsters
             ? Array.from({ length: 4 }).map((_, i) => (
                 <div key={i} style={{ width: 120, height: 40, borderRadius: '8px 8px 0 0', background: 'linear-gradient(90deg, #1a1a2e 25%, #23233a 50%, #1a1a2e 75%)', backgroundSize: '200% auto', animation: 'shimmer 1.5s linear infinite' }} />
               ))
@@ -971,7 +971,7 @@ export default function Spreadsheet() {
 
         {/* ── Conteúdo da tab ativa ── */}
         <div style={{ paddingTop: 4 }}>
-          <BetTable key={String(activeTab)} profileId={activeTab} accentColor={activeColor} />
+          <BetTable key={String(activeTab)} tipsterId={activeTab} accentColor={activeColor} />
         </div>
       </Section>
 

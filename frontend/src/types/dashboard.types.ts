@@ -87,6 +87,18 @@ export interface ProfileStat {
   roi?: number | null
 }
 
+export interface TipsterStat {
+  tipster: string
+  tipsterId: number | null
+  totalBets: number
+  won: number
+  lost: number
+  hitRatePct: number | null
+  totalWagered: number
+  totalProfit: number
+  roi: number | null
+}
+
 export interface Goal {
   id: number
   month: number

@@ -6,8 +6,9 @@ import {
   useSports, useCreateSport, useUpdateSport, useToggleSport,
   useBookmakers, useCreateBookmaker, useUpdateBookmaker, useToggleBookmaker,
   useProfiles, useCreateProfile, useUpdateProfile, useToggleProfile,
+  useTipsters, useCreateTipster, useUpdateTipster, useToggleTipster, useDeleteTipster,
 } from '../hooks/useConfig'
-import { Sport, Bookmaker, BettingProfile } from '../types/bet.types'
+import { Sport, Bookmaker, BettingProfile, Tipster } from '../types/bet.types'
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
@@ -847,6 +848,90 @@ function ProfilesSection() {
   )
 }
 
+// ─── TIPSTERS ────────────────────────────────────────────────────────────────
+
+function TipstersSection() {
+  const { data: tipsters = [], isLoading } = useTipsters()
+  const create = useCreateTipster()
+  const update = useUpdateTipster()
+  const toggle = useToggleTipster()
+  const remove = useDeleteTipster()
+
+  const [adding,   setAdding]  = useState(false)
+  const [newName,  setNewName] = useState('')
+  const [editId,   setEditId]  = useState<number | null>(null)
+  const [editName, setEditName]= useState('')
+
+  const startEdit = (t: Tipster) => { setEditId(t.id); setEditName(t.name); setAdding(false) }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+        Tipsters e canais VIP cujas dicas você segue. Associe apostas a um tipster para acompanhar o desempenho de cada um.
+      </p>
+
+      {isLoading && <Skeleton />}
+
+      {tipsters.map((t, i) => {
+        const color    = PROFILE_PALETTE[i % PROFILE_PALETTE.length]
+        const initials = t.name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+        return editId === t.id ? (
+          <div key={t.id} style={editCard}>
+            <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome do tipster</p>
+            <input value={editName} onChange={e => setEditName(e.target.value)}
+              onFocus={onFocus} onBlur={onBlur} style={{ ...field, marginBottom: 12 }} placeholder="Nome" />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => setEditId(null)} style={ghostBtn}>Cancelar</button>
+              <button onClick={async () => {
+                if (!editName.trim()) return
+                await update.mutateAsync({ id: editId!, data: { name: editName.trim() } })
+                setEditId(null)
+              }} disabled={update.isLoading} style={primaryBtn}>{update.isLoading ? 'Salvando...' : 'Salvar'}</button>
+            </div>
+          </div>
+        ) : (
+          <div key={t.id} style={{ ...itemRow, opacity: t.active ? 1 : 0.5 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: 7, flexShrink: 0,
+              background: `${color}18`, border: `1px solid ${color}35`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 800, color,
+            }}>{initials}</div>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text-primary)' }}>{t.name}</span>
+            {!t.active && <span style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 7px', borderRadius: 4, border: '1px solid var(--border)' }}>inativo</span>}
+            <button onClick={() => startEdit(t)} style={{ ...ghostBtn, padding: '4px 12px', fontSize: 12 }}>Editar</button>
+            <Toggle active={t.active} onToggle={() => toggle.mutate(t.id)} disabled={toggle.isLoading} />
+            <button onClick={async () => {
+              if (window.confirm(`Remover "${t.name}"?`)) await remove.mutateAsync(t.id)
+            }} style={{ ...ghostBtn, padding: '4px 8px', fontSize: 12, color: 'var(--red)' }}>✕</button>
+          </div>
+        )
+      })}
+
+      {adding ? (
+        <div style={editCard}>
+          <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Nome do tipster / canal VIP</p>
+          <input value={newName} onChange={e => setNewName(e.target.value)}
+            onFocus={onFocus} onBlur={onBlur}
+            style={{ ...field, marginBottom: 12 }} placeholder="Ex: Tipster João, Canal VIP X..." autoFocus />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => { setAdding(false); setNewName('') }} style={ghostBtn}>Cancelar</button>
+            <button onClick={async () => {
+              if (!newName.trim()) return
+              await create.mutateAsync({ name: newName.trim() })
+              setAdding(false); setNewName('')
+            }} disabled={create.isLoading || !newName.trim()} style={primaryBtn}>
+              {create.isLoading ? 'Criando...' : 'Adicionar'}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => { setAdding(true); setEditId(null) }} style={addBtn}>+ Adicionar tipster / VIP</button>
+      )}
+    </div>
+  )
+}
+
 // ─── CONTA ────────────────────────────────────────────────────────────────────
 
 function ContaSection() {
@@ -896,12 +981,13 @@ function ContaSection() {
 // ─── PÁGINA ───────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { key: 'banca',      label: 'Banca',           desc: 'Movimentações e saldo'          },
-  { key: 'unidade',    label: 'Unidade',          desc: 'Tamanho da unidade de aposta'   },
-  { key: 'bookmakers', label: 'Casas de Apostas', desc: 'Casas onde você aposta'         },
-  { key: 'sports',     label: 'Esportes',         desc: 'Esportes disponíveis'           },
-  { key: 'profiles',   label: 'Perfis',           desc: 'Perfis de apostador'            },
-  { key: 'conta',      label: 'Conta',            desc: 'Informações da conta'           },
+  { key: 'banca',      label: 'Banca',           desc: 'Movimentações e saldo'              },
+  { key: 'unidade',    label: 'Unidade',          desc: 'Tamanho da unidade de aposta'       },
+  { key: 'tipsters',   label: 'Tipsters / VIPs',  desc: 'Tipsters e canais que você segue'   },
+  { key: 'bookmakers', label: 'Casas de Apostas', desc: 'Casas onde você aposta'             },
+  { key: 'sports',     label: 'Esportes',         desc: 'Esportes disponíveis'               },
+  { key: 'profiles',   label: 'Perfis',           desc: 'Perfis de estratégia própria'       },
+  { key: 'conta',      label: 'Conta',            desc: 'Informações da conta'               },
 ]
 
 export default function Settings() {
@@ -911,6 +997,7 @@ export default function Settings() {
   const content: Record<string, React.ReactNode> = {
     banca:      <BancaSection />,
     unidade:    <UnidadeSection />,
+    tipsters:   <TipstersSection />,
     bookmakers: <BookmakersSection />,
     sports:     <SportsSection />,
     profiles:   <ProfilesSection />,
@@ -941,7 +1028,7 @@ export default function Settings() {
               Configurações
             </h1>
             <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-              Banca &middot; Unidade &middot; Casas &middot; Esportes &middot; Perfis &middot; Conta
+              Banca &middot; Unidade &middot; Tipsters &middot; Casas &middot; Esportes &middot; Perfis &middot; Conta
             </p>
           </div>
         </div>

@@ -7,7 +7,7 @@ import FloatingParticles from '../components/FloatingParticles'
 import SnakeBanner from '../components/SnakeBanner'
 import { useCountUp } from '../hooks/useCountUp'
 import { useMobile } from '../hooks/useMobile'
-import { useDashboard, useSportStats, useBookmakerStats, useProfileStats } from '../hooks/useDashboard'
+import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats } from '../hooks/useDashboard'
 import { DashboardPeriod } from '../types/dashboard.types'
 import { useState } from 'react'
 import { useUnit } from '../contexts/UnitContext'
@@ -111,12 +111,12 @@ function KpiCard({
   )
 }
 
-// ─── Profile card (componente próprio para isolar hooks) ─────────────────────
-function ProfileCard({ p, i }: { p: { profile: string; totalProfit: number; totalBets: number; hitRatePct: number | null }; i: number }) {
+// ─── Tipster card ─────────────────────────────────────────────────────────────
+function TipsterCard({ t, i }: { t: { tipster: string; totalProfit: number; totalBets: number; hitRatePct: number | null; roi: number | null }; i: number }) {
   const cor      = PROFILE_COLORS[i % PROFILE_COLORS.length]
-  const sigla    = p.profile.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  const sigla    = t.tipster.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
   const { showU, unitVal } = useUnit()
-  const lucroAnim = useCountUp(showU && unitVal > 0 ? p.totalProfit / unitVal : p.totalProfit, 1400, 2)
+  const lucroAnim = useCountUp(showU && unitVal > 0 ? t.totalProfit / unitVal : t.totalProfit, 1400, 2)
 
   return (
     <div
@@ -137,21 +137,21 @@ function ProfileCard({ p, i }: { p: { profile: string; totalProfit: number; tota
           {sigla}
         </div>
         <div>
-          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{p.profile}</p>
-          {p.hitRatePct != null && <TrendBadge value={p.hitRatePct - 50} />}
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>{t.tipster}</p>
+          {t.roi != null && <TrendBadge value={t.roi} suffix="% ROI" />}
         </div>
       </div>
-      <p style={{ fontSize: 30, fontWeight: 900, color: p.totalProfit >= 0 ? '#22c55e' : '#ef4444', letterSpacing: '-0.02em', lineHeight: 1 }}>
-        {p.totalProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{lucroAnim.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+      <p style={{ fontSize: 30, fontWeight: 900, color: t.totalProfit >= 0 ? '#22c55e' : '#ef4444', letterSpacing: '-0.02em', lineHeight: 1 }}>
+        {t.totalProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{lucroAnim.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
       </p>
       <div style={{ display: 'flex', gap: 24, marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
         <div>
           <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Apostas</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{p.totalBets}</p>
+          <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{t.totalBets}</p>
         </div>
         <div>
           <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>Acerto</p>
-          <p style={{ fontSize: 20, fontWeight: 800, color: cor }}>{p.hitRatePct?.toFixed(1) ?? '—'}%</p>
+          <p style={{ fontSize: 20, fontWeight: 800, color: cor }}>{t.hitRatePct?.toFixed(1) ?? '—'}%</p>
         </div>
       </div>
     </div>
@@ -197,7 +197,7 @@ export default function Dashboard() {
   const { data: dash, isLoading: loadingDash } = useDashboard(period)
   const { data: sportStats = [] } = useSportStats()
   const { data: bookmakerStats = [] } = useBookmakerStats()
-  const { data: profileStats = [] } = useProfileStats()
+  const { data: tipsterStats = [] } = useTipsterStats()
 
   const { showU, unitVal } = useUnit()
   const summary = dash?.summary
@@ -377,13 +377,13 @@ export default function Dashboard() {
           </Section>
         </div>
 
-        {/* ── PERFIS ────────────────────────────────────────── */}
-        {profileStats.length > 0 && (
+        {/* ── TIPSTERS ─────────────────────────────────────── */}
+        {tipsterStats.length > 0 && (
           <div className="anim-slide-up" style={{ animationDelay: '160ms' }}>
-            <Section label="Desempenho por perfil">
+            <Section label="Desempenho por tipster">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {profileStats.map((p, i) => (
-                  <ProfileCard key={p.profile} p={p} i={i} />
+                {tipsterStats.map((t, i) => (
+                  <TipsterCard key={t.tipster} t={t} i={i} />
                 ))}
               </div>
             </Section>
