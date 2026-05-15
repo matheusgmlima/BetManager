@@ -30,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Inject token into every axios request
   useEffect(() => {
     const id = axios.interceptors.request.use(cfg => {
-      if (token) cfg.headers = { ...cfg.headers, Authorization: `Bearer ${token}` }
+      if (token) cfg.headers.Authorization = `Bearer ${token}`
       return cfg
     })
     return () => axios.interceptors.request.eject(id)

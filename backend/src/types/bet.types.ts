@@ -34,6 +34,7 @@ export interface BetFilters {
   sportId?: number
   bookmakerId?: number
   betType?: BetType
+  bettingProfileId?: number
   search?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'

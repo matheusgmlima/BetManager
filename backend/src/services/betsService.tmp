@@ -45,15 +45,7 @@ function formatBet(bet: any): BetWithRelations {
 }
 
 export async function listBets(userId: number, filters: BetFiltersInput): Promise<PaginatedBets> {
-  const {
-    page: _page, perPage: _perPage,
-    dateFrom, dateTo, result, sportId, bookmakerId, betType, bettingProfileId, search,
-    orderBy: _orderBy, orderDir: _orderDir,
-  } = filters
-  const page     = _page     ?? 1
-  const perPage  = _perPage  ?? 20
-  const orderBy  = _orderBy  ?? 'date'
-  const orderDir = _orderDir ?? 'desc'
+  const { page, perPage, dateFrom, dateTo, result, sportId, bookmakerId, betType, bettingProfileId, search, orderBy, orderDir } = filters
 
   const where: any = { userId }
   if (dateFrom) where.date = { ...where.date, gte: new Date(dateFrom) }

@@ -17,78 +17,34 @@ Retorne APENAS um JSON válido, sem markdown, sem \`\`\`, sem explicações.
 Uma aposta COMBINADA (múltipla) com várias seleções é UMA ÚNICA aposta, não várias.
 Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/ticket.
 
-INDICADORES DE APOSTA COMBINADA (quando presentes, SEMPRE tratar como uma única aposta):
-- "ODDS TOTAIS" ou "Odd Total" com múltiplos jogos listados abaixo
-- Um único valor de "APOSTA" / "PRÊMIO" para múltiplos jogos
-- Jogos listados com ✓ ou ✅ seguidos de uma única linha de total/retorno
-- "X mais seleções" ou "+ N mais seleções" indicando seleções adicionais
-- Qualquer bilhete onde múltiplos jogos compartilham o mesmo valor apostado e retorno
-
 ════ FORMATO OBRIGATÓRIO ════
 {
   "apostas": [
     {
       "tipo": "simples|combinada",
       "data": "DD/MM ou null",
-      "jogo": "Time A x Time B (simples) | 'Jogo1; Jogo2; Jogo3' (combinada, só os confrontos separados por ;) | null",
-      "mercado": "seleção única (simples) | 'Jogo1 {Sel1, Sel2}; Jogo2 {Sel3}' (combinada, cada jogo com suas seleções entre chaves)",
+      "jogo": "Time A x Time B (simples) | 'Jogo1; Jogo2' (combinada) | null",
+      "mercado": "seleção (simples) | 'Jogo1 {Sel1}; Jogo2 {Sel2}' (combinada)",
       "valor_apostado": 20.00,
       "casa": "nome da casa ou null",
       "odd": 2.08,
-      "odds_multiplas": [1.85, 1.60, 1.40],
+      "odds_multiplas": [1.85, 1.60],
       "retorno_total": 41.67,
       "resultado": "won|lost|void|pending"
     }
   ]
 }
 
-════ IDENTIFICAÇÃO DO TIPO ════
-- SIMPLES: apenas 1 jogo/seleção no ticket, com seu próprio valor apostado
-- COMBINADA: 2 ou mais jogos/seleções que compartilham um único valor apostado e retorno total
-  → Superbet: múltiplos jogos com "✅ Seleção @ odd" cada, seguido de "ODDS TOTAIS X.XX" = COMBINADA
-  → Betano: lista com ✓ em cada seleção dentro de um bilhete = COMBINADA
-  → Qualquer formato com "N mais seleções" = COMBINADA
-  → Se vir "ODDS TOTAIS" com número acima de qualquer odd individual = COMBINADA
-
-════ COMO PREENCHER CAMPOS ════
-"jogo" (simples): o evento — ex: "Sport Recife x ASA"
-"jogo" (combinada): APENAS os nomes dos confrontos separados por ; sem nenhuma seleção — ex: "Sada Cruzeiro - Minas TC; Toronto Raptors - Cleveland Cavaliers"
-"mercado" (simples): a seleção — ex: "+2.5 gols", "Sport Recife para ganhar"
-"mercado" (combinada): OBRIGATÓRIO usar o formato "Jogo {Seleção}; Jogo2 {Seleção2}". Associe cada jogo às suas seleções. NÃO use ponto-e-vírgula dentro das chaves — use vírgula para múltiplas seleções do mesmo jogo. NÃO inclua odds (@ 1.55) nas seleções.
-  ⚠️ CRÍTICO: O nome do jogo antes de { DEVE ser o confronto COMPLETO com AMBOS os times (ex: "Sport Recife x ASA", NUNCA apenas "Sport Recife"). Use exatamente o mesmo nome que está no campo "jogo".
-  EXEMPLO — se a tela mostra:
-    Sada Cruzeiro - Minas TC → Total de Sets - Mais de 3.5
-    Toronto Raptors - Cleveland Cavaliers → Assistências 1X2 - 1
-  O campo "mercado" DEVE ser:
-    "Sada Cruzeiro - Minas TC {Total de Sets - Mais de 3.5}; Toronto Raptors - Cleveland Cavaliers {Assistências 1X2 - 1}"
-  OUTRO EXEMPLO:
-    Sport Recife x ASA → Resultado Final - Sport Recife
-    MIN Timberwolves x SA Spurs → Para Ganhar - SA Spurs
-  O campo "mercado" DEVE ser:
-    "Sport Recife x ASA {Resultado Final - Sport Recife}; MIN Timberwolves x SA Spurs {Para Ganhar - SA Spurs}"
-  ERRADO (nunca fazer): "Sport Recife {Resultado Final}; SA Spurs {Para Ganhar}" ← falta o time adversário!
-"odd": a odd TOTAL do bilhete. Prioridade: (1) valor total mostrado na tela, (2) multiplique as odds individuais (odds_multiplas), (3) calcule retorno_total / valor_apostado. Nunca deixe null se houver como calcular.
-"odds_multiplas": array com cada odd individual visível na combinada (ex: [1.85, 1.60, 1.40]). null para apostas simples ou se não visíveis.
-"valor_apostado": valor total apostado (número, não string)
-"retorno_total": retorno total mostrado (número, não string)
-"data": data no formato DD/MM/YYYY se o ano estiver visível, ou DD/MM se só dia/mês visível. Reconheça todos os formatos: "27 DE ABR. DE 2026", "27/04/2026", "27 abr 2026", "Apr 27, 2026", etc. Converta SEMPRE para DD/MM ou DD/MM/YYYY. Nunca retorne null se uma data for identificável na imagem.
-
 ════ RESULTADO — PALAVRAS-CHAVE ════
-"won"     → Retorno Obtido / Ganhou / Won / Cash Out / Pag. Antecipado+Recebido / Pagamento Antecipado
-"lost"    → Perdeu / Sem Retorno / Lost / Encerrada sem retorno
-"void"    → Nula / Void / Cancelada / Anulada
-"pending" → Ao Vivo / A decorrer / Pendente / Criar Aposta / Em aberto / sem resultado visível
-
-════ CASAS DE APOSTAS — IDENTIFICAÇÃO ════
-Casas cadastradas no sistema: ${casasList}
-Retorne o nome EXATAMENTE como aparece na lista acima se reconhecer a casa.
-Se a casa não estiver visível no screenshot, use null.
+"won"     → Retorno Obtido / Ganhou / Won / Cash Out
+"lost"    → Perdeu / Sem Retorno / Lost
+"void"    → Nula / Void / Cancelada
+"pending" → Ao Vivo / Pendente / Em aberto / sem resultado visível
 
 ════ REGRAS GERAIS ════
 - Use null para campos não identificáveis
-- Valores monetários SEMPRE como número (não string)
-- Nunca quebre uma aposta combinada em múltiplas entradas
-- Se o screenshot mostrar um histórico, extraia CADA aposta individualmente`
+- Valores monetários SEMPRE como número
+- Nunca quebre uma aposta combinada em múltiplas entradas`
 }
 
 export async function extractBetsFromImage(
@@ -110,7 +66,7 @@ export async function extractBetsFromImage(
   const EXTRACT_PROMPT = buildPrompt(bookmakers.map(b => b.name))
 
   const modelsToTry = modelId === AI_MODELS.smart
-    ? [AI_MODELS.smart, AI_MODELS.fast]   // Maverick → fallback Scout
+    ? [AI_MODELS.smart, AI_MODELS.fast]
     : [AI_MODELS.fast]
 
   let usedModel = modelId
@@ -144,11 +100,9 @@ export async function extractBetsFromImage(
         await logExtraction(userId, tryModel, 0, 0, 0, 0, false, lastErr)
         throw new Error(`Groq API error (model: ${tryModel}): ${lastErr}`)
       }
-      // model unavailable → try next
     }
   }
 
-  // Remove possíveis blocos de markdown que o modelo insira
   const cleaned = rawResponse.replace(/```json|```/g, '').trim()
 
   let parsed: { apostas: any[] } = { apostas: [] }
@@ -182,15 +136,12 @@ export async function extractBetsFromImage(
     let parsedDate = a.data
     if (a.data) {
       const raw = String(a.data).trim()
-      // DD/MM/YYYY
       const fullMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
       if (fullMatch) {
         const [, d, m, y] = fullMatch
         const dt = new Date(Number(y), Number(m) - 1, Number(d))
         if (!isNaN(dt.getTime())) parsedDate = dt.toISOString().split('T')[0]
-      }
-      // DD/MM (no year)
-      else if (/^\d{1,2}\/\d{1,2}$/.test(raw)) {
+      } else if (/^\d{1,2}\/\d{1,2}$/.test(raw)) {
         const d = parseDDMM(raw)
         if (d) parsedDate = d.toISOString().split('T')[0]
       }
@@ -198,13 +149,11 @@ export async function extractBetsFromImage(
 
     let odd: number | null = a.odd ?? null
 
-    // fallback 1: produto das odds individuais da combinada
     if (!odd && Array.isArray(a.odds_multiplas) && a.odds_multiplas.length > 0) {
       const product = (a.odds_multiplas as number[]).reduce((acc, o) => acc * o, 1)
       if (product > 0) odd = parseFloat(product.toFixed(4))
     }
 
-    // fallback 2: retorno / valor apostado
     if (!odd && a.valor_apostado && a.retorno_total && a.valor_apostado > 0) {
       odd = parseFloat((a.retorno_total / a.valor_apostado).toFixed(4))
     }

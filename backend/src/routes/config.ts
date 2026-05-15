@@ -7,8 +7,6 @@ import { AppError } from '../middlewares/errorHandler'
 
 const router = Router()
 
-// ─── Bookmakers ───────────────────────────────────────────────────────────────
-
 router.get('/bookmakers', async (req: Request, res, next) => {
   try {
     const userId = req.user!.userId
@@ -57,8 +55,6 @@ router.delete('/bookmakers/:id', async (req: Request, res, next) => {
     res.json({ message: 'Casa removida' })
   } catch (err) { next(err) }
 })
-
-// ─── Sports ───────────────────────────────────────────────────────────────────
 
 router.get('/sports', async (req: Request, res, next) => {
   try {
@@ -109,15 +105,10 @@ router.delete('/sports/:id', async (req: Request, res, next) => {
   } catch (err) { next(err) }
 })
 
-// ─── Betting Profiles ─────────────────────────────────────────────────────────
-
 router.get('/profiles', async (req: Request, res, next) => {
   try {
     const userId = req.user!.userId
-    const data = await prisma.bettingProfile.findMany({
-      where: { userId },
-      orderBy: { name: 'asc' },
-    })
+    const data = await prisma.bettingProfile.findMany({ where: { userId }, orderBy: { name: 'asc' } })
     res.json({ data })
   } catch (err) { next(err) }
 })

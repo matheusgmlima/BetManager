@@ -7,8 +7,6 @@ import { sendVerificationEmail } from '../utils/email'
 const JWT_SECRET  = process.env.JWT_SECRET  || 'dev_secret_change_in_production'
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d'
 
-// ─── Token helpers ────────────────────────────────────────────────────────────
-
 function generateToken(userId: number, email: string) {
   return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: JWT_EXPIRES } as any)
 }
@@ -32,7 +30,6 @@ export async function register(username: string, email: string, password: string
     select: { id: true, username: true, email: true },
   })
 
-  // Create email verification token (24h)
   const token = randomHex()
   await prisma.emailToken.create({
     data: {
@@ -51,9 +48,20 @@ export async function register(username: string, email: string, password: string
 
 export async function verifyEmail(token: string) {
   const record = await prisma.emailToken.findUnique({ where: { token } })
-  if (!record || record.used || record.type !== 'verify_email') {
+
+  if (!record || record.type !== 'verify_email') {
     throw { status: 400, message: 'Token inválido' }
   }
+
+  // Token already used — check if user is already verified
+  if (record.used) {
+    const user = await prisma.user.findUnique({ where: { id: record.userId } })
+    if (user?.emailVerified) {
+      return { message: 'Email já confirmado! Faça login para continuar.', alreadyVerified: true }
+    }
+    throw { status: 400, message: 'Token inválido' }
+  }
+
   if (record.expiresAt < new Date()) {
     throw { status: 400, message: 'Token expirado' }
   }
@@ -129,11 +137,9 @@ export async function updateUnitValue(userId: number, unitValue: number) {
 export async function resendVerification(email: string) {
   const user = await prisma.user.findUnique({ where: { email } })
   if (!user || user.emailVerified) {
-    // Silently succeed to avoid user enumeration
     return { message: 'Se o email existir e não estiver verificado, um novo link foi enviado.' }
   }
 
-  // Invalidate old tokens
   await prisma.emailToken.updateMany({
     where: { userId: user.id, type: 'verify_email', used: false },
     data:  { used: true },

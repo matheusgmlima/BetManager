@@ -9,7 +9,7 @@ export const api = axios.create({
 // Inject JWT on every request
 api.interceptors.request.use(cfg => {
   const token = localStorage.getItem('bm_token')
-  if (token) cfg.headers = { ...cfg.headers, Authorization: `Bearer ${token}` }
+  if (token) cfg.headers.Authorization = `Bearer ${token}`
   return cfg
 })
 
