@@ -1,8 +1,6 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-<<<<<<< HEAD
-=======
 
 :root {
   /* backgrounds — subtle depth layers */
@@ -204,4 +202,3 @@ body {
   background-clip: text;
   animation: shimmer 3s linear infinite;
 }
->>>>>>> feat/settings

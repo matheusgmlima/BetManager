@@ -2,13 +2,9 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "commonjs",
-<<<<<<< HEAD
-    "lib": ["ES2022"],
-=======
     "lib": [
       "ES2022"
     ],
->>>>>>> feat/settings
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
@@ -20,11 +16,6 @@
     "declarationMap": true,
     "sourceMap": true
   },
-<<<<<<< HEAD
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "**/*.test.ts"]
-}
-=======
   "include": [
     "src/**/*"
   ],
@@ -35,4 +26,3 @@
     "src/lib/anthropic.ts"
   ]
 }
->>>>>>> feat/settings
