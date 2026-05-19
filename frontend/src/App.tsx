@@ -1,13 +1,3 @@
-<<<<<<< HEAD
-function App() {
-  return (
-    <div className="min-h-screen bg-gray-950 text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold text-red-500 mb-2">BetManager</h1>
-        <p className="text-gray-400">Sistema de Gerenciamento de Apostas</p>
-        <p className="text-gray-600 text-sm mt-4">Em desenvolvimento...</p>
-      </div>
-=======
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import SnakeLogo from './components/SnakeLogo'
@@ -136,14 +126,10 @@ function FloatingNewBet() {
         <span style={{ fontSize: 18, lineHeight: 1 }}>+</span>
         {!isMobile && <span>Nova Aposta</span>}
       </button>
->>>>>>> feat/settings
     </div>
   )
 }
 
-<<<<<<< HEAD
-export default App
-=======
 // ─── Unit toggle ──────────────────────────────────────────────────────────────
 
 function UnitToggle() {
@@ -378,4 +364,3 @@ export default function App() {
     </QueryClientProvider>
   )
 }
->>>>>>> feat/settings
