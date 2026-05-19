@@ -26,17 +26,97 @@ enum BetSource {
   ai_extract
 }
 
+<<<<<<< HEAD
+=======
+enum TokenType {
+  verify_email
+  reset_password
+}
+
+enum BankrollType {
+  initial
+  deposit
+  withdrawal
+}
+
+// ─── Usuários ─────────────────────────────────────────────────────────────────
+
+model User {
+  id            Int      @id @default(autoincrement())
+  username      String   @unique @db.VarChar(50)
+  email         String   @unique @db.VarChar(255)
+  passwordHash  String   @map("password_hash")
+  emailVerified Boolean  @default(false) @map("email_verified")
+  unitValue     Decimal  @default(10) @db.Decimal(10, 2) @map("unit_value")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  bets            Bet[]
+  goals           Goal[]
+  bettingProfiles BettingProfile[]
+  tipsters        Tipster[]
+  bookmakers      Bookmaker[]
+  sports          Sport[]
+  bankrollEntries BankrollEntry[]
+  emailTokens     EmailToken[]
+  combinedGroups  CombinedBetGroup[]
+  aiLogs          AiExtractionLog[]
+
+  @@map("users")
+}
+
+model EmailToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique @db.VarChar(64)
+  type      TokenType @default(verify_email)
+  expiresAt DateTime  @map("expires_at")
+  used      Boolean   @default(false)
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("email_tokens")
+}
+
+model BankrollEntry {
+  id        Int          @id @default(autoincrement())
+  userId    Int          @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount    Decimal      @db.Decimal(10, 2)
+  type      BankrollType
+  note      String?
+  date      DateTime     @default(now()) @db.Date
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@map("bankroll_entries")
+}
+
+>>>>>>> feat/settings
 // ─── Esportes ─────────────────────────────────────────────────────────────────
 
 model Sport {
   id        Int      @id @default(autoincrement())
+<<<<<<< HEAD
   name      String   @unique @db.VarChar(100)
   icon      String?  @db.VarChar(50)
   active    Boolean  @default(true)
+=======
+  name      String   @db.VarChar(100)
+  icon      String?  @db.VarChar(50)
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false) @map("is_default")
+  userId    Int?     @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+>>>>>>> feat/settings
   createdAt DateTime @default(now()) @map("created_at")
 
   bets Bet[]
 
+<<<<<<< HEAD
+=======
+  @@index([userId])
+>>>>>>> feat/settings
   @@map("sports")
 }
 
@@ -44,20 +124,73 @@ model Sport {
 
 model Bookmaker {
   id        Int      @id @default(autoincrement())
+<<<<<<< HEAD
   name      String   @unique @db.VarChar(100)
   color     String   @default("#6B7280") @db.VarChar(7)
   active    Boolean  @default(true)
+=======
+  name      String   @db.VarChar(100)
+  color     String   @default("#6B7280") @db.VarChar(7)
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false) @map("is_default")
+  userId    Int?     @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+>>>>>>> feat/settings
   createdAt DateTime @default(now()) @map("created_at")
 
   bets Bet[]
 
+<<<<<<< HEAD
   @@map("bookmakers")
 }
 
+=======
+  @@index([userId])
+  @@map("bookmakers")
+}
+
+// ─── Perfis de Aposta ─────────────────────────────────────────────────────────
+
+model BettingProfile {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  active    Boolean  @default(true)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bets Bet[]
+
+  @@index([userId])
+  @@map("betting_profiles")
+}
+
+// ─── Tipsters / VIPs ──────────────────────────────────────────────────────────
+
+model Tipster {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  active    Boolean  @default(true)
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  bets Bet[]
+
+  @@index([userId])
+  @@map("tipsters")
+}
+
+>>>>>>> feat/settings
 // ─── Grupos de Apostas Combinadas ─────────────────────────────────────────────
 
 model CombinedBetGroup {
   id            Int       @id @default(autoincrement())
+<<<<<<< HEAD
+=======
+  userId        Int       @map("user_id")
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+>>>>>>> feat/settings
   date          DateTime  @db.Date
   totalOdds     Decimal?  @db.Decimal(10, 4) @map("total_odds")
   amountWagered Decimal   @db.Decimal(10, 2) @map("amount_wagered")
@@ -69,12 +202,17 @@ model CombinedBetGroup {
 
   selections Bet[]
 
+<<<<<<< HEAD
+=======
+  @@index([userId])
+>>>>>>> feat/settings
   @@map("combined_bet_groups")
 }
 
 // ─── Apostas ──────────────────────────────────────────────────────────────────
 
 model Bet {
+<<<<<<< HEAD
   id            Int       @id @default(autoincrement())
 
   // Relacionamentos
@@ -107,17 +245,53 @@ model Bet {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+=======
+  id               Int              @id @default(autoincrement())
+  userId           Int              @map("user_id")
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sportId          Int?             @map("sport_id")
+  sport            Sport?           @relation(fields: [sportId], references: [id])
+  bookmakerId      Int              @map("bookmaker_id")
+  bookmaker        Bookmaker        @relation(fields: [bookmakerId], references: [id])
+  bettingProfileId Int?             @map("betting_profile_id")
+  bettingProfile   BettingProfile?  @relation(fields: [bettingProfileId], references: [id])
+  tipsterId        Int?             @map("tipster_id")
+  tipster          Tipster?         @relation(fields: [tipsterId], references: [id])
+  combinedId       Int?             @map("combined_id")
+  combined         CombinedBetGroup? @relation(fields: [combinedId], references: [id])
+  date             DateTime         @db.Date
+  match            String?          @db.VarChar(200)
+  market           String           @db.VarChar(500)
+  betType          BetType          @default(simple) @map("bet_type")
+  isCombined       Boolean          @default(false) @map("is_combined")
+  amountWagered    Decimal          @db.Decimal(10, 2) @map("amount_wagered")
+  odds             Decimal?         @db.Decimal(10, 4)
+  payout           Decimal          @default(0) @db.Decimal(10, 2)
+  result           BetResult        @default(pending)
+  notes            String?
+  source           BetSource        @default(manual)
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  @@index([userId])
+>>>>>>> feat/settings
   @@index([date(sort: Desc)])
   @@index([result])
   @@index([sportId])
   @@index([bookmakerId])
   @@index([betType])
+<<<<<<< HEAD
+=======
+  @@index([bettingProfileId])
+  @@index([tipsterId])
+>>>>>>> feat/settings
   @@map("bets")
 }
 
 // ─── Metas ────────────────────────────────────────────────────────────────────
 
 model Goal {
+<<<<<<< HEAD
   id            Int      @id @default(autoincrement())
   month         Int      @db.SmallInt
   year          Int      @db.SmallInt
@@ -127,12 +301,27 @@ model Goal {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@unique([month, year])
+=======
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month        Int      @db.SmallInt
+  year         Int      @db.SmallInt
+  targetProfit Decimal  @db.Decimal(10, 2) @map("target_profit")
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, month, year])
+  @@index([userId])
+>>>>>>> feat/settings
   @@map("goals")
 }
 
 // ─── Log de Extrações por IA ──────────────────────────────────────────────────
 
 model AiExtractionLog {
+<<<<<<< HEAD
   id             Int      @id @default(autoincrement())
   modelUsed      String   @db.VarChar(50) @map("model_used")
   betsDetected   Int      @default(0) @map("bets_detected")
@@ -143,5 +332,20 @@ model AiExtractionLog {
   errorMessage   String?  @map("error_message")
   createdAt      DateTime @default(now()) @map("created_at")
 
+=======
+  id            Int      @id @default(autoincrement())
+  userId        Int      @map("user_id")
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  modelUsed     String   @db.VarChar(50) @map("model_used")
+  betsDetected  Int      @default(0) @map("bets_detected")
+  betsConfirmed Int      @default(0) @map("bets_confirmed")
+  inputTokens   Int?     @map("input_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  success       Boolean  @default(true)
+  errorMessage  String?  @map("error_message")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+>>>>>>> feat/settings
   @@map("ai_extraction_logs")
 }

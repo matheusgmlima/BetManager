@@ -32,7 +32,11 @@ services:
         condition: service_healthy
     environment:
       DATABASE_URL: ${DATABASE_URL}
+<<<<<<< HEAD
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+=======
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+>>>>>>> feat/settings
       PORT: ${PORT:-3000}
     volumes:
       - ./backend:/app

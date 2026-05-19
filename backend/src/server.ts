@@ -1,19 +1,31 @@
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
+<<<<<<< HEAD
+=======
+import apiRouter from './routes/index'
+import { errorHandler } from './middlewares/errorHandler'
+>>>>>>> feat/settings
 
 const app = express()
 const PORT = process.env.PORT || 3000
 
+<<<<<<< HEAD
 // Middlewares
 app.use(cors())
 app.use(express.json())
 
 // Health check
+=======
+app.use(cors())
+app.use(express.json())
+
+>>>>>>> feat/settings
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+<<<<<<< HEAD
 // TODO: Rotas serão adicionadas aqui nas próximas fases
 // app.use('/api/bets', betsRouter)
 // app.use('/api/dashboard', dashboardRouter)
@@ -21,6 +33,10 @@ app.get('/health', (_req, res) => {
 // app.use('/api/goals', goalsRouter)
 // app.use('/api/ai', aiRouter)
 // app.use('/api/config', configRouter)
+=======
+app.use('/api', apiRouter)
+app.use(errorHandler)
+>>>>>>> feat/settings
 
 app.listen(PORT, () => {
   console.log(`BetManager API rodando em http://localhost:${PORT}`)

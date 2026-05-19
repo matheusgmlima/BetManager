@@ -1,3 +1,207 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+<<<<<<< HEAD
+=======
+
+:root {
+  /* backgrounds — subtle depth layers */
+  --bg-primary:    #08080e;
+  --bg-secondary:  #0d0d18;
+  --bg-card:       #111120;
+  --bg-surface:    #161628;
+  --bg-card-hover: #191930;
+
+  /* borders — barely visible, rely on bg contrast */
+  --border:        #1c1c2e;
+  --border-subtle: #161624;
+  --border-purple: #2a1d54;
+
+  /* accent — indigo-violet, used sparingly */
+  --purple-900:    #1e1040;
+  --purple-700:    #5b21b6;
+  --purple-600:    #6d28d9;
+  --purple-500:    #7c3aed;
+  --purple-400:    #8b5cf6;
+  --purple-300:    #a78bfa;
+  --purple-glow:   rgba(109, 40, 217, 0.18);
+
+  /* typography — cooler whites, clear hierarchy */
+  --text-primary:  #ededf5;
+  --text-secondary:#7878a0;
+  --text-muted:    #46465e;
+  --text-label:    #56567a;
+
+  /* data colors — less saturated, more refined */
+  --green:         #16a34a;
+  --green-muted:   rgba(22, 163, 74, 0.12);
+  --red:           #dc2626;
+  --red-muted:     rgba(220, 38, 38, 0.12);
+  --yellow:        #ca8a04;
+
+  /* spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+}
+
+* { box-sizing: border-box; }
+
+/* Hide number input spinners globally */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Tabular numbers for all stat displays ── */
+.tabnum,
+[data-stat] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.01em;
+}
+
+/* ── Section divider label ── */
+.section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+/* ── Stat value ── */
+.stat-value {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+  letter-spacing: -0.03em;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-secondary); }
+::-webkit-scrollbar-thumb { background: var(--border-purple); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--purple-700); }
+
+.card-glow:hover {
+  box-shadow: 0 0 20px var(--purple-glow);
+  border-color: var(--purple-700) !important;
+  transition: all 0.2s ease;
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--purple-400), var(--purple-300));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.nav-active {
+  background: linear-gradient(135deg, var(--purple-700), var(--purple-600));
+  box-shadow: 0 0 12px var(--purple-glow);
+}
+
+/* ── Animations ──────────────────────────────────────────── */
+
+@keyframes floatOrb {
+  0%   { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+  33%  { transform: translateY(-40px) translateX(20px) scale(1.05); opacity: 0.18; }
+  66%  { transform: translateY(-20px) translateX(-15px) scale(0.97); opacity: 0.14; }
+  100% { transform: translateY(0px) translateX(0px) scale(1); opacity: 0.12; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUpFast {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes fadeInDown {
+  from { opacity: 0; transform: translateY(-16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(124,58,237,0.4); }
+  50%       { box-shadow: 0 0 22px rgba(124,58,237,0.75), 0 0 40px rgba(124,58,237,0.25); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes drift {
+  0%   { transform: translateY(100vh) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-100px) translateX(60px) rotate(360deg); opacity: 0; }
+}
+
+@keyframes heroGlow {
+  0%, 100% { box-shadow: 0 0 60px rgba(124,58,237,0.10); }
+  50%       { box-shadow: 0 0 80px rgba(124,58,237,0.22), 0 0 120px rgba(99,102,241,0.08); }
+}
+
+@keyframes fabPulse {
+  0%, 100% { box-shadow: 0 4px 24px rgba(124,58,237,0.45), 0 0 0 0 rgba(124,58,237,0.3); }
+  50%       { box-shadow: 0 4px 32px rgba(124,58,237,0.65), 0 0 0 8px rgba(124,58,237,0); }
+}
+
+@keyframes sectionReveal {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Helpers */
+.anim-slide-up   { animation: slideUp 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-slide-fast { animation: slideUpFast 0.35s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-fade-in    { animation: fadeIn 0.6s ease both; }
+.anim-fade-down  { animation: fadeInDown 0.5s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-scale-in   { animation: scaleIn 0.6s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-hero       { animation: scaleIn 0.7s cubic-bezier(0.16,1,0.3,1) both, heroGlow 4s ease-in-out infinite; }
+.logo-pulse      { animation: logoPulse 3s ease-in-out infinite; }
+.fab-pulse       { animation: fabPulse 2.5s ease-in-out infinite; }
+
+.shimmer-text {
+  background: linear-gradient(90deg,
+    var(--purple-400) 0%,
+    var(--purple-200, #ddd6fe) 40%,
+    var(--purple-400) 80%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: shimmer 3s linear infinite;
+}
+>>>>>>> feat/settings
