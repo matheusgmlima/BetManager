@@ -247,6 +247,14 @@ function ManualTab() {
   const [success, setSuccess] = useState(false)
   const [multiMatches, setMultiMatches] = useState<{ game: string; selection: string }[]>([{ game: '', selection: '' }, { game: '', selection: '' }])
 
+  // Auto-seleciona tipster padrão ("Aposta Própria" ou o primeiro ativo)
+  useEffect(() => {
+    if (tipsters.length === 0 || form.tipsterId) return
+    const active = tipsters.filter((t: any) => t.active)
+    const def = active.find((t: any) => t.name === 'Aposta Própria') ?? active[0] ?? null
+    if (def) setForm(f => ({ ...f, tipsterId: String(def.id) }))
+  }, [tipsters])
+
   const set = (k: keyof ManualFormState, v: string | BetType | BetResult) => {
     setErrors(e => ({ ...e, [k]: undefined }))
     setForm(f => {
@@ -662,6 +670,9 @@ function AiTab() {
   const tipstersRef = useRef(tipsters)
   useEffect(() => { tipstersRef.current = tipsters }, [tipsters])
 
+  const profilesRef = useRef(profiles)
+  useEffect(() => { profilesRef.current = profiles }, [profiles])
+
   const fixDate = (d: string | null | undefined): string => {
     const base = d ?? today()
     if (new Date(base + 'T00:00:00') > new Date(today() + 'T23:59:59')) {
@@ -686,6 +697,8 @@ function AiTab() {
         setExtractionIds(prev => [...prev, result.extractionId])
         const activeTipsters = tipstersRef.current.filter(t => t.active)
         const defaultTipster = activeTipsters.find(t => t.name === 'Aposta Própria') ?? activeTipsters[0] ?? null
+        const activeProfiles = profilesRef.current.filter((p: any) => p.active)
+        const defaultProfile = activeProfiles.find((p: any) => p.isDefault) ?? activeProfiles[0] ?? null
         setBets(prev => [
           ...prev,
           ...result.bets.map(b => ({
@@ -694,7 +707,7 @@ function AiTab() {
             marketEdit: b.market ?? '', amountWageredEdit: String(b.amountWagered ?? ''),
             oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
             resultEdit: b.result ?? 'pending' as BetResult,
-            bookmakerId: b.bookmakerId, bettingProfileId: null,
+            bookmakerId: b.bookmakerId, bettingProfileId: defaultProfile?.id ?? null,
             tipsterId: defaultTipster?.id ?? null, sportId: null,
           }))
         ])
@@ -1202,8 +1215,8 @@ function AiTab() {
                           />
                         </Field>
                       </div>
-                      {/* Required fields: Casa + Perfil + Esporte */}
-                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
+                      {/* Required fields: Casa + Tipster + Perfil + Esporte */}
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr 1fr', gap: 12 }}>
                         <Field label="Casa de Apostas *" error={hasError && betErrors.includes('casa') ? 'Obrigatório' : undefined}>
                           <select
                             value={bet.bookmakerId ?? ''}
@@ -1243,6 +1256,19 @@ function AiTab() {
                             <option value="">Selecionar tipster...</option>
                             {tipsters.filter(t => t.active).map(t => (
                               <option key={t.id} value={t.id}>{t.name}</option>
+                            ))}
+                          </select>
+                        </Field>
+                        <Field label="Perfil de Aposta">
+                          <select
+                            value={bet.bettingProfileId ?? ''}
+                            onChange={e => updateBet(i, { bettingProfileId: e.target.value ? Number(e.target.value) : null })}
+                            onFocus={focus} onBlur={blur}
+                            style={inp}
+                          >
+                            <option value="">— opcional —</option>
+                            {profiles.filter((p: any) => p.active).map((p: any) => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
                           </select>
                         </Field>
