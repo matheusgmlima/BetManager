@@ -3,7 +3,7 @@ import { useSearchParams, Link } from 'react-router-dom'
 import axios from 'axios'
 import SnakeLogo from '../components/SnakeLogo'
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API = import.meta.env.VITE_API_URL || '/api'
 
 export default function VerifyEmail() {
   const [params]  = useSearchParams()
