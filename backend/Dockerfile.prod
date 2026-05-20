@@ -13,6 +13,8 @@ RUN npx tsc --skipLibCheck || true
 # ── Stage 2: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 COPY package*.json ./
