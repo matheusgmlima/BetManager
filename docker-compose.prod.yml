@@ -34,6 +34,11 @@ services:
       JWT_EXPIRES:     ${JWT_EXPIRES}
       PORT:            3000
       APP_URL:         ${APP_URL}
+      SMTP_HOST:       ${SMTP_HOST}
+      SMTP_PORT:       ${SMTP_PORT}
+      SMTP_USER:       ${SMTP_USER}
+      SMTP_PASS:       ${SMTP_PASS}
+      SMTP_FROM:       ${SMTP_FROM}
     # Roda migrations antes de subir o servidor
     command: sh -c "npx prisma migrate deploy && node dist/server.js"
     # Porta NÃO exposta publicamente — só acessível internamente pelo nginx
