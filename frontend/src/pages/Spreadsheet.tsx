@@ -150,6 +150,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const { data: sports     = [] } = useSports()
   const { data: bookmakers = [] } = useBookmakers()
   const { data: profiles   = [] } = useProfiles()
+  const { data: tipsters   = [] } = useTipsters()
   const updateBet = useUpdateBet()
 
   function today() { return new Date().toISOString().split('T')[0] }
@@ -167,6 +168,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
     result:          bet.result as BetResult,
     notes:           bet.notes ?? '',
     bettingProfileId: String((bet as any).bettingProfileId ?? ''),
+    tipsterId:        String(bet.tipster?.id ?? ''),
   })
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState('')
@@ -219,6 +221,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           result:          form.result,
           notes:           form.notes || undefined,
           bettingProfileId: form.bettingProfileId ? Number(form.bettingProfileId) : null,
+          tipsterId:        form.tipsterId ? Number(form.tipsterId) : null,
         },
       })
       onClose()
@@ -262,6 +265,14 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
             <select style={inp} value={form.bettingProfileId} onChange={e => set('bettingProfileId', e.target.value)}>
               <option value="">Selecionar…</option>
               {profiles.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          {/* Tipster */}
+          <div style={{ gridColumn: '1/-1' }}>
+            <label style={lbl}>Tipster / VIP</label>
+            <select style={inp} value={form.tipsterId} onChange={e => set('tipsterId', e.target.value)}>
+              <option value="">— Nenhum —</option>
+              {tipsters.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
           {/* Jogo */}
