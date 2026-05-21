@@ -34,7 +34,6 @@ export default function Login() {
     }}>
       <div style={{ width: '100%', maxWidth: 400 }}>
 
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center', marginBottom: 40 }}>
           <SnakeLogo size={32} />
           <span style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
@@ -42,7 +41,6 @@ export default function Login() {
           </span>
         </div>
 
-        {/* Card */}
         <div style={{
           background: 'var(--bg-secondary)', border: '1px solid var(--border)',
           borderRadius: 16, padding: '32px 28px',
@@ -53,10 +51,18 @@ export default function Login() {
           </p>
 
           <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Field label="Email ou usuário" type="text" value={email}
+            <Field label="Email ou usuario" type="text" value={email}
               onChange={setEmail} placeholder="seu@email.com" autoFocus />
-            <Field label="Senha" type="password" value={password}
-              onChange={setPassword} placeholder="••••••••" />
+
+            <div>
+              <Field label="Senha" type="password" value={password}
+                onChange={setPassword} placeholder="••••••••" />
+              <div style={{ textAlign: 'right', marginTop: 6 }}>
+                <Link to="/esqueci-senha" style={{ fontSize: 12, color: 'var(--purple-400)', textDecoration: 'none' }}>
+                  Esqueceu a senha?
+                </Link>
+              </div>
+            </div>
 
             {error && (
               <p style={{ fontSize: 13, color: 'var(--red)', background: 'var(--red-muted)', borderRadius: 8, padding: '10px 14px' }}>
@@ -75,13 +81,13 @@ export default function Login() {
                 transition: 'opacity 0.15s',
               }}
             >
-              {loading ? 'Entrando…' : 'Entrar'}
+              {loading ? 'Entrando...' : 'Entrar'}
             </button>
           </form>
         </div>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>
-          Não tem conta?{' '}
+          Nao tem conta?{' '}
           <Link to="/cadastro" style={{ color: 'var(--purple-400)', fontWeight: 600, textDecoration: 'none' }}>
             Criar conta
           </Link>

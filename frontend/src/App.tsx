@@ -15,6 +15,8 @@ import Analytics from './pages/Analytics'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
+import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import { Tutorial, useTutorial } from './components/Tutorial'
 
 const queryClient = new QueryClient({
@@ -355,6 +357,8 @@ export default function App() {
               <Route path="/login"           element={<Login />} />
               <Route path="/cadastro"        element={<Register />} />
               <Route path="/verificar-email" element={<VerifyEmail />} />
+              <Route path="/esqueci-senha"    element={<ForgotPassword />} />
+              <Route path="/redefinir-senha"  element={<ResetPassword />} />
               {/* Protected */}
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
