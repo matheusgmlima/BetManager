@@ -16,6 +16,7 @@ export interface BetCreateInput {
   notes?: string
   combinedId?: number
   bettingProfileId?: number | null
+  tipsterId?: number | null
 }
 
 export interface BetUpdateInput extends Partial<BetCreateInput> {}
@@ -35,6 +36,7 @@ export interface BetFilters {
   bookmakerId?: number
   betType?: BetType
   bettingProfileId?: number
+  tipsterId?: number
   search?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'

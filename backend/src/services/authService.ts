@@ -2,10 +2,15 @@ import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
 import { prisma } from '../lib/prisma'
+import { AppError } from '../middlewares/errorHandler'
 import { sendVerificationEmail } from '../utils/email'
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'dev_secret_change_in_production'
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d'
+
+if (process.env.NODE_ENV === 'production' && JWT_SECRET === 'dev_secret_change_in_production') {
+  throw new Error('JWT_SECRET não definido em produção!')
+}
 
 function generateToken(userId: number, email: string) {
   return jwt.sign({ userId, email }, JWT_SECRET, { expiresIn: JWT_EXPIRES } as any)
@@ -18,11 +23,11 @@ function randomHex(bytes = 32) {
 // ─── Register ─────────────────────────────────────────────────────────────────
 
 export async function register(username: string, email: string, password: string) {
-  const existingEmail    = await prisma.user.findUnique({ where: { email } })
-  if (existingEmail)    throw { status: 409, message: 'Email já cadastrado' }
+  const existingEmail = await prisma.user.findUnique({ where: { email } })
+  if (existingEmail) throw new AppError('Email já cadastrado', 409, 'EMAIL_TAKEN', 'email')
 
   const existingUsername = await prisma.user.findUnique({ where: { username } })
-  if (existingUsername) throw { status: 409, message: 'Nome de usuário já em uso' }
+  if (existingUsername) throw new AppError('Nome de usuário já em uso', 409, 'USERNAME_TAKEN', 'username')
 
   const passwordHash = await bcrypt.hash(password, 12)
   const user = await prisma.user.create({
@@ -53,7 +58,7 @@ export async function verifyEmail(token: string) {
   const record = await prisma.emailToken.findUnique({ where: { token } })
 
   if (!record || record.type !== 'verify_email') {
-    throw { status: 400, message: 'Token inválido' }
+    throw new AppError('Token inválido', 400, 'INVALID_TOKEN')
   }
 
   // Token already used — check if user is already verified
@@ -62,11 +67,11 @@ export async function verifyEmail(token: string) {
     if (user?.emailVerified) {
       return { message: 'Email já confirmado! Faça login para continuar.', alreadyVerified: true }
     }
-    throw { status: 400, message: 'Token inválido' }
+    throw new AppError('Token inválido', 400, 'INVALID_TOKEN')
   }
 
   if (record.expiresAt < new Date()) {
-    throw { status: 400, message: 'Token expirado' }
+    throw new AppError('Token expirado', 400, 'TOKEN_EXPIRED')
   }
 
   await prisma.$transaction([
@@ -92,13 +97,13 @@ export async function login(emailOrUsername: string, password: string) {
     },
   })
 
-  if (!user) throw { status: 401, message: 'Credenciais inválidas' }
+  if (!user) throw new AppError('Credenciais inválidas', 401, 'INVALID_CREDENTIALS')
 
   const valid = await bcrypt.compare(password, user.passwordHash)
-  if (!valid)  throw { status: 401, message: 'Credenciais inválidas' }
+  if (!valid) throw new AppError('Credenciais inválidas', 401, 'INVALID_CREDENTIALS')
 
   if (!user.emailVerified) {
-    throw { status: 403, message: 'Confirme seu email antes de entrar' }
+    throw new AppError('Confirme seu email antes de entrar', 403, 'EMAIL_NOT_VERIFIED')
   }
 
   const token = generateToken(user.id, user.email)
@@ -120,7 +125,7 @@ export async function getMe(userId: number) {
     where:  { id: userId },
     select: { id: true, username: true, email: true, unitValue: true, createdAt: true },
   })
-  if (!user) throw { status: 404, message: 'Usuário não encontrado' }
+  if (!user) throw new AppError('Usuário não encontrado', 404, 'USER_NOT_FOUND')
   return { ...user, unitValue: Number(user.unitValue) }
 }
 
@@ -139,6 +144,7 @@ export async function updateUnitValue(userId: number, unitValue: number) {
 
 export async function resendVerification(email: string) {
   const user = await prisma.user.findUnique({ where: { email } })
+  // Resposta genérica para não revelar se o email existe
   if (!user || user.emailVerified) {
     return { message: 'Se o email existir e não estiver verificado, um novo link foi enviado.' }
   }

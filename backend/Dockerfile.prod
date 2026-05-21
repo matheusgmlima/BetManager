@@ -8,7 +8,7 @@ RUN npm ci
 
 COPY . .
 RUN npx prisma generate
-RUN npx tsc --skipLibCheck || true
+RUN npx tsc --skipLibCheck
 
 # ── Stage 2: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
