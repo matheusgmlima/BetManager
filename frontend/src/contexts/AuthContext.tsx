@@ -3,11 +3,16 @@ import axios from 'axios'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 
+export type UserRole = 'admin' | 'permanent' | 'partner' | 'subscriber'
+
 export interface AuthUser {
-  id:        number
-  username:  string
-  email:     string
-  unitValue: number
+  id:                 number
+  username:           string
+  email:              string
+  unitValue:          number
+  role:               UserRole
+  accessExpiresAt:    string | null
+  mustChangePassword: boolean
 }
 
 interface AuthCtxValue {

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
+import type { UserRole } from './contexts/AuthContext'
 import SnakeLogo from './components/SnakeLogo'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { useMobile } from './hooks/useMobile'
@@ -7,6 +8,7 @@ import { useFaviconSnake } from './hooks/useFaviconSnake'
 import { UnitProvider, useUnit } from './contexts/UnitContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import Dashboard from './pages/Dashboard'
+import AdminPanel from './pages/AdminPanel'
 import NewBet from './pages/NewBet'
 import Goals from './pages/Goals'
 import Settings from './pages/Settings'
@@ -34,6 +36,28 @@ const navItems = [
 ]
 
 const HEADER_H = 52
+
+// ─── Role helpers ─────────────────────────────────────────────────────────────
+
+const ROLE_LABEL: Record<UserRole, string> = {
+  admin:      'Admin',
+  permanent:  'Perma',
+  partner:    'Partner',
+  subscriber: 'Sub',
+}
+
+const ROLE_COLOR: Record<UserRole, string> = {
+  admin:      'var(--purple-400)',
+  permanent:  '#f59e0b',
+  partner:    '#38bdf8',
+  subscriber: 'var(--text-muted)',
+}
+
+function daysRemaining(expiresAt: string | null | undefined): number | null {
+  if (!expiresAt) return null
+  const diff = new Date(expiresAt).getTime() - Date.now()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
 
 // ─── Floating New Bet FAB (draggable) ─────────────────────────────────────────
 const FAB_KEY = 'fab-position'
@@ -160,13 +184,66 @@ function UnitToggle() {
   )
 }
 
+// ─── User info chip ───────────────────────────────────────────────────────────
+
+function UserInfo() {
+  const { user } = useAuth()
+  const [open, setOpen] = useState(false)
+  const days = useMemo(() => daysRemaining(user?.accessExpiresAt), [user?.accessExpiresAt])
+  const role = user?.role ?? 'subscriber'
+  const color = ROLE_COLOR[role]
+  const isLifetime = role === 'admin' || role === 'permanent' || role === 'partner'
+  const dotColor = days !== null && days <= 0 ? 'var(--red)' : 'var(--green)'
+
+  const accessText = () => {
+    if (isLifetime) return { text: 'Acesso vitalício', color }
+    if (days === null) return { text: 'Sem data definida', color: 'var(--text-muted)' }
+    if (days <= 0)  return { text: 'Acesso expirado', color: 'var(--red)' }
+    if (days <= 7)  return { text: `${days} dia${days !== 1 ? 's' : ''} restantes`, color: '#f59e0b' }
+    return { text: `${days} dias restantes`, color: 'var(--text-muted)' }
+  }
+
+  const info = accessText()
+
+  return (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, opacity: 0.85 }} />
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user?.username}</span>
+      <span
+        onClick={() => setOpen(o => !o)}
+        style={{
+          fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+          background: `${color}18`, border: `1px solid ${color}40`, color,
+          letterSpacing: '0.05em', cursor: 'pointer', userSelect: 'none',
+        }}
+      >
+        {ROLE_LABEL[role]}
+      </span>
+
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 99 }} />
+          <div style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 8, zIndex: 100,
+            background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+            borderRadius: 8, padding: '10px 14px', whiteSpace: 'nowrap',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.3)',
+          }}>
+            <span style={{ fontSize: 12, color: info.color, fontWeight: 600 }}>{info.text}</span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Top nav ──────────────────────────────────────────────────────────────────
 
 function TopNav() {
   const isMobile  = useMobile()
   const location  = useLocation()
   const [menuOpen, setMenuOpen] = useState(false)
-  const { user, logout } = useAuth()
+  const { logout, user } = useAuth()
   useFaviconSnake()
 
   // close menu on route change
@@ -227,6 +304,35 @@ function TopNav() {
               {item.label}
             </NavLink>
           ))}
+          {user?.role === 'admin' && (
+            <NavLink
+              to="/admin"
+              style={({ isActive }) => ({
+                padding: '6px 12px', fontSize: 13,
+                fontWeight: isActive ? 600 : 400,
+                color: isActive ? 'var(--purple-400)' : 'var(--text-secondary)',
+                textDecoration: 'none', borderRadius: 6,
+                background: isActive ? 'var(--purple-400)15' : 'transparent',
+                transition: 'all 0.12s',
+              })}
+              onMouseEnter={e => {
+                const el = e.currentTarget as HTMLAnchorElement
+                if (!el.style.background.includes('15')) {
+                  el.style.background = 'var(--bg-card)'
+                  el.style.color = 'var(--purple-400)'
+                }
+              }}
+              onMouseLeave={e => {
+                const el = e.currentTarget as HTMLAnchorElement
+                if (!el.style.background.includes('15')) {
+                  el.style.background = 'transparent'
+                  el.style.color = 'var(--text-secondary)'
+                }
+              }}
+            >
+              Admin
+            </NavLink>
+          )}
         </nav>
       )}
 
@@ -237,10 +343,7 @@ function TopNav() {
       {!isMobile && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginLeft: 'auto', flexShrink: 0 }}>
           <UnitToggle />
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', opacity: 0.8 }} />
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{user?.username}</span>
-          </div>
+          <UserInfo />
           <button
             onClick={logout}
             style={{
@@ -296,6 +399,10 @@ function TopNav() {
               })}
             >{item.label}</NavLink>
           ))}
+          <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <UserInfo />
+            <button onClick={logout} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Sair</button>
+          </div>
         </div>
       )}
     </header>
@@ -304,11 +411,41 @@ function TopNav() {
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 
+function ExpiredBanner() {
+  const { user } = useAuth()
+  const days = useMemo(() => daysRemaining(user?.accessExpiresAt), [user?.accessExpiresAt])
+  if (days === null || days > 3) return null
+  if (days <= 0) return (
+    <div style={{
+      position: 'fixed', top: HEADER_H, left: 0, right: 0, zIndex: 29,
+      background: 'var(--red-muted)', borderBottom: '1px solid var(--red)',
+      padding: '8px 20px', textAlign: 'center',
+      fontSize: 13, color: 'var(--red)', fontWeight: 600,
+    }}>
+      ⚠️ Seu acesso expirou. Entre em contato com o administrador.
+    </div>
+  )
+  return (
+    <div style={{
+      position: 'fixed', top: HEADER_H, left: 0, right: 0, zIndex: 29,
+      background: '#451a03', borderBottom: '1px solid #f59e0b',
+      padding: '6px 20px', textAlign: 'center',
+      fontSize: 12, color: '#f59e0b',
+    }}>
+      Seu acesso expira em {days} dia{days !== 1 ? 's' : ''}.
+    </div>
+  )
+}
+
 function Layout({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth()
+  const days = useMemo(() => daysRemaining(user?.accessExpiresAt), [user?.accessExpiresAt])
+  const bannerH = days !== null && days <= 3 ? 34 : 0
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary)' }}>
       <TopNav />
-      <main style={{ paddingTop: HEADER_H }}>
+      <ExpiredBanner />
+      <main style={{ paddingTop: HEADER_H + bannerH }}>
         {children}
       </main>
       <FloatingNewBet />
@@ -316,7 +453,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   )
 }
 
-// ─── Protected route ──────────────────────────────────────────────────────────
+// ─── Protected route ─────────────────────────────────────────────
 
 function ProtectedRoutes() {
   const { user, loading } = useAuth()
@@ -337,6 +474,7 @@ function ProtectedRoutes() {
         <Route path="/estatisticas"  element={<Goals />} />
         <Route path="/planilha"      element={<Spreadsheet />} />
         <Route path="/configuracoes" element={<Settings />} />
+        <Route path="/admin"         element={user?.role === 'admin' ? <AdminPanel /> : <Navigate to="/" replace />} />
         <Route path="*"              element={<Navigate to="/" replace />} />
       </Routes>
       {showTutorial && <Tutorial onClose={closeTutorial} />}
@@ -344,7 +482,7 @@ function ProtectedRoutes() {
   )
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
+// ─── App ────────────────────────────────────────────────────────────────────────────
 
 export default function App() {
   return (
@@ -353,13 +491,11 @@ export default function App() {
         <UnitProvider>
           <BrowserRouter>
             <Routes>
-              {/* Public */}
               <Route path="/login"           element={<Login />} />
               <Route path="/cadastro"        element={<Register />} />
               <Route path="/verificar-email" element={<VerifyEmail />} />
               <Route path="/esqueci-senha"    element={<ForgotPassword />} />
               <Route path="/redefinir-senha"  element={<ResetPassword />} />
-              {/* Protected */}
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>
