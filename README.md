@@ -1,121 +1,122 @@
 # BetManager — Sistema de Gerenciamento de Apostas
 
-Sistema web para registro, análise e acompanhamento de apostas esportivas, com entrada de dados via IA (upload de print) e dashboard analítico completo.
+Sistema web completo para registro, análise e acompanhamento de apostas esportivas. Integra IA via Claude Vision para extração automática de apostas a partir de prints de tela.
 
 ---
 
 ## Visão Geral
 
-O BetManager resolve o principal problema de apostadores: o trabalho manual de registrar cada aposta individualmente. Com integração à IA (Claude Vision), o usuário tira um print da sua lista de apostas e o sistema extrai e salva tudo automaticamente.
+O BetManager resolve o problema de apostadores que perdem tempo registrando apostas manualmente. Com Claude Vision, o usuário tira um print da sua lista de apostas e o sistema extrai, estrutura e salva tudo automaticamente.
 
-### Funcionalidades principais
+### Funcionalidades
 
-- Upload de print → IA extrai apostas automaticamente
-- Dashboard com lucro por dia, semana, mês e ano
-- Estatísticas por esporte, casa de apostas e tipo de aposta
-- Metas mensais com acompanhamento de progresso
-- Histórico completo com filtros avançados
-- Registro manual como fallback
+- **Extração por IA** — upload de print → Claude Vision extrai apostas em JSON
+- **Dashboard** — lucro acumulado, win rate, ROI, banca atual com animações
+- **Planilha** — histórico completo com filtros, paginação e edição inline
+- **Analytics avançado** — calibração de odds, drawdown, heatmap semanal
+- **Metas mensais** — progresso por mês/ano com ring de progresso visual
+- **Perfis de apostas** — segmente e compare diferentes estratégias
+- **Multi-unidade** — alterne entre R$ e unidades (U) globalmente
+- **Tema dark** — design system com CSS custom properties
 
 ---
 
-## Stack Tecnológica
+## Stack
 
-| Camada      | Tecnologia                   |
-|-------------|-------------------------------|
-| Frontend    | React 18 + Vite + TypeScript  |
-| Backend     | Node.js + Express + TypeScript|
-| Banco       | PostgreSQL 15                 |
-| IA          | Claude API (Haiku / Sonnet)   |
-| Container   | Docker + Docker Compose       |
-| ORM         | Prisma                        |
-| Autenticação| JWT (fase 5 — nuvem)          |
+| Camada      | Tecnologia                        |
+|-------------|-----------------------------------|
+| Frontend    | React 18 + Vite + TypeScript      |
+| Backend     | Node.js + Express + TypeScript    |
+| Banco       | PostgreSQL 15                     |
+| ORM         | Prisma                            |
+| IA          | Claude API (Haiku / Sonnet)       |
+| Container   | Docker + Docker Compose           |
+| Charts      | Recharts                          |
+| Data fetch  | React Query (TanStack Query v5)   |
 
 ---
 
 ## Estrutura do Projeto
 
 ```
-betmanager/
+BetManager/
 ├── frontend/
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── Dashboard/
-│   │   │   ├── BetForm/
-│   │   │   ├── BetUpload/       # Upload de prints via IA
-│   │   │   ├── Statistics/
-│   │   │   ├── History/
-│   │   │   └── Goals/
-│   │   ├── pages/
-│   │   ├── hooks/
-│   │   ├── services/            # Chamadas à API
-│   │   └── types/
-│   ├── package.json
-│   └── vite.config.ts
+│   └── src/
+│       ├── pages/
+│       │   ├── Dashboard.tsx      # KPIs, gráfico de lucro, bets recentes
+│       │   ├── Spreadsheet.tsx    # Planilha completa por perfil
+│       │   ├── Analytics.tsx      # Calibração odds, drawdown, heatmap
+│       │   ├── Goals.tsx          # Metas mensais com progresso
+│       │   ├── NewBet.tsx         # Registro manual + upload IA
+│       │   ├── History.tsx        # Histórico com filtros avançados
+│       │   ├── Statistics.tsx     # Estatísticas por sport/bookmaker
+│       │   └── Settings.tsx       # Configurações de perfis e unidade
+│       ├── hooks/
+│       │   ├── useDashboard.ts    # Dashboard, heatmap, analytics
+│       │   ├── useGoals.ts        # CRUD metas
+│       │   ├── useBets.ts         # CRUD apostas
+│       │   └── useConfig.ts       # Configurações globais
+│       ├── contexts/
+│       │   └── UnitContext.tsx    # Toggle R$ / U global
+│       ├── services/
+│       │   └── dashboardService.ts
+│       └── types/
+│           └── dashboard.types.ts
 │
 ├── backend/
-│   ├── src/
-│   │   ├── server.ts
-│   │   ├── routes/
-│   │   │   ├── bets.ts
-│   │   │   ├── dashboard.ts
-│   │   │   ├── statistics.ts
-│   │   │   ├── goals.ts
-│   │   │   └── aiExtract.ts
-│   │   ├── services/
-│   │   │   ├── aiService.ts     # Integração Claude API
-│   │   │   └── statsService.ts
-│   │   ├── middlewares/
-│   │   └── prisma/              # Prisma client
-│   ├── prisma/
-│   │   ├── schema.prisma        # Schema do banco
-│   │   └── migrations/         # Migrations geradas
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── Dockerfile
+│   └── src/
+│       ├── routes/
+│       │   ├── bets.ts
+│       │   ├── dashboard.ts
+│       │   ├── statistics.ts      # /heatmap, /profile-detail, etc.
+│       │   ├── goals.ts
+│       │   ├── config.ts
+│       │   └── ai.ts              # Extração via Claude Vision
+│       ├── services/
+│       │   ├── statisticsService.ts
+│       │   └── aiService.ts
+│       └── controllers/
+│           └── statisticsController.ts
+│
+├── prisma/
+│   ├── schema.prisma
+│   └── migrations/
 │
 ├── docs/
 │   ├── architecture.md
 │   ├── database-schema.md
-│   ├── use-cases.md
 │   ├── api-spec.md
-│   ├── test-cases.md
 │   └── roadmap.md
 │
-├── docker-compose.yml
-└── README.md
+└── docker-compose.yml
 ```
 
 ---
 
-## Como Rodar Localmente
+## Como Rodar
 
 ### Pré-requisitos
 
-- Docker Desktop instalado
-- Chave da API da Anthropic (Claude)
-
-### Subir o ambiente
+- Docker Desktop
+- Chave da API da Anthropic
 
 ```bash
-# 1. Clonar o repositório
+# 1. Clonar
 git clone <repo-url>
-cd betmanager
+cd BetManager
 
-# 2. Configurar variáveis de ambiente
+# 2. Configurar env
 cp .env.example .env
-# Editar .env com sua ANTHROPIC_API_KEY
+# Editar .env com ANTHROPIC_API_KEY
 
-# 3. Subir todos os serviços
+# 3. Subir
 docker-compose up -d
 
-# 4. Acessar
 # Frontend: http://localhost:5173
-# Backend:  http://localhost:8000
-# API:      http://localhost:3000
+# Backend:  http://localhost:3000
 ```
 
-### Variáveis de ambiente (.env)
+### Variáveis de ambiente
 
 ```env
 ANTHROPIC_API_KEY=sk-ant-...
@@ -128,31 +129,76 @@ PORT=3000
 
 ---
 
-## Fluxo Principal: Registro via Print
+## Endpoints da API
+
+| Método | Rota                          | Descrição                         |
+|--------|-------------------------------|-----------------------------------|
+| GET    | /api/dashboard                | KPIs, gráfico de lucro, recentes  |
+| GET    | /api/stats/profile-detail     | Detalhes por perfil + odds        |
+| GET    | /api/stats/heatmap            | Lucro por dia da semana           |
+| GET    | /api/goals                    | Lista de metas                    |
+| POST   | /api/goals                    | Criar meta                        |
+| PATCH  | /api/goals/:id                | Atualizar meta                    |
+| DELETE | /api/goals/:id                | Remover meta                      |
+| GET    | /api/bets                     | Listar apostas (com filtros)      |
+| POST   | /api/bets                     | Criar aposta                      |
+| PATCH  | /api/bets/:id                 | Atualizar aposta                  |
+| DELETE | /api/bets/:id                 | Remover aposta                    |
+| POST   | /api/ai/extract               | Extrair apostas de print via IA   |
+| GET    | /api/config                   | Configurações (perfis, unidade)   |
+| PATCH  | /api/config                   | Atualizar configurações           |
+
+---
+
+## Fluxo: Registro via Print
 
 ```
-1. Usuário acessa "Nova Aposta" → clica em "Enviar Print"
-2. Faz upload da imagem (screenshot da casa de apostas)
-3. Backend envia imagem para Claude Vision API
-4. IA retorna JSON estruturado com as apostas detectadas
+1. Usuário clica em "Enviar Print" em Nova Aposta
+2. Upload da imagem (screenshot da casa de apostas)
+3. Backend envia para Claude Vision API
+4. IA retorna JSON com apostas detectadas
 5. Frontend exibe formulário pré-preenchido para revisão
-6. Usuário confirma ou ajusta os dados
-7. Apostas salvas no banco de dados
+6. Usuário confirma → apostas salvas no banco
 ```
 
 ---
 
-## Roadmap Resumido
+## Páginas
 
-| Fase | Descrição                        | Status  |
-|------|----------------------------------|---------|
-| 1    | Backend + banco + CRUD básico    | Pendente|
-| 2    | Integração IA (extração de print)| Pendente|
-| 3    | Dashboard e estatísticas         | Pendente|
-| 4    | Metas e alertas                  | Pendente|
-| 5    | Deploy em nuvem                  | Pendente|
+### Dashboard
+KPIs em tempo real (lucro total, ROI, win rate, streak), gráfico de lucro acumulado interativo, apostas recentes. FAB flutuante para nova aposta.
 
-Ver detalhes em [docs/roadmap.md](docs/roadmap.md)
+### Analytics
+Três painéis com layout sidebar + gráfico:
+- **Calibração de Odds** — hit rate real vs breakeven por bucket de odds
+- **Drawdown** — pico de banca vs lucro acumulado, área de risco visualizada
+- **Heatmap Semanal** — lucro, hit rate e ROI por dia da semana (Seg → Dom)
+
+### Planilha
+Tabela paginada com todas as apostas filtradas por perfil. Edição inline, ordenação, indicadores de resultado coloridos.
+
+### Metas
+Cards mensais com anel de progresso SVG, KPIs de acompanhamento e histórico anual. Modal para criar/editar metas.
+
+### Configurações
+Gestão de perfis de aposta (criar, renomear, excluir), toggle de unidade monetária (R$ / U), configuração de banca inicial.
+
+---
+
+## Status do Desenvolvimento
+
+| Funcionalidade               | Status       |
+|------------------------------|--------------|
+| CRUD de apostas              | ✅ Completo  |
+| Extração por IA              | ✅ Completo  |
+| Dashboard + gráficos         | ✅ Completo  |
+| Planilha com perfis          | ✅ Completo  |
+| Metas mensais                | ✅ Completo  |
+| Analytics (odds/drawdown)    | ✅ Completo  |
+| Heatmap semanal              | ✅ Completo  |
+| Toggle R$ / Unidades         | ✅ Completo  |
+| Autenticação multi-usuário   | 🔲 Pendente  |
+| Deploy em nuvem              | 🔲 Pendente  |
 
 ---
 
@@ -160,7 +206,5 @@ Ver detalhes em [docs/roadmap.md](docs/roadmap.md)
 
 - [Arquitetura Técnica](docs/architecture.md)
 - [Schema do Banco de Dados](docs/database-schema.md)
-- [Casos de Uso](docs/use-cases.md)
 - [Especificação da API](docs/api-spec.md)
-- [Casos de Teste](docs/test-cases.md)
 - [Roadmap](docs/roadmap.md)
