@@ -85,6 +85,44 @@ Saída correta — liste TODOS os jogos no "jogo" e combine seleções por jogo 
   "odds_multiplas": [1.66, 1.25]
 }
 
+════ PLAYER PROPS (PROPS DE JOGADORES) ════
+Muitas casas exibem apostas em estatísticas individuais de jogadores, chamadas de Player Props.
+Formato visual: "Nome do Jogador - Stat+ Quantidade" (ex: "Lebron James - 25+ Pontos")
+São identificadas por terem o nome de um jogador + tipo de estatística (Pontos, Rebotes, Assistências, Roubadas, etc.)
+
+REGRA: Props de jogadores do MESMO JOGO formam UMA ÚNICA seleção agrupada.
+Cada prop individual é separada por vírgula dentro das chaves {}.
+
+Exemplo — bilhete de player props do jogo SA Spurs x OKC Thunder:
+  - Stephon Castle - 10+ Assistências
+  - Victor Wembanyama - 20+ Rebotes
+  - Alex Caruso - 30+ Pontos
+
+Saída correta:
+{
+  "tipo": "combinada",
+  "jogo": "SA Spurs x OKC Thunder",
+  "mercado": "SA Spurs x OKC Thunder {Stephon Castle - 10+ Assistências, Victor Wembanyama - 20+ Rebotes, Alex Caruso - 30+ Pontos}",
+  "odds_multiplas": [odd1, odd2, odd3]
+}
+
+Exemplo misto — props de jogadores + aposta em time no mesmo bilhete:
+  Jogo 1: Lakers x Celtics
+    - Lebron James - 30+ Pontos
+    - Anthony Davis - 15+ Rebotes
+  Jogo 2: Flamengo x Corinthians
+    - Resultado Final: Flamengo
+
+Saída correta:
+{
+  "tipo": "combinada",
+  "jogo": "Lakers x Celtics; Flamengo x Corinthians",
+  "mercado": "Lakers x Celtics {Lebron James - 30+ Pontos, Anthony Davis - 15+ Rebotes}; Flamengo x Corinthians {Resultado Final: Flamengo}"
+}
+
+ATENÇÃO: Leia TODAS as seleções de props — elas costumam aparecer empilhadas verticalmente.
+Não pare na primeira seleção. Percorra toda a imagem de cima a baixo.
+
 ════ RESULTADO — PALAVRAS-CHAVE ════
 "won"     → Retorno Obtido / Ganhou / Won / Cash Out
 "lost"    → Perdeu / Sem Retorno / Lost
@@ -97,6 +135,7 @@ Saída correta — liste TODOS os jogos no "jogo" e combine seleções por jogo 
 - "jogo" DEVE listar TODOS os jogos únicos separados por ponto-e-vírgula (;)
 - Nunca quebre uma aposta combinada em múltiplas entradas
 - Varredure a imagem INTEIRA para identificar todos os jogos do bilhete, mesmo em seções diferentes
+- Para player props: capture TODOS os jogadores listados, não apenas o primeiro
 - Use null para campos não identificáveis
 - Valores monetários SEMPRE como número`
 }
