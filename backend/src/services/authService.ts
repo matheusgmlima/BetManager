@@ -108,10 +108,13 @@ export async function login(emailOrUsername: string, password: string) {
   return {
     token,
     user: {
-      id:        user.id,
-      username:  user.username,
-      email:     user.email,
-      unitValue: Number(user.unitValue),
+      id:                 user.id,
+      username:           user.username,
+      email:              user.email,
+      unitValue:          Number(user.unitValue),
+      role:               user.role,
+      accessExpiresAt:    user.accessExpiresAt,
+      mustChangePassword: user.mustChangePassword,
     },
   }
 }
@@ -121,7 +124,7 @@ export async function login(emailOrUsername: string, password: string) {
 export async function getMe(userId: number) {
   const user = await prisma.user.findUnique({
     where:  { id: userId },
-    select: { id: true, username: true, email: true, unitValue: true, createdAt: true },
+    select: { id: true, username: true, email: true, unitValue: true, createdAt: true, role: true, accessExpiresAt: true, mustChangePassword: true },
   })
   if (!user) throw new AppError('Usuario nao encontrado', 404, 'USER_NOT_FOUND')
   return { ...user, unitValue: Number(user.unitValue) }
@@ -191,6 +194,28 @@ export async function forgotPassword(email: string) {
 
   await sendResetPasswordEmail(email, user.username, token)
   return { message: 'Se o email existir, um link de redefinicao foi enviado.' }
+}
+
+// Setup Account (first login)
+
+export async function setupAccount(userId: number, username: string, newPassword: string) {
+  if (!username || username.length < 3) {
+    throw new AppError('Username deve ter pelo menos 3 caracteres', 400, 'INVALID_USERNAME', 'username')
+  }
+  if (newPassword.length < 8) {
+    throw new AppError('A senha deve ter pelo menos 8 caracteres', 400, 'WEAK_PASSWORD', 'password')
+  }
+  const existing = await prisma.user.findUnique({ where: { username } })
+  if (existing && existing.id !== userId) {
+    throw new AppError('Nome de usuário já em uso', 409, 'USERNAME_TAKEN', 'username')
+  }
+  const passwordHash = await bcrypt.hash(newPassword, 12)
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { username, passwordHash, mustChangePassword: false },
+    select: { id: true, username: true, email: true, unitValue: true, role: true, accessExpiresAt: true, mustChangePassword: true },
+  })
+  return { ...user, unitValue: Number(user.unitValue) }
 }
 
 // Reset Password

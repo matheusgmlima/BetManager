@@ -86,6 +86,17 @@ export async function forgotPassword(req: Request, res: Response, next: NextFunc
   }
 }
 
+export async function setupAccount(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { username, password } = req.body
+    if (!username || !password) {
+      throw new AppError('username e password são obrigatórios', 400, 'MISSING_FIELDS')
+    }
+    const result = await authService.setupAccount(req.user!.userId, username, password)
+    res.json(result)
+  } catch (err) { next(err) }
+}
+
 export async function resetPassword(req: Request, res: Response, next: NextFunction) {
   try {
     const { token, password } = req.body

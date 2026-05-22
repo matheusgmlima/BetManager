@@ -8,6 +8,7 @@ import goalsRouter      from './goals'
 import aiRouter         from './ai'
 import configRouter     from './config'
 import bankrollRouter   from './bankroll'
+import adminRouter      from './admin'
 
 const router = Router()
 
@@ -23,5 +24,6 @@ router.use('/goals',     goalsRouter)
 router.use('/ai',        aiRouter)
 router.use('/config',    configRouter)
 router.use('/bankroll',  bankrollRouter)
+router.use('/admin',     adminRouter)
 
 export default router
