@@ -119,16 +119,6 @@ function SelectField({ value, onChange, children }: { value: string; onChange: (
   )
 }
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0' }}>
-      <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{label}</span>
-      <div onClick={() => onChange(!checked)} style={{ width: 36, height: 20, borderRadius: 10, background: checked ? 'var(--purple-500)' : 'var(--bg-card)', border: '1px solid var(--border)', cursor: 'pointer', position: 'relative', transition: 'background 0.15s' }}>
-        <div style={{ width: 14, height: 14, borderRadius: '50%', background: '#fff', position: 'absolute', top: 2, left: checked ? 18 : 2, transition: 'left 0.15s' }} />
-      </div>
-    </div>
-  )
-}
 
 function Btn({ onClick, variant = 'primary', disabled, full, children }: { onClick?: () => void; variant?: 'primary' | 'danger' | 'ghost'; disabled?: boolean; full?: boolean; children: React.ReactNode }) {
   const styles: Record<string, string> = {
@@ -146,13 +136,11 @@ function Btn({ onClick, variant = 'primary', disabled, full, children }: { onCli
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => void; onSave: () => void }) {
-  const [role, setRole]           = useState<string>(user.role)
-  const [expiry, setExpiry]       = useState(user.accessExpiresAt ? user.accessExpiresAt.split('T')[0] : '')
-  const [emailVerified, setEmailVerified]         = useState(user.emailVerified)
-  const [mustChangePwd, setMustChangePwd]         = useState(user.mustChangePassword)
-  const [loading, setLoading]     = useState(false)
-  const [err, setErr]             = useState('')
-  const [tempPass, setTempPass]   = useState('')
+  const [role, setRole]       = useState<string>(user.role)
+  const [expiry, setExpiry]   = useState(user.accessExpiresAt ? user.accessExpiresAt.split('T')[0] : '')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr]         = useState('')
+  const [resetSent, setResetSent] = useState(false)
 
   const isLifetime = role === 'admin' || role === 'permanent' || role === 'partner'
 
@@ -162,20 +150,18 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
       await axios.patch(`${API}/admin/users/${user.id}`, {
         role,
         accessExpiresAt: isLifetime ? null : (expiry || null),
-        emailVerified,
-        mustChangePassword: mustChangePwd,
       })
       onSave(); onClose()
     } catch (e: any) { setErr(e?.response?.data?.error ?? 'Erro ao salvar') }
     finally { setLoading(false) }
   }
 
-  const resetPwd = async () => {
+  const sendReset = async () => {
     setLoading(true); setErr('')
     try {
-      const { data } = await axios.post(`${API}/admin/users/${user.id}/reset-password`)
-      setTempPass(data.tempPassword)
-    } catch (e: any) { setErr(e?.response?.data?.error ?? 'Erro') }
+      await axios.post(`${API}/admin/users/${user.id}/send-reset`)
+      setResetSent(true)
+    } catch (e: any) { setErr(e?.response?.data?.error ?? 'Erro ao enviar reset') }
     finally { setLoading(false) }
   }
 
@@ -189,12 +175,11 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
             {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
           </SelectField>
         </Field>
-        {!isLifetime && (
+        {!isLifetime ? (
           <Field label="Acesso até">
             <Input type="date" value={expiry} onChange={setExpiry} />
           </Field>
-        )}
-        {isLifetime && (
+        ) : (
           <Field label="Acesso">
             <Input value="Vitalício" disabled />
           </Field>
@@ -202,11 +187,14 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
         <Field label="Membro desde">
           <Input value={new Date(user.createdAt).toLocaleDateString('pt-BR')} disabled />
         </Field>
-      </div>
-
-      <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 12px' }}>
-        <Toggle checked={emailVerified} onChange={setEmailVerified} label="Email verificado" />
-        <Toggle checked={mustChangePwd} onChange={setMustChangePwd} label="Forçar troca de senha no próximo login" />
+        <Field label="Email">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36 }}>
+            {user.emailVerified
+              ? <span style={{ fontSize: 12, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 4 }}>✓ Verificado</span>
+              : <span style={{ fontSize: 12, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>✗ Não verificado</span>
+            }
+          </div>
+        </Field>
       </div>
 
       {/* Stats read-only */}
@@ -230,17 +218,16 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
       </div>
 
       {err && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{err}</p>}
-
-      {tempPass && (
-        <div style={{ background: 'var(--bg-card)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, border: '1px solid #f59e0b40' }}>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>Senha temporária:</p>
-          <code style={{ fontSize: 16, fontWeight: 800, color: '#f59e0b', letterSpacing: '0.1em' }}>{tempPass}</code>
-          <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>Anote — não será exibida novamente.</p>
-        </div>
+      {resetSent && (
+        <p style={{ fontSize: 12, color: 'var(--green)', marginBottom: 12 }}>
+          ✓ Email de redefinição enviado para {user.email}
+        </p>
       )}
 
       <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
-        <Btn variant="ghost" onClick={resetPwd} disabled={loading}>Resetar senha</Btn>
+        <Btn variant="ghost" onClick={sendReset} disabled={loading || resetSent}>
+          {resetSent ? 'Email enviado' : 'Enviar reset por email'}
+        </Btn>
         <div style={{ display: 'flex', gap: 8 }}>
           <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
           <Btn onClick={save} disabled={loading}>{loading ? 'Salvando…' : 'Salvar'}</Btn>
@@ -253,23 +240,22 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
 // ─── Create Modal ─────────────────────────────────────────────────────────────
 
 function CreateModal({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
-  const [username, setUsername] = useState('')
   const [email, setEmail]       = useState('')
   const [role, setRole]         = useState<string>('subscriber')
   const [expiry, setExpiry]     = useState('')
   const [loading, setLoading]   = useState(false)
   const [err, setErr]           = useState('')
-  const [created, setCreated]   = useState<{ username: string; tempPassword: string } | null>(null)
+  const [created, setCreated]   = useState<{ email: string } | null>(null)
   const isLifetime = role === 'admin' || role === 'permanent' || role === 'partner'
 
   const create = async () => {
     setLoading(true); setErr('')
     try {
       const { data } = await axios.post(`${API}/admin/users`, {
-        username, email, role,
+        email, role,
         accessExpiresAt: isLifetime ? undefined : (expiry || undefined),
       })
-      setCreated({ username: data.username, tempPassword: data.tempPassword })
+      setCreated({ email: data.email })
       onSave()
     } catch (e: any) { setErr(e?.response?.data?.error ?? 'Erro ao criar') }
     finally { setLoading(false) }
@@ -278,14 +264,17 @@ function CreateModal({ onClose, onSave }: { onClose: () => void; onSave: () => v
   if (created) return (
     <Modal title="Usuário criado!" onClose={onClose}>
       <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
-        <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 20 }}>
-          Conta de <strong style={{ color: 'var(--text-primary)' }}>{created.username}</strong> criada.
+        <div style={{ fontSize: 40, marginBottom: 12 }}>✉️</div>
+        <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
+          Email enviado!
         </p>
-        <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: '16px 20px', border: '1px solid #f59e0b40' }}>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>SENHA TEMPORÁRIA</p>
-          <code style={{ fontSize: 24, fontWeight: 800, color: '#f59e0b', letterSpacing: '0.12em' }}>{created.tempPassword}</code>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>O usuário deverá trocar no primeiro login.</p>
-        </div>
+        <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 20 }}>
+          Um email com as credenciais de acesso foi enviado para<br />
+          <strong style={{ color: 'var(--text-primary)' }}>{created.email}</strong>
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+          No primeiro login, o usuário escolherá seu username e senha.
+        </p>
       </div>
       <Btn full onClick={onClose}>Fechar</Btn>
     </Modal>
@@ -293,18 +282,26 @@ function CreateModal({ onClose, onSave }: { onClose: () => void; onSave: () => v
 
   return (
     <Modal title="Criar usuário" onClose={onClose}>
-      <Field label="Username"><Input value={username} onChange={setUsername} placeholder="joao123" /></Field>
-      <Field label="Email"><Input type="email" value={email} onChange={setEmail} placeholder="joao@email.com" /></Field>
+      <Field label="Email">
+        <Input type="email" value={email} onChange={setEmail} placeholder="usuario@email.com" />
+      </Field>
       <Field label="Role">
         <SelectField value={role} onChange={setRole}>
           {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
         </SelectField>
       </Field>
-      {!isLifetime && <Field label="Acesso até (opcional)"><Input type="date" value={expiry} onChange={setExpiry} /></Field>}
+      {!isLifetime && (
+        <Field label="Acesso até (opcional)">
+          <Input type="date" value={expiry} onChange={setExpiry} />
+        </Field>
+      )}
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
+        O usuário receberá um email com as credenciais de acesso temporárias.
+      </p>
       {err && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{err}</p>}
       <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
         <Btn variant="ghost" onClick={onClose}>Cancelar</Btn>
-        <Btn onClick={create} disabled={loading || !username || !email}>{loading ? 'Criando…' : 'Criar'}</Btn>
+        <Btn onClick={create} disabled={loading || !email}>{loading ? 'Criando…' : 'Criar e enviar email'}</Btn>
       </div>
     </Modal>
   )

@@ -12,7 +12,8 @@ router.post('/forgot-password',     authController.forgotPassword)
 router.post('/reset-password',      authController.resetPassword)
 
 // Protected
-router.get ('/me',        authenticate, authController.me)
-router.patch('/me/unit',  authenticate, authController.updateUnit)
+router.get  ('/me',             authenticate, authController.me)
+router.patch('/me/unit',        authenticate, authController.updateUnit)
+router.patch('/setup-account',  authenticate, authController.setupAccount)
 
 export default router

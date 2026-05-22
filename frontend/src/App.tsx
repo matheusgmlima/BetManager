@@ -19,6 +19,7 @@ import Register from './pages/Register'
 import VerifyEmail from './pages/VerifyEmail'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
+import SetupAccount from './pages/SetupAccount'
 import { Tutorial, useTutorial } from './components/Tutorial'
 
 const queryClient = new QueryClient({
@@ -465,6 +466,7 @@ function ProtectedRoutes() {
     </div>
   )
   if (!user) return <Navigate to="/login" replace />
+  if (user.mustChangePassword) return <Navigate to="/setup-conta" replace />
   return (
     <Layout>
       <Routes>
@@ -496,6 +498,7 @@ export default function App() {
               <Route path="/verificar-email" element={<VerifyEmail />} />
               <Route path="/esqueci-senha"    element={<ForgotPassword />} />
               <Route path="/redefinir-senha"  element={<ResetPassword />} />
+              <Route path="/setup-conta"      element={<SetupAccount />} />
               <Route path="/*" element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>
