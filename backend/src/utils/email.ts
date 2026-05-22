@@ -5,7 +5,7 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587')
 const SMTP_USER = process.env.SMTP_USER
 const SMTP_PASS = process.env.SMTP_PASS
 const SMTP_FROM = process.env.SMTP_FROM || 'BetManager <noreply@betmanager.app>'
-const APP_URL   = process.env.APP_URL  || 'http://localhost:5173'
+const APP_URL   = process.env.APP_URL  || 'https://betmanager.app.br'
 
 function createTransporter() {
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) return null

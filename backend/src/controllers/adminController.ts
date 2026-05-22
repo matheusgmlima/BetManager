@@ -8,7 +8,8 @@ export async function listUsers(req: Request, res: Response, next: NextFunction)
 
 export async function updateUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = parseInt(req.params.id)
+    const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    const userId = parseInt(idParam, 10)
     if (isNaN(userId)) throw new AppError('ID inválido', 400, 'INVALID_ID')
     res.json(await adminService.updateUser(userId, req.body))
   } catch (err) { next(err) }
@@ -24,7 +25,8 @@ export async function createUser(req: Request, res: Response, next: NextFunction
 
 export async function sendPasswordReset(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = parseInt(req.params.id)
+    const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    const userId = parseInt(idParam, 10)
     if (isNaN(userId)) throw new AppError('ID inválido', 400, 'INVALID_ID')
     res.json(await adminService.sendPasswordReset(userId))
   } catch (err) { next(err) }
@@ -32,7 +34,8 @@ export async function sendPasswordReset(req: Request, res: Response, next: NextF
 
 export async function deleteUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const userId = parseInt(req.params.id)
+    const idParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id
+    const userId = parseInt(idParam, 10)
     if (isNaN(userId)) throw new AppError('ID inválido', 400, 'INVALID_ID')
     res.json(await adminService.deleteUser(userId, req.user!.userId))
   } catch (err) { next(err) }
