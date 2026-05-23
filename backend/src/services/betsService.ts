@@ -100,7 +100,7 @@ export async function listBets(userId: number, filters: BetFiltersInput): Promis
 
 export async function getBetById(userId: number, id: number): Promise<BetWithRelations> {
   const bet = await prisma.bet.findFirst({ where: { id, userId }, select: betSelect })
-  if (!bet) throw new AppError('Aposta não encontrada', 404, 'BET_NOT_FOUND')
+  if (!bet) throw new AppError('Aposta nao encontrada', 404, 'BET_NOT_FOUND')
   return formatBet(bet)
 }
 
@@ -130,7 +130,32 @@ export async function createBet(userId: number, data: CreateBetInput): Promise<B
 }
 
 export async function createBetsBatch(userId: number, bets: CreateBetInput[]): Promise<BetWithRelations[]> {
-  return Promise.all(bets.map(b => createBet(userId, b)))
+  const rows = await prisma.$transaction(
+    bets.map(b =>
+      prisma.bet.create({
+        data: {
+          userId,
+          date: new Date(b.date),
+          match: b.match ?? null,
+          market: b.market,
+          sportId: b.sportId,
+          bookmakerId: b.bookmakerId,
+          betType: b.betType,
+          isCombined: b.betType === 'combined',
+          amountWagered: b.amountWagered,
+          odds: b.odds,
+          payout: b.payout,
+          result: b.result,
+          notes: b.notes,
+          combinedId: b.combinedId,
+          bettingProfileId: b.bettingProfileId,
+          tipsterId: b.tipsterId,
+        },
+        select: betSelect,
+      })
+    )
+  )
+  return rows.map(formatBet)
 }
 
 export async function updateBet(userId: number, id: number, data: UpdateBetInput): Promise<BetWithRelations> {

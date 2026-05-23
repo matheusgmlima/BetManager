@@ -4,11 +4,11 @@ export const createBetSchema = z.object({
   date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD')
-    .refine((d) => new Date(d) <= new Date(), { message: 'Data não pode ser futura' }),
+    .refine((d) => new Date(d) <= new Date(), { message: 'Data nao pode ser futura' }),
   match: z.string().max(200).optional().nullable(),
-  market: z.string().min(1, 'Mercado é obrigatório').max(500),
+  market: z.string().min(1, 'Mercado e obrigatorio').max(500),
   sportId: z.number().int().positive().optional(),
-  bookmakerId: z.number().int().positive({ message: 'Casa de apostas é obrigatória' }),
+  bookmakerId: z.number().int().positive({ message: 'Casa de apostas e obrigatoria' }),
   betType: z.enum(['simple', 'combined']),
   amountWagered: z.number().positive({ message: 'Valor apostado deve ser maior que zero' }),
   odds: z.number().min(1.0, 'Odd deve ser >= 1.0').optional().nullable(),
@@ -27,8 +27,14 @@ export const resultUpdateSchema = z.object({
   payout: z.number().min(0),
 })
 
+const batchItemSchema = createBetSchema.extend({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD'),
+})
+
 export const batchBetSchema = z.object({
-  bets: z.array(createBetSchema).min(1, 'Pelo menos uma aposta é necessária'),
+  bets: z.array(batchItemSchema).min(1, 'Pelo menos uma aposta e necessaria'),
 })
 
 export const betFiltersSchema = z.object({

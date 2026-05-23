@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal } from '../hooks/useGoals'
 import { useTipsterDetail } from '../hooks/useDashboard'
 import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
@@ -104,9 +105,15 @@ function GoalModal({ editing, onClose }: {
     if (isNaN(t) || t <= 0) { setError('Informe um valor maior que zero'); return }
     setError('')
     if (isEdit) {
-      update.mutate({ id: editing.id!, data: { targetProfit: t } }, { onSuccess: onClose })
+      update.mutate({ id: editing.id!, data: { targetProfit: t } }, {
+        onSuccess: () => { toast.success('Meta atualizada!'); onClose() },
+        onError: () => { toast.error('Erro ao atualizar meta.') },
+      })
     } else {
-      create.mutate({ month, year, targetProfit: t }, { onSuccess: onClose })
+      create.mutate({ month, year, targetProfit: t }, {
+        onSuccess: () => { toast.success('Meta criada!'); onClose() },
+        onError: () => { toast.error('Erro ao criar meta.') },
+      })
     }
   }
 
@@ -752,11 +759,6 @@ export default function Goals() {
   const goalsForYear = goals.filter(g => g.year === year)
   const s = yearData?.summary
 
-  const handleDelete = (id: number) => {
-    deleteGoal.mutate(id)
-    setDelId(null)
-    setSelMonth(null)
-  }
 
   const handleProfileSelect = (p: ProfileStat) => {
     setSelProfile(prev => prev?.profile === p.profile ? null : p)
@@ -881,8 +883,11 @@ export default function Goals() {
             <p style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>Excluir meta?</p>
             <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 24 }}>Essa ação não pode ser desfeita.</p>
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-              <button onClick={() => setDelId(null)} style={btnGhost}>Cancelar</button>
-              <button onClick={() => delId !== null && handleDelete(delId)} style={{ ...btnPrimary, background: 'var(--red)' }}>Excluir</button>
+              <button onClick={() => setDelId(null)} style={{ padding: '9px 20px', borderRadius: 8, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}>Cancelar</button>
+              <button
+                onClick={async () => { await deleteGoal.mutateAsync(delId); setDelId(null); toast.success('Meta excluida!') }}
+                style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}
+              >Excluir</button>
             </div>
           </div>
         </div>

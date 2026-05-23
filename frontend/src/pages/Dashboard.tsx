@@ -3,6 +3,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { useNavigate } from 'react-router-dom'
+import { SkeletonPill, SkeletonCard, SkeletonBar } from '../components/Skeleton'
 import FloatingParticles from '../components/FloatingParticles'
 import SnakeBanner from '../components/SnakeBanner'
 import { useCountUp } from '../hooks/useCountUp'
@@ -199,9 +200,9 @@ export default function Dashboard() {
   const [period, setPeriod] = useState<DashboardPeriod>('month')
 
   const { data: dash, isLoading: loadingDash } = useDashboard(period)
-  const { data: sportStats = [] } = useSportStats()
-  const { data: bookmakerStats = [] } = useBookmakerStats()
-  const { data: tipsterStats = [] } = useTipsterStats()
+  const { data: sportStats = [], isLoading: loadingSports } = useSportStats()
+  const { data: bookmakerStats = [], isLoading: loadingBooks } = useBookmakerStats()
+  const { data: tipsterStats = [], isLoading: loadingTipsters } = useTipsterStats()
   const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
   const { data: dashAll } = useDashboard('all')
   const { data: monthlyStatsRaw = [] } = useQuery(['stats', 'monthly'], () => dashboardService.getMonthlyStats())
@@ -360,17 +361,21 @@ export default function Dashboard() {
               justifyContent: 'space-between', gap: 12, marginTop: 20,
             }}>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {[
-                  { label: 'ROI',       value: loadingDash ? '…' : `${roiAnim.toFixed(1)}%`,                          color: roi >= 0 ? '#22c55e' : '#ef4444' },
-                  { label: 'Win Rate',  value: loadingDash ? '…' : `${hitRate.toFixed(1)}%`,                          color: '#a78bfa' },
-                  { label: 'Apostas',   value: loadingDash ? '…' : String(summary?.totalBets ?? 0),                   color: '#818cf8' },
-                  { label: 'Odd média', value: loadingDash ? '…' : summary?.avgOdds ? summary.avgOdds.toFixed(2) : '—', color: '#c084fc' },
-                ].map(p => (
-                  <div key={p.label} style={{ padding: isMobile ? '6px 12px' : '8px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flex: isMobile ? '1 1 auto' : 'none', textAlign: isMobile ? 'center' : 'left' }}>
-                    <p style={{ fontSize: 10, color: '#6d5a9a', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{p.label}</p>
-                    <p style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: p.color, lineHeight: 1.2, marginTop: 2 }}>{p.value}</p>
-                  </div>
-                ))}
+                {loadingDash ? (
+                  Array.from({ length: 4 }).map((_, i) => <SkeletonPill key={i} />)
+                ) : (
+                  [
+                    { label: 'ROI',       value: `${roiAnim.toFixed(1)}%`,                          color: roi >= 0 ? '#22c55e' : '#ef4444' },
+                    { label: 'Win Rate',  value: `${hitRate.toFixed(1)}%`,                          color: '#a78bfa' },
+                    { label: 'Apostas',   value: String(summary?.totalBets ?? 0),                   color: '#818cf8' },
+                    { label: 'Odd média', value: summary?.avgOdds ? summary.avgOdds.toFixed(2) : '—', color: '#c084fc' },
+                  ].map(p => (
+                    <div key={p.label} style={{ padding: isMobile ? '6px 12px' : '8px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', flex: isMobile ? '1 1 auto' : 'none', textAlign: isMobile ? 'center' : 'left' }}>
+                      <p style={{ fontSize: 10, color: '#6d5a9a', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{p.label}</p>
+                      <p style={{ fontSize: isMobile ? 16 : 18, fontWeight: 800, color: p.color, lineHeight: 1.2, marginTop: 2 }}>{p.value}</p>
+                    </div>
+                  ))
+                )}
               </div>
               <button
                 onClick={() => navigate('/planilha')}
@@ -496,13 +501,14 @@ export default function Dashboard() {
         })()}
 
         {/* ── TIPSTERS ─────────────────────────────────────── */}
-        {tipsterStats.length > 0 && (
+        {(loadingTipsters || tipsterStats.length > 0) && (
           <div className="anim-slide-up" style={{ animationDelay: '160ms' }}>
             <Section label="Desempenho por tipster">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {tipsterStats.map((t, i) => (
-                  <TipsterCard key={t.tipster} t={t} i={i} />
-                ))}
+                {loadingTipsters
+                  ? Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} h={110} />)
+                  : tipsterStats.map((t, i) => <TipsterCard key={t.tipster} t={t} i={i} />)
+                }
               </div>
             </Section>
           </div>
@@ -569,7 +575,11 @@ export default function Dashboard() {
 
               {/* Por esporte */}
               <ChartCard title="Lucro por esporte (R$)" delay={200}>
-                {sportStats.length > 0 ? (
+                {loadingSports ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+                    {Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} width={`${80 - i * 12}%`} />)}
+                  </div>
+                ) : sportStats.length > 0 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={sportStats.slice(0, 7)} barSize={30}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" vertical={false} />
@@ -586,7 +596,11 @@ export default function Dashboard() {
 
               {/* Por casa */}
               <ChartCard title="Lucro por casa de apostas (R$)" delay={260}>
-                {bookmakerStats.length > 0 ? (
+                {loadingBooks ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '8px 0' }}>
+                    {Array.from({ length: 5 }).map((_, i) => <SkeletonBar key={i} width={`${75 - i * 10}%`} />)}
+                  </div>
+                ) : bookmakerStats.length > 0 ? (
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={bookmakerStats.slice(0, 6)} layout="vertical" barSize={20}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" horizontal={false} />
@@ -603,7 +617,7 @@ export default function Dashboard() {
 
               {/* Comparativo mensal */}
               {monthlyStats.length >= 2 && (
-                <ChartCard title="Comparativo mês a mês (Lucro R$)" delay={320}>
+                <ChartCard title="Comparativo mes a mes (Lucro R$)" delay={320}>
                   <ResponsiveContainer width="100%" height={210}>
                     <BarChart data={monthlyStats} barSize={32}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" vertical={false} />
@@ -611,14 +625,13 @@ export default function Dashboard() {
                         tickFormatter={(v: string) => { const [y, m] = v.split('-'); const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${names[parseInt(m)-1]}/${y.slice(2)}` }} />
                       <YAxis tick={{ fill: '#4a4a68', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${v}`} />
                       <Tooltip contentStyle={ttStyle} labelStyle={ttLabel} itemStyle={ttItem}
-                        labelFormatter={(v: string) => { const [y, m] = v.split('-'); const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']; return `${names[parseInt(m)-1]} ${y}` }}
+                        labelFormatter={(v: string) => { const [y, m] = v.split('-'); const names = ['Janeiro','Fevereiro','Marco','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']; return `${names[parseInt(m)-1]} ${y}` }}
                         formatter={(v: number, n: string) => [`R$ ${v.toFixed(2)}`, n === 'totalProfit' ? 'Lucro' : n === 'totalBets' ? 'Apostas' : n]} />
                       <Bar dataKey="totalProfit" radius={[6, 6, 0, 0]}>
                         {monthlyStats.map((e: any, i: number) => <Cell key={i} fill={e.totalProfit >= 0 ? '#7c3aed' : '#ef4444'} />)}
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                  {/* Last 2 months comparison */}
                   {monthlyStats.length >= 2 && (() => {
                     const cur  = monthlyStats[monthlyStats.length - 1] as any
                     const prev = monthlyStats[monthlyStats.length - 2] as any
@@ -626,19 +639,19 @@ export default function Dashboard() {
                     return (
                       <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mês anterior</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mes anterior</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: (prev?.totalProfit ?? 0) >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
                             {(prev?.totalProfit ?? 0) >= 0 ? '+' : ''}R$ {(prev?.totalProfit ?? 0).toFixed(2)}
                           </p>
                         </div>
                         <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mês atual</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mes atual</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: (cur?.totalProfit ?? 0) >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
                             {(cur?.totalProfit ?? 0) >= 0 ? '+' : ''}R$ {(cur?.totalProfit ?? 0).toFixed(2)}
                           </p>
                         </div>
                         <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: diff >= 0 ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)', border: `1px solid ${diff >= 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Variação</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Variacao</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: diff >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
                             {diff >= 0 ? '+' : ''}R$ {diff.toFixed(2)}
                           </p>
@@ -653,7 +666,7 @@ export default function Dashboard() {
           </Section>
         </div>
 
-        {/* ── APOSTAS PENDENTES ─────────────────────────────── */}
+        {/* Apostas pendentes */}
         {(dash?.pendingBets?.length ?? 0) > 0 && (
           <div className="anim-slide-up" style={{ animationDelay: '300ms' }}>
             <Section label="Apostas pendentes">
@@ -669,23 +682,20 @@ export default function Dashboard() {
                   >
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {b.match && <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.match}</p>}
-                      <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.market}</p>
+                      {b.match && <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.match}</p>}
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.market}</p>
                     </div>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{b.bookmaker}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
-                      R$ {b.amountWagered.toFixed(2)}
-                    </span>
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <p style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>{(b.bookmaker as any)?.name ?? b.bookmaker}</p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$ {Number(b.amountWagered).toFixed(2)}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </Section>
           </div>
         )}
-
       </div>
-
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }`}</style>
-    </>
+  </>
   )
 }

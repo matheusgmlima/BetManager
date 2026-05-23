@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, useNavigate, useLocation, Navigate } from 'react-router-dom'
+import { Toaster } from 'sonner'
 import { useState, useEffect, useRef, useMemo } from 'react'
 import type { UserRole } from './contexts/AuthContext'
 import SnakeLogo from './components/SnakeLogo'
@@ -375,6 +376,18 @@ export default function App() {
       <AuthProvider>
         <UnitProvider>
           <BrowserRouter>
+            <Toaster
+              position="bottom-right"
+              toastOptions={{
+                style: {
+                  background: '#12121f',
+                  border: '1px solid rgba(124,58,237,0.35)',
+                  color: '#e2e2f0',
+                  fontSize: '13px',
+                  borderRadius: '10px',
+                },
+              }}
+            />
             <Routes>
               <Route path="/login"           element={<Login />} />
               <Route path="/cadastro"        element={<Register />} />

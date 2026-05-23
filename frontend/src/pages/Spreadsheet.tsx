@@ -1,6 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { toast as sonnerToast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { useBets, useUpdateBet, useDeleteBet, useUpdateBetResult, useCreateBet } from '../hooks/useBets'
+import ImportModal from './ImportModal'
+import { EmptyState, EmptyStateRow } from '../components/EmptyState'
 import { useSports, useBookmakers, useTipsters, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
 import { useUnit } from '../contexts/UnitContext'
@@ -141,16 +144,19 @@ function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
 
+const SKEL_WIDTHS = [50, '75%', '55%', '60%', '50%', '40%', '45%', '50%', '40%', '35%', '30%']
+
 function SkeletonRow() {
   return (
     <tr style={{ borderBottom: '1px solid var(--border)' }}>
-      {Array.from({ length: 11 }).map((_, i) => (
+      {SKEL_WIDTHS.map((w, i) => (
         <td key={i} style={{ padding: '12px 14px' }}>
           <div style={{
             height: 13, borderRadius: 6,
-            background: 'linear-gradient(90deg, #1a1a2e 25%, #23233a 50%, #1a1a2e 75%)',
-            backgroundSize: '200% auto', animation: 'shimmer 1.5s linear infinite',
-            width: i === 1 ? '80%' : i === 0 ? 70 : '60%',
+            background: 'linear-gradient(90deg, #1a1a2e 25%, #242438 50%, #1a1a2e 75%)',
+            backgroundSize: '200% auto', animation: 'shimmer 1.4s linear infinite',
+            width: w,
+            animationDelay: `${i * 60}ms`,
           }} />
         </td>
       ))}
@@ -287,8 +293,12 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
           tipsterId:        form.tipsterId ? Number(form.tipsterId) : null,
         },
       })
+      sonnerToast.success('Aposta atualizada!')
       onClose()
-    } catch { setErr('Erro ao salvar. Tente novamente.') }
+    } catch {
+      setErr('Erro ao salvar. Tente novamente.')
+      sonnerToast.error('Erro ao salvar aposta.')
+    }
     finally { setSaving(false) }
   }
 
@@ -423,22 +433,59 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 // ─── Delete Confirm ───────────────────────────────────────────────────────────
 
 function DeleteConfirm({ bet, onClose, onConfirm }: { bet: Bet; onClose: () => void; onConfirm: () => void }) {
+  const [loading, setLoading] = useState(false)
+
+  const handleConfirm = async () => {
+    setLoading(true)
+    try { await onConfirm() } finally { setLoading(false) }
+  }
+
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, animation: 'anim-fade-in 0.15s ease' }}
+      onClick={e => { if (e.target === e.currentTarget && !loading) onClose() }}
     >
-      <div style={{ width: '100%', maxWidth: 380, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.4)', borderRadius: 16, padding: '28px 24px', boxShadow: '0 0 40px rgba(239,68,68,0.15)', textAlign: 'center' }}>
-        <div style={{ width: 52, height: 52, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12, marginLeft: 'auto', marginRight: 'auto', fontSize: 20, color: '#ef4444' }}>✕</div>
-        <p style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>Excluir aposta?</p>
-        <p style={{ fontSize: 12, color: '#6d5a9a', margin: '0 0 8px' }}>
-          {bet.match ? <><strong style={{ color: '#a78bfa' }}>{bet.match}</strong><br /></> : null}
-          <span>{bet.market}</span>
-        </p>
-        <p style={{ fontSize: 11, color: '#ef444480', marginBottom: 20 }}>Esta ação não pode ser desfeita.</p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
-          <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, background: 'none', border: '1px solid #2d1f5e', color: '#6d5a9a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
-          <button onClick={onConfirm} style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Excluir</button>
+      <div style={{ width: '100%', maxWidth: 400, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 18, padding: '32px 28px', boxShadow: '0 0 60px rgba(239,68,68,0.12), 0 24px 48px rgba(0,0,0,0.6)', textAlign: 'center' }}>
+        {/* Icon */}
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, marginLeft: 'auto', marginRight: 'auto', fontSize: 22 }}>
+          🗑️
+        </div>
+
+        <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 10px' }}>Excluir aposta?</p>
+
+        {/* Bet details */}
+        <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, textAlign: 'left' }}>
+          {bet.match && <p style={{ margin: '0 0 3px', fontSize: 12, fontWeight: 700, color: '#a78bfa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bet.match}</p>}
+          <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bet.market}</p>
+          <div style={{ display: 'flex', gap: 12, marginTop: 6 }}>
+            <span style={{ fontSize: 11, color: '#7070a0' }}>{bet.bookmaker?.name}</span>
+            <span style={{ fontSize: 11, color: '#7070a0' }}>R$ {Number(bet.amountWagered).toFixed(2)}</span>
+          </div>
+        </div>
+
+        <p style={{ fontSize: 12, color: 'rgba(239,68,68,0.6)', marginBottom: 24 }}>Esta ação não pode ser desfeita.</p>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onClose} disabled={loading}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'none', border: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.5 : 1, transition: 'all 0.15s' }}
+            onMouseEnter={e => { if (!loading) e.currentTarget.style.borderColor = '#4a3a6a' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)' }}
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm} disabled={loading}
+            style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: loading ? 'rgba(239,68,68,0.08)' : 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#ef4444', fontSize: 13, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            onMouseEnter={e => { if (!loading) { e.currentTarget.style.background = 'rgba(239,68,68,0.2)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.7)' } }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.4)' }}
+          >
+            {loading ? (
+              <><span style={{ width: 14, height: 14, border: '2px solid rgba(239,68,68,0.3)', borderTopColor: '#ef4444', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block' }} /> Excluindo...</>
+            ) : (
+              'Excluir'
+            )}
+          </button>
         </div>
       </div>
     </div>
@@ -866,22 +913,16 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const deleteBet = useDeleteBet()
   const updateResult = useUpdateBetResult()
   const createBet = useCreateBet()
 
-  function showToast(msg: string, ok = true) {
-    setToast({ msg, ok })
-    setTimeout(() => setToast(null), 2200)
-  }
-
   async function handleUpdateResult(id: number, result: BetResult, payout: number) {
     try {
       await updateResult.mutateAsync({ id, result, payout })
-      showToast('Resultado atualizado!')
+      sonnerToast.success('Resultado atualizado!')
     } catch {
-      showToast('Erro ao atualizar resultado', false)
+      sonnerToast.error('Erro ao atualizar resultado')
     }
   }
 
@@ -899,12 +940,12 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
         odds: bet.odds,
         payout: 0,
         result: 'pending',
-        notes: bet.notes,
+        notes: bet.notes ?? undefined,
         tipsterId: bet.tipster?.id,
       })
-      showToast('Aposta duplicada!')
+      sonnerToast.success('Aposta duplicada!')
     } catch {
-      showToast('Erro ao duplicar aposta', false)
+      sonnerToast.error('Erro ao duplicar aposta')
     }
   }
 
@@ -993,10 +1034,14 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   }
   async function handleBulkDelete() {
     setBulkLoading(true)
+    const count = selectedIds.size
     try {
       await Promise.all(Array.from(selectedIds).map(id => deleteBet.mutateAsync(id)))
       setSelectedIds(new Set())
       setBulkDeleting(false)
+      sonnerToast.success(`${count} aposta${count !== 1 ? 's' : ''} deletada${count !== 1 ? 's' : ''}.`)
+    } catch {
+      sonnerToast.error('Erro ao deletar apostas.')
     } finally {
       setBulkLoading(false)
     }
@@ -1057,28 +1102,16 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: selCount > 0 ? 80 : 0 }}>
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 9999, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-          background: toast.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
-          border: `1px solid ${toast.ok ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
-          color: toast.ok ? '#22c55e' : '#ef4444',
-          backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
-          animation: 'anim-slide-up 0.2s ease',
-          pointerEvents: 'none',
-        }}>
-          {toast.ok ? '✓ ' : '✕ '}{toast.msg}
-        </div>
-      )}
-
       {editingBet && <EditModal bet={editingBet} onClose={() => setEditingBet(null)} />}
       {deletingBet && (
         <DeleteConfirm
           bet={deletingBet}
           onClose={() => setDeletingBet(null)}
-          onConfirm={async () => { await deleteBet.mutateAsync(deletingBet.id); setDeletingBet(null) }}
+          onConfirm={async () => {
+            await deleteBet.mutateAsync(deletingBet.id)
+            setDeletingBet(null)
+            sonnerToast.success('Aposta deletada.')
+          }}
         />
       )}
       {bulkDeleting && (
@@ -1270,9 +1303,19 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
                 <div style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar.</div>
               )}
               {!isLoading && !isError && sorted.length === 0 && (
-                <div style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.
-                </div>
+                hasFilters ? (
+                  <EmptyState
+                    icon="🔍"
+                    title="Nenhuma aposta encontrada"
+                    description="Tente ajustar os filtros ou limpar a busca."
+                  />
+                ) : (
+                  <EmptyState
+                    icon="🎯"
+                    title="Nenhuma aposta ainda"
+                    description="Registre sua primeira aposta para começar a acompanhar seus resultados."
+                  />
+                )
               )}
               {!isLoading && monthGroups && monthGroups.map(([key, monthBets]) => {
                 const stats     = calcMonthStats(monthBets)
@@ -1336,7 +1379,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
 
         // ── MODO PAGINADO (original) ───────────────────────────────────────
         return (
-          <>
+        <>
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
@@ -1344,10 +1387,12 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
                   <tbody>
                     {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
                     {isError && (
-                      <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend está rodando.</td></tr>
+                      <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: '#ef4444', fontSize: 13 }}>Erro ao carregar. Verifique se o backend esta rodando.</td></tr>
                     )}
                     {!isLoading && !isError && sorted.length === 0 && (
-                      <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
+                      hasFilters
+                        ? <EmptyStateRow colSpan={11} icon="🔍" title="Nenhuma aposta encontrada" description="Tente ajustar os filtros ou limpar a busca." />
+                        : <EmptyStateRow colSpan={11} icon="🎯" title="Nenhuma aposta ainda" description="Registre sua primeira aposta para começar a acompanhar seus resultados." />
                     )}
                     {!isLoading && sorted.map((bet: Bet, i: number) => (
                       <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} />
@@ -1359,9 +1404,9 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
                         <td colSpan={5} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>
                           Totais ({summary.totalBets} apostas)
                         </td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>-</td>
                         <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: 'var(--text-primary)', background: 'rgba(9,9,15,0.5)', whiteSpace: 'nowrap' }}>{fmtMoney(summary.totalWagered)}</td>
-                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>—</td>
+                        <td style={{ padding: '10px 14px', textAlign: 'right', fontSize: 11, color: 'var(--text-muted)', background: 'rgba(9,9,15,0.5)' }}>-</td>
                         <td style={{ padding: '10px 14px', background: 'rgba(9,9,15,0.5)' }}>
                           {summary.hitRatePct != null && <span style={{ fontSize: 11, color: accentColor, fontWeight: 600 }}>{summary.hitRatePct.toFixed(1)}% acerto</span>}
                         </td>
@@ -1376,27 +1421,27 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
               </div>
             </div>
 
-            {/* Paginação */}
+            {/* Paginacao */}
             {pagination && totalPages > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Linhas por página:</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Linhas por pagina:</span>
                   <select value={perPage} onChange={e => { setPerPage(Number(e.target.value)); setPage(1) }} style={{ ...inputStyle, padding: '5px 8px', fontSize: 12 }}>
                     {PAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 4 }}>
-                    {(page - 1) * perPage + 1}–{Math.min(page * perPage, pagination.total)} de {pagination.total}
+                    {(page - 1) * perPage + 1}-{Math.min(page * perPage, pagination.total)} de {pagination.total}
                   </span>
-                  <PagBtn label="«" disabled={page === 1} onClick={() => setPage(1)} />
-                  <PagBtn label="‹" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
+                  <PagBtn label="first" disabled={page === 1} onClick={() => setPage(1)} />
+                  <PagBtn label="prev" disabled={page === 1} onClick={() => setPage(p => p - 1)} />
                   {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                     const p = totalPages <= 5 ? i + 1 : page <= 3 ? i + 1 : page >= totalPages - 2 ? totalPages - 4 + i : page - 2 + i
                     return <PagBtn key={p} label={String(p)} active={p === page} onClick={() => setPage(p)} />
                   })}
-                  <PagBtn label="›" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} />
-                  <PagBtn label="»" disabled={page === totalPages} onClick={() => setPage(totalPages)} />
+                  <PagBtn label="next" disabled={page === totalPages} onClick={() => setPage(p => p + 1)} />
+                  <PagBtn label="last" disabled={page === totalPages} onClick={() => setPage(totalPages)} />
                 </div>
               </div>
             )}
@@ -1407,13 +1452,13 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// Page
 
 export default function Spreadsheet() {
   const { data: tipsters = [], isLoading: loadingTipsters } = useTipsters()
-  const [activeTab, setActiveTab] = useState<number | null>(null) // null = Todas
+  const [activeTab, setActiveTab] = useState<number | null>(null)
+  const [showImport, setShowImport] = useState(false)
 
-  // Tabs: "Todas" + uma por tipster
   const tabs = [
     { id: null, label: 'Todas', color: '#8b5cf6' },
     ...tipsters.filter(t => t.active).map((t, i) => ({ id: t.id, label: t.name, color: PROFILE_COLORS[i % PROFILE_COLORS.length] })),
@@ -1424,18 +1469,34 @@ export default function Spreadsheet() {
   return (
     <div style={{ padding: '28px 40px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
 
-      {/* ── HEADER ── */}
-      <div>
-        <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', margin: 0 }}>
-          Planilha de Apostas
-        </h1>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Filtre por tipster / VIP nas abas abaixo
-        </p>
+      {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+        <div>
+          <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', margin: 0 }}>
+            Planilha de Apostas
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            Filtre por tipster / VIP nas abas abaixo
+          </p>
+        </div>
+        <button
+          onClick={() => setShowImport(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8,
+            padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+            background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))',
+            border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd',
+            cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(99,102,241,0.25))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.color = '#fff' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; e.currentTarget.style.color = '#c4b5fd' }}
+        >
+          Importar planilha
+        </button>
       </div>
 
-      {/* ── TABS ── */}
-      <Section label="Tipsters / VIPs" icon="◈">
+      <Section label="Tipsters / VIPs" icon="o">
         <div style={{
           display: 'flex', gap: 8, flexWrap: 'wrap',
           borderBottom: '1px solid var(--border)', paddingBottom: 0,
@@ -1467,7 +1528,7 @@ export default function Spreadsheet() {
                     onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' } }}
                   >
                     {tab.id === null
-                      ? <span>⊞ {tab.label}</span>
+                      ? <span>all {tab.label}</span>
                       : (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: tab.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${tab.color}` : 'none' }} />
@@ -1481,12 +1542,10 @@ export default function Spreadsheet() {
           }
         </div>
 
-        {/* ── Conteúdo da tab ativa ── */}
         <div style={{ paddingTop: 4 }}>
           <BetTable key={String(activeTab)} tipsterId={activeTab} accentColor={activeColor} />
         </div>
       </Section>
-
     </div>
   )
 }

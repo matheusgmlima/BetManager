@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { useCreateBet, useCreateBetsBatch, useExtractBets } from '../hooks/useBets'
 import { useSports, useBookmakers, useProfiles, useTipsters } from '../hooks/useConfig'
 import { betsService } from '../services/betsService'
@@ -244,7 +245,6 @@ function ManualTab() {
     odds: '', payout: '', result: 'pending', notes: '',
   })
   const [errors, setErrors] = useState<Partial<Record<keyof ManualFormState, string>>>({})
-  const [success, setSuccess] = useState(false)
   const [multiMatches, setMultiMatches] = useState<{ game: string; selection: string }[]>([{ game: '', selection: '' }, { game: '', selection: '' }])
 
   // Auto-seleciona tipster padrão ("Aposta Própria" ou o primeiro ativo)
@@ -326,18 +326,14 @@ function ManualTab() {
       tipsterId: form.tipsterId ? Number(form.tipsterId) : null,
       bettingProfileId: form.bettingProfileId ? Number(form.bettingProfileId) : null,
     }
-    await createBet.mutateAsync(payload)
-    setSuccess(true)
-    setTimeout(() => { setSuccess(false); navigate('/planilha') }, 1400)
+    try {
+      await createBet.mutateAsync(payload)
+      toast.success('Aposta registrada!')
+      navigate('/planilha')
+    } catch (err: any) {
+      toast.error(err?.response?.data?.detail ?? err?.message ?? 'Erro ao salvar aposta.')
+    }
   }
-
-  if (success) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 320, gap: 16 }}>
-      <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(34,197,94,0.1)', border: '2px solid rgba(34,197,94,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, color: '#22c55e', animation: 'scaleIn 0.4s cubic-bezier(0.16,1,0.3,1)' }}>✓</div>
-      <p style={{ color: 'var(--green)', fontWeight: 800, fontSize: 20 }}>Aposta registrada!</p>
-      <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Redirecionando para a planilha…</p>
-    </div>
-  )
 
   const formContent = (
     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
