@@ -203,10 +203,10 @@ function TopNav() {
 
   return (
     <header style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 30, height: HEADER_H, background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 32, flexShrink: 0 }}>
+      <NavLink to="/" end style={{ display: 'flex', alignItems: 'center', gap: 10, marginRight: 32, flexShrink: 0, textDecoration: 'none' }}>
         <SnakeLogo size={28} />
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', letterSpacing: '-0.01em' }}>BetManager</span>
-      </div>
+      </NavLink>
 
       {!isMobile && (
         <nav style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 1 }}>
@@ -242,8 +242,16 @@ function TopNav() {
 
       {isMobile && (
         <button onClick={() => setMenuOpen(o => !o)}
-          style={{ width: 36, height: 36, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {menuOpen ? 'X' : '='}
+          style={{ width: 40, height: 40, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {menuOpen ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="2" y1="2" x2="14" y2="14"/><line x1="14" y1="2" x2="2" y2="14"/>
+            </svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="2" y1="5" x2="14" y2="5"/><line x1="2" y1="9" x2="14" y2="9"/><line x1="2" y1="13" x2="14" y2="13"/>
+            </svg>
+          )}
         </button>
       )}
 
@@ -254,8 +262,18 @@ function TopNav() {
               style={({ isActive }) => ({ padding: '10px 14px', fontSize: 14, fontWeight: isActive ? 600 : 400, color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)', textDecoration: 'none', borderRadius: 8, background: isActive ? 'var(--bg-surface)' : 'transparent', borderLeft: isActive ? '2px solid var(--purple-400)' : '2px solid transparent' })}
             >{item.label}</NavLink>
           ))}
+          {user?.role === 'admin' && (
+            <NavLink to="/admin" onClick={() => setMenuOpen(false)}
+              style={({ isActive }) => ({ padding: '10px 14px', fontSize: 14, fontWeight: isActive ? 600 : 400, color: isActive ? 'var(--purple-400)' : 'var(--text-secondary)', textDecoration: 'none', borderRadius: 8, background: isActive ? 'rgba(167,139,250,0.1)' : 'transparent', borderLeft: isActive ? '2px solid var(--purple-400)' : '2px solid transparent', display: 'flex', alignItems: 'center', gap: 8 })}
+            >
+              <span style={{ fontSize: 11, opacity: 0.7 }}>⚙</span> Admin
+            </NavLink>
+          )}
           <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 10, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <UserInfo />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <UnitToggle />
+              <UserInfo />
+            </div>
             <button onClick={logout} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Sair</button>
           </div>
         </div>

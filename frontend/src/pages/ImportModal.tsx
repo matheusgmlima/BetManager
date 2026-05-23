@@ -4,6 +4,7 @@ import { useCreateBetsBatch } from '../hooks/useBets'
 import { BetCreateInput, BetResult, BetType } from '../types/bet.types'
 import { api } from '../services/api'
 import { toast } from 'sonner'
+import { Icon } from '../components/Icon'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,14 +243,14 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               >
                 {aiLoading ? (
                   <>
-                    <div style={{ fontSize: 44, marginBottom: 14 }}>✨</div>
+                    <div style={{ marginBottom: 14 }}><Icon name="sparkle" size={44} strokeWidth={1.2} /></div>
                     <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#38bdf8' }}>Analisando com IA...</p>
                     <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{fileName}</p>
                     <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>Pode levar alguns segundos</p>
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 48, marginBottom: 14 }}>📸</div>
+                    <div style={{ marginBottom: 14 }}><Icon name="camera" size={48} strokeWidth={1.2} /></div>
                     <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Arraste um print aqui</p>
                     <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>ou clique para selecionar</p>
                     <p style={{ margin: '14px 0 0', fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>JPG · PNG · WEBP</p>
@@ -350,7 +351,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
           {/* ── STEP 3: DONE ── */}
           {step === 'done' && (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
-              <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
+              <div style={{ marginBottom: 16 }}><Icon name="checkCircle" size={52} color="#22c55e" strokeWidth={1.2} /></div>
               <p style={{ fontSize: 22, fontWeight: 800, color: '#22c55e', margin: '0 0 8px' }}>{importedCount} apostas importadas!</p>
               <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>As apostas ja aparecem na planilha.</p>
             </div>

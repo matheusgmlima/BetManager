@@ -4,6 +4,8 @@ import { useGoals, useYearAnalytics, useCreateGoal, useUpdateGoal, useDeleteGoal
 import { useTipsterDetail } from '../hooks/useDashboard'
 import { Goal, MonthAnalytics, ProfileStat } from '../types/dashboard.types'
 import { useUnit } from '../contexts/UnitContext'
+import { useMobile } from '../hooks/useMobile'
+import { Icon } from '../components/Icon'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 
@@ -306,8 +308,8 @@ function GoalDetail({ month, year, goals, monthData, onEdit, onDelete }: {
         <h3 style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{MONTH_FULL[month - 1]} {year}</h3>
         {goal && (
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => onEdit(goal)} style={btnGhost}>✏ Editar meta</button>
-            <button onClick={() => onDelete(goal.id)} style={{ ...btnGhost, borderColor: 'var(--red)', color: 'var(--red)' }}>🗑</button>
+            <button onClick={() => onEdit(goal)} style={{ ...btnGhost, display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="pencil" size={13} color="var(--text-secondary)" /> Editar meta</button>
+            <button onClick={() => onDelete(goal.id)} style={{ ...btnGhost, borderColor: 'var(--red)', color: 'var(--red)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, padding: 0 }}><Icon name="trash" size={14} color="var(--red)" /></button>
           </div>
         )}
       </div>
@@ -358,6 +360,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
 }) {
   const { data, isLoading } = useTipsterDetail(profileId, true)
   const { fmtMoney: fmtV } = useUnit()
+  const isMobile = useMobile()
 
   // derive initials for avatar
   const initials = profileName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
@@ -426,12 +429,13 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
         )}
 
         {data && !isLoading && (
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '280px 1fr' }}>
 
             {/* ── LEFT COLUMN — KPIs + sweet spot + streaks ── */}
             <div style={{
-              padding: '24px 20px',
-              borderRight: '1px solid var(--border)',
+              padding: isMobile ? '16px 16px' : '24px 20px',
+              borderRight: isMobile ? 'none' : '1px solid var(--border)',
+              borderBottom: isMobile ? '1px solid var(--border)' : 'none',
               display: 'flex', flexDirection: 'column', gap: 0,
             }}>
 
@@ -506,7 +510,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
             </div>
 
             {/* ── RIGHT COLUMN — odds dist + simples/combinadas + top bets ── */}
-            <div style={{ padding: '24px 24px', overflowY: 'auto', maxHeight: 'calc(90vh - 64px)' }}>
+            <div style={{ padding: isMobile ? '16px 16px' : '24px 24px', overflowY: isMobile ? 'visible' : 'auto', maxHeight: isMobile ? 'none' : 'calc(90vh - 64px)' }}>
 
               {/* Odds distribution */}
               {data.oddsRanges.length > 0 && (
@@ -589,7 +593,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
               {(data.topWins.length > 0 || data.worstLosses.length > 0) && (
                 <>
                   <div style={{ height: 1, background: 'var(--border)', margin: '20px 0' }} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
                     {data.topWins.length > 0 && (
                       <div>
                         <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 10 }}>Melhores ganhos</p>
@@ -736,6 +740,7 @@ export default function Goals() {
   const now  = new Date()
   const nowY = now.getFullYear()
   const nowM = now.getMonth() + 1
+  const isMobile = useMobile()
 
   const [year,       setYear]       = useState(nowY)
   const [selMonth,   setSelMonth]   = useState<number | null>(nowM)
@@ -766,7 +771,7 @@ export default function Goals() {
   }
 
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 14px 80px' : '28px 24px 60px', maxWidth: 1100, margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 28, gap: 16, flexWrap: 'wrap' }}>

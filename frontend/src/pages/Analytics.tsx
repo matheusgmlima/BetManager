@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
+import { useMobile } from '../hooks/useMobile'
 import { useQuery } from 'react-query'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, ReferenceLine,
 } from 'recharts'
-import { useProfileDetail, useDashboard } from '../hooks/useDashboard'
+import { useProfileDetail, useDashboard, useProfileStats } from '../hooks/useDashboard'
 import { useUnit } from '../contexts/UnitContext'
 import { dashboardService } from '../services/dashboardService'
 
@@ -118,15 +119,18 @@ function Panel({ children, style }: { children: React.ReactNode; style?: React.C
 }
 
 /** Left sidebar inside a chart panel */
-function Sidebar({ accent = C.purple, title, subtitle, children }: {
-  accent?: string; title: string; subtitle?: string; children: React.ReactNode
+function Sidebar({ accent = C.purple, title, subtitle, children, isMobile = false }: {
+  accent?: string; title: string; subtitle?: string; children: React.ReactNode; isMobile?: boolean
 }) {
   return (
     <div style={{
-      width: 210, flexShrink: 0,
-      borderRight: `1px solid ${C.border}`,
-      padding: '24px 20px',
-      display: 'flex', flexDirection: 'column', gap: 16,
+      width: isMobile ? '100%' : 210, flexShrink: 0,
+      borderRight: isMobile ? 'none' : `1px solid ${C.border}`,
+      borderBottom: isMobile ? `1px solid ${C.border}` : 'none',
+      padding: isMobile ? '16px 16px 14px' : '24px 20px',
+      display: 'flex', flexDirection: isMobile ? 'row' : 'column',
+      flexWrap: isMobile ? 'wrap' : 'nowrap',
+      gap: isMobile ? 12 : 16,
       background: 'rgba(255,255,255,0.012)',
     }}>
       {/* Title strip */}
@@ -176,6 +180,7 @@ function EmptyState({ msg }: { msg: string }) {
 function CalibrationChart() {
   const { data, isLoading } = useProfileDetail(undefined, true)
   const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
 
   const ranges: any[] = data?.oddsRanges ?? []
 
@@ -218,8 +223,9 @@ function CalibrationChart() {
 
   return (
     <Panel>
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
         <Sidebar
+          isMobile={isMobile}
           title="Calibração de Odds"
           subtitle="Acerto real vs. mínimo necessário para lucrar em cada faixa"
           accent={C.purple}
@@ -277,6 +283,7 @@ function CalibrationChart() {
 function DrawdownChart() {
   const { data: dashData, isLoading } = useDashboard('all')
   const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
 
   const { chartData, stats } = useMemo(() => {
     const raw = dashData?.profitChart ?? []
@@ -314,8 +321,8 @@ function DrawdownChart() {
 
   return (
     <Panel>
-      <div style={{ display: 'flex' }}>
-        <Sidebar title="Drawdown" subtitle="Queda máxima em relação ao pico histórico da banca" accent={C.red}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <Sidebar isMobile={isMobile} title="Drawdown" subtitle="Queda máxima em relação ao pico histórico da banca" accent={C.red}>
           {stats ? <>
             <Stat
               label="Lucro atual"
@@ -389,6 +396,7 @@ const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0] // Seg → Dom
 function WeekHeatmap() {
   const { data: rawDays = [], isLoading } = useHeatmap()
   const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
 
   const days = useMemo(
     () => DAY_ORDER.map(d => rawDays.find((r: any) => r.day === d)).filter(Boolean) as any[],
@@ -418,7 +426,7 @@ function WeekHeatmap() {
     <Panel>
       <div style={{ padding: '24px 24px 20px' }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <div style={{ width: 3, height: 18, borderRadius: 2, background: C.amber, flexShrink: 0 }} />
@@ -429,7 +437,7 @@ function WeekHeatmap() {
             </p>
           </div>
           {/* Summary strip */}
-          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
+          <div style={{ display: 'flex', gap: isMobile ? 12 : 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <Stat label="Total geral"   value={fmtMoney(totalProfit)} color={totalProfit >= 0 ? C.green : C.red} size="sm" />
             <Stat label="Total apostas" value={String(totalBets)}    color={C.purpleL}                           size="sm" />
             <Stat label="Melhor dia"    value={bestDay?.label ?? '—'} color={C.green}                            size="sm" />
@@ -438,7 +446,8 @@ function WeekHeatmap() {
         </div>
 
         {days.length === 0 ? <EmptyState msg="Sem dados suficientes" /> : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 10 }}>
+          <div style={{ overflowX: isMobile ? 'auto' : 'visible', marginRight: isMobile ? -16 : 0, paddingRight: isMobile ? 16 : 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(7, minmax(88px, 1fr))' : 'repeat(7, 1fr)', gap: 10, minWidth: isMobile ? 640 : 'auto' }}>
             {days.map((d: any) => {
               const isPos   = d.totalProfit >= 0
               const isBest  = d.day === bestDay?.day
@@ -531,19 +540,275 @@ function WeekHeatmap() {
               )
             })}
           </div>
+          </div>
         )}
       </div>
     </Panel>
   )
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
+// ─── Profile comparison ──────────────────────────────────────────────────────────────────────────────────
+
+const PROFILE_COLS = ['#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#34d399', '#60a5fa']
+
+function ProfileChart() {
+  const { data: profiles = [], isLoading } = useProfileStats()
+  const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
+
+  const list = (profiles as any[]).filter((p: any) => p.totalBets > 0 && p.profileId !== null)
+  const maxAbs = useMemo(() => Math.max(...list.map((p: any) => Math.abs(p.totalProfit)), 1), [list])
+
+  if (isLoading) return (
+    <Panel>
+      <div style={{ padding: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} style={{ height: 180, borderRadius: 14, background: 'rgba(255,255,255,0.03)' }} />
+        ))}
+      </div>
+    </Panel>
+  )
+
+  if (list.length === 0) return null
+
+  return (
+    <Panel>
+      <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${C.border}`, marginBottom: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 3, height: 18, borderRadius: 2, background: C.purple, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>Desempenho por Perfil</span>
+        </div>
+        <p style={{ margin: '4px 0 0 11px', fontSize: 11, color: C.sub }}>
+          Lucro, ROI e taxa de acerto por estrategia de aposta
+        </p>
+      </div>
+      <div style={{
+        padding: 20,
+        display: 'grid',
+        gridTemplateColumns: isMobile ? '1fr' : `repeat(${'$'}{Math.min(list.length, 3)}, 1fr)`,
+        gap: 14,
+      }}>
+        {list.map((p: any, i: number) => {
+          const cor = PROFILE_COLS[i % PROFILE_COLS.length]
+          const isPos = p.totalProfit >= 0
+          const barW = Math.max(3, Math.abs(p.totalProfit) / maxAbs * 100)
+          const sigla = p.profile.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+          const roi: number | null = p.roi ?? null
+          return (
+            <div key={p.profile} style={{
+              background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`,
+              borderRadius: 16, padding: '18px 20px', position: 'relative', overflow: 'hidden',
+              transition: 'border-color 0.2s, box-shadow 0.2s',
+            }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 0 18px ${'$'}{cor}25` }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.boxShadow = 'none' }}
+            >
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(to right, ${cor}, transparent)` }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: `${'$'}{cor}20`, border: `1px solid ${'$'}{cor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: cor, flexShrink: 0 }}>
+                  {sigla}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.profile}</p>
+                  <p style={{ fontSize: 11, color: C.muted, margin: 0 }}>{p.totalBets} aposta{p.totalBets !== 1 ? 's' : ''}</p>
+                </div>
+                {roi != null && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 999, flexShrink: 0,
+                    background: roi >= 0 ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                    color: roi >= 0 ? C.green : C.red,
+                    border: `1px solid ${roi >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                  }}>
+                    {roi >= 0 ? '+' : ''}{roi.toFixed(1)}% ROI
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 30, fontWeight: 900, color: isPos ? C.green : C.red, letterSpacing: '-0.02em', lineHeight: 1, margin: '0 0 12px', fontFamily: 'monospace' }}>
+                {isPos ? '+' : ''}{fmtMoney(p.totalProfit)}
+              </p>
+              <div style={{ height: 5, background: 'rgba(255,255,255,0.05)', borderRadius: 4, marginBottom: 16, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${barW}%`, background: isPos ? cor : C.red, borderRadius: 4 }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1px 1fr 1px 1fr', gap: 10, alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 3px' }}>Acerto</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: cor, margin: 0 }}>{p.hitRatePct?.toFixed(1) ?? '\u2014'}%</p>
+                </div>
+                <div style={{ height: 28, background: C.border }} />
+                <div>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 3px' }}>Vitorias</p>
+                  <p style={{ fontSize: 16, fontWeight: 800, color: C.sub, margin: 0 }}>{p.won ?? '\u2014'}</p>
+                </div>
+                <div style={{ height: 28, background: C.border }} />
+                <div>
+                  <p style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 3px' }}>Apostado</p>
+                  <p style={{ fontSize: 14, fontWeight: 800, color: C.sub, margin: 0, fontFamily: 'monospace' }}>{fmtMoney(p.totalWagered)}</p>
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </Panel>
+  )
+}
+
+// ─── Simples vs Combinadas ───────────────────────────────────────────────────────────────
+
+function BetTypeChart() {
+  const { data, isLoading } = useQuery(
+    ['stats', 'bet-types'],
+    () => import('../services/dashboardService').then(m => m.dashboardService.getBetTypeStats())
+  )
+  const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
+
+  const list: any[] = (data as any)?.data ?? []
+  const rec: string = (data as any)?.recommendation ?? ''
+  const simple   = list.find((d: any) => d.betType === 'simple')
+  const combined = list.find((d: any) => d.betType === 'combined')
+
+  if (isLoading) return <ChartSkeleton />
+  if (!simple?.totalBets && !combined?.totalBets) return null
+
+  const chartData = [
+    simple   && { label: 'Simples',    roi: simple.roiPct,   hitRate: simple.hitRatePct,   profit: simple.totalProfit,   bets: simple.totalBets   },
+    combined && { label: 'Combinadas', roi: combined.roiPct, hitRate: combined.hitRatePct, profit: combined.totalProfit, bets: combined.totalBets },
+  ].filter(Boolean) as any[]
+
+  const TypeCard = ({ d, accent }: { d: any; accent: string }) => (
+    <div style={{ flex: 1, padding: '20px 22px', background: 'rgba(255,255,255,0.02)', border: `1px solid ${C.border}`, borderRadius: 16, position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(to right, ${accent}, transparent)` }} />
+      <p style={{ fontSize: 12, fontWeight: 700, color: C.sub, margin: '0 0 14px' }}>{d.label}</p>
+      <p style={{ fontSize: 28, fontWeight: 900, color: d.profit >= 0 ? C.green : C.red, letterSpacing: '-0.02em', lineHeight: 1, margin: '0 0 6px', fontFamily: 'monospace' }}>
+        {d.profit >= 0 ? '+' : ''}{fmtMoney(d.profit)}
+      </p>
+      <p style={{ fontSize: 11, color: C.muted, margin: '0 0 16px' }}>{d.bets} apostas</p>
+      <div style={{ display: 'flex', gap: 16 }}>
+        <div>
+          <p style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 3px' }}>ROI</p>
+          <p style={{ fontSize: 18, fontWeight: 800, color: d.roi >= 0 ? accent : C.red, margin: 0 }}>{d.roi >= 0 ? '+' : ''}{d.roi?.toFixed(1) ?? '\u2014'}%</p>
+        </div>
+        <div style={{ width: 1, background: C.border }} />
+        <div>
+          <p style={{ fontSize: 9, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 3px' }}>Acerto</p>
+          <p style={{ fontSize: 18, fontWeight: 800, color: accent, margin: 0 }}>{d.hitRate?.toFixed(1) ?? '\u2014'}%</p>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <Panel>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <Sidebar isMobile={isMobile} title="Simples vs Combinadas" subtitle="Qual estrategia traz mais retorno" accent={C.amber}>
+          {rec && <p style={{ fontSize: 12, color: C.sub, lineHeight: 1.6, margin: 0, fontStyle: 'italic' }}>"{rec}"</p>}
+          <Divider />
+          <ResponsiveContainer width="100%" height={120}>
+            <ComposedChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={v => `${v}%`} tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} width={32} />
+              <ReferenceLine y={0} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
+              <Tooltip contentStyle={{ backgroundColor: '#0a0a12', border: '1px solid #2d1f5e', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`${v?.toFixed(1)}%`, 'ROI']} />
+              <Bar dataKey="roi" radius={[6, 6, 0, 0]} maxBarSize={40}>
+                {chartData.map((_: any, i: number) => <Cell key={i} fill={i === 0 ? C.purple : C.amber} />)}
+              </Bar>
+            </ComposedChart>
+          </ResponsiveContainer>
+        </Sidebar>
+        <div style={{ flex: 1, padding: '20px 20px 20px 16px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 14 }}>
+          {simple   && <TypeCard d={{ label: 'Simples',    profit: simple.totalProfit,   roi: simple.roiPct,   hitRate: simple.hitRatePct,   bets: simple.totalBets   }} accent={C.purple} />}
+          {combined && <TypeCard d={{ label: 'Combinadas', profit: combined.totalProfit, roi: combined.roiPct, hitRate: combined.hitRatePct, bets: combined.totalBets }} accent={C.amber}  />}
+        </div>
+      </div>
+    </Panel>
+  )
+}
+
+// ─── Sequencias + Top Apostas ───────────────────────────────────────────────────────────────
+
+function StreaksAndTopBets() {
+  const { data, isLoading } = useProfileDetail(undefined, true)
+  const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
+
+  const streaks   = data?.streaks    ?? null
+  const topWins   = data?.topWins    ?? []
+  const worstLoss = data?.worstLosses ?? []
+
+  if (isLoading) return <ChartSkeleton />
+  if (!streaks && !topWins.length) return null
+
+  const BetRow = ({ b, isWin }: { b: any; isWin: boolean }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+        background: isWin ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+        border: `1px solid ${isWin ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 14, color: isWin ? C.green : C.red, fontWeight: 700,
+      }}>
+        {isWin ? '+' : '−'}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {b.match ?? b.market}
+        </p>
+        <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>{b.market} · odd {Number(b.odds).toFixed(2)} · {b.date}</p>
+      </div>
+      <p style={{ fontSize: 13, fontWeight: 800, color: isWin ? C.green : C.red, margin: 0, fontFamily: 'monospace', flexShrink: 0 }}>
+        {isWin ? '+' : '−'}{fmtMoney(isWin ? b.profit : b.loss)}
+      </p>
+    </div>
+  )
+
+  return (
+    <Panel>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row' }}>
+        <Sidebar isMobile={isMobile} title="Sequencias" subtitle="Melhor e pior sequencia de resultados" accent={C.green}>
+          {streaks && <>
+            {streaks.current > 0 && streaks.currentType && (
+              <>
+                <Stat
+                  label="Sequencia atual"
+                  value={`${streaks.current}x ${streaks.currentType === 'won' ? 'Vitorias' : 'Derrotas'}`}
+                  color={streaks.currentType === 'won' ? C.green : C.red}
+                  size="lg"
+                />
+                <Divider />
+              </>
+            )}
+            <Stat label="Maior seq. vitorias"  value={`${streaks.bestWin}x`}  color={C.green} />
+            <Stat label="Maior seq. derrotas"  value={`${streaks.bestLoss}x`} color={C.red}   />
+          </>}
+        </Sidebar>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', borderTop: isMobile ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ padding: '20px 20px 16px 16px', borderRight: isMobile ? 'none' : `1px solid ${C.border}` }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Top 5 Ganhos</p>
+            {topWins.length === 0
+              ? <p style={{ fontSize: 12, color: C.muted, padding: '16px 0' }}>Sem dados</p>
+              : topWins.map((b: any, i: number) => <BetRow key={i} b={b} isWin />)
+            }
+          </div>
+          <div style={{ padding: '20px 20px 16px 16px' }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.muted, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Top 5 Perdas</p>
+            {worstLoss.length === 0
+              ? <p style={{ fontSize: 12, color: C.muted, padding: '16px 0' }}>Sem dados</p>
+              : worstLoss.map((b: any, i: number) => <BetRow key={i} b={b} isWin={false} />)
+            }
+          </div>
+        </div>
+      </div>
+    </Panel>
+  )
+}
 
 export default function Analytics() {
+  const isMobile = useMobile()
   return (
     <div style={{
       maxWidth: 1160, margin: '0 auto',
-      padding: '32px 24px 72px',
+      padding: isMobile ? '16px 12px 80px' : '32px 24px 72px',
       display: 'flex', flexDirection: 'column', gap: 20,
     }}>
       <div style={{ marginBottom: 4 }}>
@@ -558,6 +823,7 @@ export default function Analytics() {
         </p>
       </div>
 
+      <ProfileChart />
       <CalibrationChart />
       <DrawdownChart />
       <WeekHeatmap />

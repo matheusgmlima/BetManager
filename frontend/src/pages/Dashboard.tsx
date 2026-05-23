@@ -8,9 +8,10 @@ import FloatingParticles from '../components/FloatingParticles'
 import SnakeBanner from '../components/SnakeBanner'
 import { useCountUp } from '../hooks/useCountUp'
 import { useMobile } from '../hooks/useMobile'
-import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats } from '../hooks/useDashboard'
+import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats, useProfileStats } from '../hooks/useDashboard'
 import { DashboardPeriod } from '../types/dashboard.types'
 import { useState, useMemo } from 'react'
+import { Icon } from '../components/Icon'
 import { useUnit } from '../contexts/UnitContext'
 import { useQuery } from 'react-query'
 import { bankrollService } from '../services/bankrollService'
@@ -163,6 +164,77 @@ function TipsterCard({ t, i }: { t: { tipster: string; totalProfit: number; tota
   )
 }
 
+// ─── Profile card ─────────────────────────────────────────────────────────────
+function ProfileCard({ p, i, maxProfit }: {
+  p: { profile: string; totalProfit: number; totalBets: number; hitRatePct: number | null; roi?: number | null; totalWagered: number }
+  i: number; maxProfit: number
+}) {
+  const cor = PROFILE_COLORS[i % PROFILE_COLORS.length]
+  const sigla = p.profile.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  const { showU, unitVal } = useUnit()
+  const lucroAnim = useCountUp(showU && unitVal > 0 ? p.totalProfit / unitVal : p.totalProfit, 1400, 2)
+  const isPos = p.totalProfit >= 0
+  const barW = maxProfit > 0 ? Math.max(4, Math.abs(p.totalProfit) / maxProfit * 100) : 4
+
+  return (
+    <div
+      className="anim-slide-up"
+      style={{
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 16, padding: '18px 20px',
+        position: 'relative', overflow: 'hidden', zIndex: 1,
+        transition: 'border-color 0.2s, box-shadow 0.2s',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = cor; e.currentTarget.style.boxShadow = `0 0 20px ${cor}30` }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+    >
+      {/* top accent */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: `linear-gradient(to right, ${cor}, transparent)`, borderRadius: '16px 16px 0 0' }} />
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 11, background: `${cor}20`, border: `1px solid ${cor}40`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, color: cor, flexShrink: 0 }}>
+          {sigla}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>{p.profile}</p>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{p.totalBets} aposta{p.totalBets !== 1 ? 's' : ''}</p>
+        </div>
+        {p.roi != null && (
+          <TrendBadge value={p.roi} suffix="% ROI" />
+        )}
+      </div>
+
+      {/* Lucro */}
+      <p style={{ fontSize: 28, fontWeight: 900, color: isPos ? '#22c55e' : '#ef4444', letterSpacing: '-0.02em', lineHeight: 1, margin: '0 0 14px' }}>
+        {isPos ? '+' : ''}{showU ? '' : 'R$ '}{lucroAnim.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+      </p>
+
+      {/* Barra de lucro relativa */}
+      <div style={{ height: 4, background: 'rgba(255,255,255,0.06)', borderRadius: 4, marginBottom: 14, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${barW}%`, background: isPos ? cor : '#ef4444', borderRadius: 4, transition: 'width 1s ease' }} />
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display: 'flex', gap: 16 }}>
+        <div>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>Acerto</p>
+          <p style={{ fontSize: 18, fontWeight: 800, color: cor, margin: 0 }}>{p.hitRatePct?.toFixed(1) ?? '—'}%</p>
+        </div>
+        <div style={{ width: 1, background: 'var(--border)' }} />
+        <div>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 2px' }}>Apostado</p>
+          <p style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-secondary)', margin: 0, fontFamily: 'monospace' }}>
+            {showU && unitVal > 0
+              ? `${(p.totalWagered / unitVal).toLocaleString('pt-BR', { minimumFractionDigits: 1 })}u`
+              : `R$ ${p.totalWagered.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`}
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Gráfico wrapper ──────────────────────────────────────────────────────────
 function ChartCard({ title, children, delay = 0 }: { title: string; children: React.ReactNode; delay?: number }) {
   return (
@@ -203,6 +275,7 @@ export default function Dashboard() {
   const { data: sportStats = [], isLoading: loadingSports } = useSportStats()
   const { data: bookmakerStats = [], isLoading: loadingBooks } = useBookmakerStats()
   const { data: tipsterStats = [], isLoading: loadingTipsters } = useTipsterStats()
+  const { data: profileStats = [], isLoading: loadingProfiles } = useProfileStats()
   const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
   const { data: dashAll } = useDashboard('all')
   const { data: monthlyStatsRaw = [] } = useQuery(['stats', 'monthly'], () => dashboardService.getMonthlyStats())
@@ -265,7 +338,7 @@ export default function Dashboard() {
       <FloatingParticles />
 
       <div
-        style={{ padding: isMobile ? '56px 16px 24px' : '28px 40px', maxWidth: 1300, margin: '0 auto', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}
+        style={{ padding: isMobile ? '20px 16px 80px' : '28px 40px 60px', maxWidth: 1300, margin: '0 auto', position: 'relative', zIndex: 1, color: 'var(--text-primary)' }}
         className="space-y-6 anim-scale-in"
       >
         {/* ── HEADER ────────────────────────────────────────── */}
@@ -278,13 +351,20 @@ export default function Dashboard() {
           </div>
 
           {/* Period selector */}
-          <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{
+            display: 'flex', gap: 6,
+            overflowX: isMobile ? 'auto' : 'visible',
+            flexShrink: 0,
+            msOverflowStyle: 'none', scrollbarWidth: 'none',
+          } as React.CSSProperties}>
             {PERIOD_OPTS.map(opt => (
               <button
                 key={opt.value}
                 onClick={() => setPeriod(opt.value)}
                 style={{
-                  padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  flexShrink: 0,
+                  padding: isMobile ? '6px 10px' : '6px 14px',
+                  borderRadius: 8, fontSize: 12, fontWeight: 600,
                   cursor: 'pointer', transition: 'all 0.15s',
                   border: period === opt.value ? '1px solid var(--purple-600)' : '1px solid var(--border)',
                   background: period === opt.value
@@ -417,7 +497,7 @@ export default function Dashboard() {
                   background: streak.type === 'won' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
                   border: `1px solid ${streak.type === 'won' ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
                 }}>
-                  <span style={{ fontSize: 20 }}>{streak.type === 'won' ? '🔥' : '🧊'}</span>
+                  <Icon name={streak.type === 'won' ? 'fire' : 'snowflake'} size={20} color={streak.type === 'won' ? '#22c55e' : '#60a5fa'} />
                   <div>
                     <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: streak.type === 'won' ? '#22c55e' : '#ef4444' }}>
                       Sequência atual
@@ -504,12 +584,44 @@ export default function Dashboard() {
         {(loadingTipsters || tipsterStats.length > 0) && (
           <div className="anim-slide-up" style={{ animationDelay: '160ms' }}>
             <Section label="Desempenho por tipster">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {loadingTipsters
-                  ? Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} h={110} />)
-                  : tipsterStats.map((t, i) => <TipsterCard key={t.tipster} t={t} i={i} />)
-                }
+              <div style={{ overflowX: 'auto', marginRight: -4, paddingBottom: 4, msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
+                <div style={{ display: 'flex', gap: 12, minWidth: 'max-content' }}>
+                  {loadingTipsters
+                    ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
+                    : tipsterStats.map((t, i) => (
+                        <div key={t.tipster} style={{ width: 260, flexShrink: 0 }}>
+                          <TipsterCard t={t} i={i} />
+                        </div>
+                      ))
+                  }
+                </div>
               </div>
+            </Section>
+          </div>
+        )}
+
+        {/* ── PERFIS ────────────────────────────────────────── */}
+        {(loadingProfiles || (profileStats as any[]).some((p: any) => p.profileId !== null)) && (
+          <div className="anim-slide-up" style={{ animationDelay: '200ms' }}>
+            <Section label="Desempenho por perfil">
+              {(() => {
+                const filtered = (profileStats as any[]).filter((p: any) => p.profileId !== null)
+                const maxP = Math.max(...filtered.map((p: any) => Math.abs(p.totalProfit)), 1)
+                return (
+                  <div style={{ overflowX: 'auto', marginRight: -4, paddingBottom: 4, msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
+                    <div style={{ display: 'flex', gap: 12, minWidth: 'max-content' }}>
+                      {loadingProfiles
+                        ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
+                        : filtered.map((p: any, i: number) => (
+                            <div key={p.profileId ?? p.profile} style={{ width: 260, flexShrink: 0 }}>
+                              <ProfileCard p={p} i={i} maxProfit={maxP} />
+                            </div>
+                          ))
+                      }
+                    </div>
+                  </div>
+                )
+              })()}
             </Section>
           </div>
         )}

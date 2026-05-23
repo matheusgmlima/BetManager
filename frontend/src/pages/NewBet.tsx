@@ -5,6 +5,7 @@ import { useCreateBet, useCreateBetsBatch, useExtractBets } from '../hooks/useBe
 import { useSports, useBookmakers, useProfiles, useTipsters } from '../hooks/useConfig'
 import { betsService } from '../services/betsService'
 import { useMobile } from '../hooks/useMobile'
+import { Icon } from '../components/Icon'
 import { BetResult, BetType, AiExtractedBet, BetCreateInput } from '../types/bet.types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -513,7 +514,7 @@ function ManualTab() {
 
       {/* ── Seção 4: Resultado ────────────────────────────────── */}
       <SectionCard icon="◉" title="Resultado">
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10 }}>
           {RESULT_OPTS.map(r => (
             <button key={r.value} type="button" onClick={() => set('result', r.value)} style={{
               padding: isMobile ? '12px 6px' : '14px 10px',
@@ -829,8 +830,8 @@ function AiTab() {
               width: 28, height: 28, borderRadius: 8,
               background: 'linear-gradient(135deg, #4c1d95, #6d28d9)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 13, boxShadow: '0 0 12px rgba(109,40,217,0.4)',
-            }}>⚡</div>
+              boxShadow: '0 0 12px rgba(109,40,217,0.4)',
+            }}><Icon name="bolt" size={13} color="#fff" strokeWidth={2} /></div>
             <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>Llama 4 Scout</span>
             <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.6 }}>via Groq</span>
           </div>
@@ -947,7 +948,7 @@ function AiTab() {
         {/* Error photos */}
         {photos.some(p => p.status === 'error') && (
           <div style={{ margin: '0 16px 16px', display: 'flex', gap: 12, alignItems: 'flex-start', padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+            <Icon name="warning" size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
               <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#ef4444' }}>
                 {photos.filter(p => p.status === 'error').length} foto{photos.filter(p => p.status === 'error').length !== 1 ? 's' : ''} com falha ao processar
@@ -972,7 +973,7 @@ function AiTab() {
             transition: 'border-color 0.2s',
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, color: '#a78bfa', fontWeight: 800 }}>✦</div>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(124,58,237,0.2)', border: '1px solid rgba(124,58,237,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="sparkle" size={15} /></div>
               <div>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, color: '#c4b5fd' }}>{bets.length} apostas detectadas · {photos.length} foto{photos.length !== 1 ? 's' : ''}</p>
                 <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>
@@ -1003,7 +1004,7 @@ function AiTab() {
             {/* purple top glow line */}
             <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 1, background: 'linear-gradient(to right, transparent 0%, rgba(124,58,237,0.7) 30%, rgba(167,139,250,0.9) 50%, rgba(124,58,237,0.7) 70%, transparent 100%)', pointerEvents: 'none' }} />
 
-            <div style={{ maxWidth: 1100, margin: '0 auto', padding: '12px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '10px 14px' : '12px 24px', display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 8 : 12 }}>
 
               {/* Count badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
@@ -1020,10 +1021,10 @@ function AiTab() {
               </div>
 
               {/* Divider */}
-              <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />
+              {!isMobile && <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />}
 
               {/* Selects */}
-              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 8 }}>
                 {[
                   { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
                   { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
@@ -1048,10 +1049,10 @@ function AiTab() {
               </div>
 
               {/* Divider */}
-              <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />
+              {!isMobile && <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: 8, flexShrink: 0, justifyContent: isMobile ? 'flex-end' : 'flex-start' }}>
                 <button type="button" onClick={() => { setBets(p => p.map(b => ({ ...b, selected: false }))); setBulkBarHidden(false) }} style={{
                   padding: '9px 16px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.1)',
                   background: 'transparent', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer',
@@ -1311,7 +1312,7 @@ function AiTab() {
                         </Field>
                       </div>
                       <Field label="Resultado">
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 8 }}>
                           {RESULT_OPTS.map(r => (
                             <button key={r.value} type="button" onClick={() => updateBet(i, { resultEdit: r.value })} style={{
                               padding: '9px 6px', borderRadius: 10,
@@ -1413,7 +1414,7 @@ export default function NewBet() {
               fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', padding: '3px 8px',
               borderRadius: 999, background: 'rgba(124,58,237,0.15)',
               border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', textTransform: 'uppercase',
-            }}>✦ IA</span>
+            }}><Icon name="sparkle" size={9} style={{ marginRight: 3 }} /> IA</span>
           </div>
           <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: 13 }}>
             Envie um screenshot e a IA extrai os dados automaticamente
