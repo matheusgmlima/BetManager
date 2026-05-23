@@ -86,11 +86,12 @@ export default function Login() {
           </form>
         </div>
 
-        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>
-          Nao tem conta?{' '}
-          <Link to="/cadastro" style={{ color: 'var(--purple-400)', fontWeight: 600, textDecoration: 'none' }}>
-            Criar conta
-          </Link>
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 12, color: 'var(--text-muted)' }}>
+          Acesso exclusivo por convite.{' '}
+          <a href="https://t.me/matheusgmlima" target="_blank" rel="noopener noreferrer"
+            style={{ color: 'var(--purple-400)', fontWeight: 600, textDecoration: 'none' }}>
+            Fale com o suporte
+          </a>
         </p>
       </div>
     </div>

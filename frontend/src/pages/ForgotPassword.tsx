@@ -1,30 +1,7 @@
-import { useState, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import axios from 'axios'
 import SnakeLogo from '../components/SnakeLogo'
 
-const API = import.meta.env.VITE_API_URL || ''
-
 export default function ForgotPassword() {
-  const [email,   setEmail]   = useState('')
-  const [sent,    setSent]    = useState(false)
-  const [error,   setError]   = useState('')
-  const [loading, setLoading] = useState(false)
-
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    setError('')
-    setLoading(true)
-    try {
-      await axios.post(`${API}/api/auth/forgot-password`, { email })
-      setSent(true)
-    } catch {
-      setError('Erro ao enviar. Tente novamente.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div style={{
       minHeight: '100vh', background: 'var(--bg-primary)',
@@ -42,68 +19,46 @@ export default function ForgotPassword() {
 
         <div style={{
           background: 'var(--bg-secondary)', border: '1px solid var(--border)',
-          borderRadius: 16, padding: '32px 28px',
+          borderRadius: 16, padding: '36px 28px', textAlign: 'center',
         }}>
-          {sent ? (
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 40, marginBottom: 16 }}>📬</div>
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>Email enviado!</h1>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                Se o email existir na nossa base, você receberá um link para redefinir sua senha. Verifique também a caixa de spam.
-              </p>
-            </div>
-          ) : (
-            <>
-              <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>Esqueceu a senha?</h1>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 }}>
-                Digite seu email e enviaremos um link de redefinição.
-              </p>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%', margin: '0 auto 20px',
+            background: 'rgba(124,58,237,0.12)', border: '1px solid rgba(124,58,237,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24,
+          }}>
+            🔑
+          </div>
 
-              <form onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                <div>
-                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    Email
-                  </label>
-                  <input
-                    type="email" value={email} autoFocus required
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="seu@email.com"
-                    style={{
-                      width: '100%', padding: '10px 14px', borderRadius: 8,
-                      background: 'var(--bg-card)', border: '1px solid var(--border)',
-                      color: 'var(--text-primary)', fontSize: 14, outline: 'none',
-                      transition: 'border-color 0.15s',
-                    }}
-                    onFocus={e => (e.target.style.borderColor = 'var(--purple-500)')}
-                    onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
-                  />
-                </div>
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 10 }}>
+            Esqueceu a senha?
+          </h1>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 28 }}>
+            A recuperação de senha é feita pelo suporte.
+            Entre em contato via Telegram e o administrador enviará um link de redefinição para o seu email.
+          </p>
 
-                {error && (
-                  <p style={{ fontSize: 13, color: 'var(--red)', background: 'var(--red-muted)', borderRadius: 8, padding: '10px 14px' }}>
-                    {error}
-                  </p>
-                )}
-
-                <button
-                  type="submit" disabled={loading}
-                  style={{
-                    width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-                    background: 'linear-gradient(135deg, var(--purple-700), var(--purple-500))',
-                    color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.7 : 1, marginTop: 4, transition: 'opacity 0.15s',
-                  }}
-                >
-                  {loading ? 'Enviando…' : 'Enviar link'}
-                </button>
-              </form>
-            </>
-          )}
+          <a
+            href="https://t.me/matheusgmlima"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              padding: '12px 28px', borderRadius: 10,
+              background: 'linear-gradient(135deg, var(--purple-700), var(--purple-500))',
+              color: '#fff', fontSize: 14, fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12l-6.871 4.326-2.962-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.833.941z"/>
+            </svg>
+            Falar com o suporte
+          </a>
         </div>
 
         <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text-muted)' }}>
           <Link to="/login" style={{ color: 'var(--purple-400)', fontWeight: 600, textDecoration: 'none' }}>
-            Voltar ao login
+            ← Voltar ao login
           </Link>
         </p>
       </div>

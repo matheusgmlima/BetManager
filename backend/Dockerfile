@@ -14,4 +14,7 @@ RUN npx prisma generate
 
 EXPOSE 3000
 
-CMD ["npm", "run", "dev"]
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+CMD ["/entrypoint.sh"]

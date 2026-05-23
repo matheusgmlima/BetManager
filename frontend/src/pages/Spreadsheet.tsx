@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
-import { useBets, useUpdateBet, useDeleteBet } from '../hooks/useBets'
+import { useState, useMemo, useRef, useEffect } from 'react'
+import * as XLSX from 'xlsx'
+import { useBets, useUpdateBet, useDeleteBet, useUpdateBetResult, useCreateBet } from '../hooks/useBets'
 import { useSports, useBookmakers, useTipsters, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
 import { useUnit } from '../contexts/UnitContext'
@@ -32,6 +33,68 @@ function ResultBadge({ result }: { result: BetResult }) {
       <span style={{ width: 5, height: 5, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
       {RESULT_LABELS[result]}
     </span>
+  )
+}
+
+// ─── Inline result picker ─────────────────────────────────────────────────────
+const RESULT_ORDER: BetResult[] = ['won', 'lost', 'void', 'pending']
+
+function InlineResultPicker({ current, onPick, onClose, anchorRect }: {
+  current: BetResult
+  onPick: (r: BetResult) => void
+  onClose: () => void
+  anchorRect: DOMRect
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const PICKER_H = 160 // altura estimada do picker
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [onClose])
+
+  // Abre para cima se não houver espaço abaixo
+  const spaceBelow = window.innerHeight - anchorRect.bottom
+  const top = spaceBelow >= PICKER_H
+    ? anchorRect.bottom + 4
+    : anchorRect.top - PICKER_H - 4
+
+  return (
+    <div ref={ref} style={{
+      position: 'fixed',
+      top,
+      left: anchorRect.left,
+      zIndex: 99999,
+      background: '#0d0d1a', border: '1px solid rgba(124,58,237,0.4)',
+      borderRadius: 10, padding: '6px', display: 'flex', flexDirection: 'column', gap: 3,
+      boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 120,
+    }}>
+      {RESULT_ORDER.map(r => {
+        const s = RESULT_STYLES[r]
+        return (
+          <button
+            key={r}
+            onClick={e => { e.stopPropagation(); onPick(r) }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '6px 10px', borderRadius: 7, border: 'none',
+              background: r === current ? `${s.bg}` : 'transparent',
+              cursor: 'pointer', transition: 'background 0.12s',
+              outline: r === current ? `1px solid ${s.border}` : 'none',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = s.bg }}
+            onMouseLeave={e => { e.currentTarget.style.background = r === current ? s.bg : 'transparent' }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: s.dot, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{RESULT_LABELS[r]}</span>
+            {r === current && <span style={{ marginLeft: 'auto', fontSize: 9, color: s.color }}>✓</span>}
+          </button>
+        )
+      })}
+    </div>
   )
 }
 
@@ -527,9 +590,17 @@ function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: numb
 
 // ─── BetRow ───────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete }: { bet: Bet; odd: boolean; selected: boolean; onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void }) {
+function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult, onDuplicate }: {
+  bet: Bet; odd: boolean; selected: boolean
+  onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void
+  onUpdateResult: (id: number, result: BetResult, payout: number) => void
+  onDuplicate: (b: Bet) => void
+}) {
   const [hovered,       setHovered]       = useState(false)
   const [showCombined,  setShowCombined]  = useState(false)
+  const [showResultPicker, setShowResultPicker] = useState(false)
+  const [pickerAnchor,     setPickerAnchor]     = useState<DOMRect | null>(null)
+  const [updatingResult,   setUpdatingResult]   = useState(false)
   const { fmtMoney }                      = useUnit()
   const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
 
@@ -664,8 +735,37 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete }: { bet: Bet; 
       <td style={{ ...td, textAlign: 'right', color: 'var(--text-secondary)', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
         {fmtMoney(bet.payout)}
       </td>
-      <td style={{ ...td, whiteSpace: 'nowrap' }}>
-        <ResultBadge result={bet.result} />
+      <td style={{ ...td, whiteSpace: 'nowrap', position: 'relative' }}>
+        <button
+          title="Clique para alterar resultado"
+          onClick={e => {
+            e.stopPropagation()
+            setPickerAnchor(e.currentTarget.getBoundingClientRect())
+            setShowResultPicker(v => !v)
+          }}
+          style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+        >
+          <ResultBadge result={bet.result} />
+          {updatingResult
+            ? <span style={{ fontSize: 9, color: '#a78bfa', animation: 'pulse 1s infinite' }}>⟳</span>
+            : <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>▾</span>
+          }
+        </button>
+        {showResultPicker && pickerAnchor && (
+          <InlineResultPicker
+            current={bet.result}
+            anchorRect={pickerAnchor}
+            onPick={async r => {
+              setShowResultPicker(false)
+              if (r === bet.result) return
+              setUpdatingResult(true)
+              const payout = r === 'won' ? (bet.amountWagered * (bet.odds ?? 1)) : r === 'void' ? bet.amountWagered : 0
+              await onUpdateResult(bet.id, r, payout)
+              setUpdatingResult(false)
+            }}
+            onClose={() => setShowResultPicker(false)}
+          />
+        )}
       </td>
       <td style={{
         ...td, textAlign: 'right', fontWeight: 800, fontFamily: 'monospace', whiteSpace: 'nowrap',
@@ -676,6 +776,18 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete }: { bet: Bet; 
       </td>
       <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+          <button
+            onClick={e => { e.stopPropagation(); onDuplicate(bet) }}
+            title="Duplicar"
+            style={{
+              width: 28, height: 28, borderRadius: 7, fontSize: 12, cursor: 'pointer',
+              background: 'rgba(16,185,129,0.10)', border: '1px solid rgba(16,185,129,0.25)',
+              color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.22)'; e.currentTarget.style.borderColor = '#34d399' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.10)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.25)' }}
+          >⎘</button>
           <button
             onClick={() => onEdit(bet)}
             title="Editar"
@@ -754,7 +866,79 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   const deleteBet = useDeleteBet()
+  const updateResult = useUpdateBetResult()
+  const createBet = useCreateBet()
+
+  function showToast(msg: string, ok = true) {
+    setToast({ msg, ok })
+    setTimeout(() => setToast(null), 2200)
+  }
+
+  async function handleUpdateResult(id: number, result: BetResult, payout: number) {
+    try {
+      await updateResult.mutateAsync({ id, result, payout })
+      showToast('Resultado atualizado!')
+    } catch {
+      showToast('Erro ao atualizar resultado', false)
+    }
+  }
+
+  async function handleDuplicate(bet: Bet) {
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      await createBet.mutateAsync({
+        date: today,
+        match: bet.match,
+        market: bet.market,
+        sportId: bet.sport?.id,
+        bookmakerId: bet.bookmaker.id,
+        betType: bet.betType,
+        amountWagered: bet.amountWagered,
+        odds: bet.odds,
+        payout: 0,
+        result: 'pending',
+        notes: bet.notes,
+        tipsterId: bet.tipster?.id,
+      })
+      showToast('Aposta duplicada!')
+    } catch {
+      showToast('Erro ao duplicar aposta', false)
+    }
+  }
+
+  function exportExcel() {
+    const RESULT_PT: Record<string, string> = { won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente' }
+    const TYPE_PT: Record<string, string>   = { simple: 'Simples', combined: 'Combinada' }
+
+    const rows = sorted.map(b => ({
+      'Data':       b.date.split('T')[0],
+      'Partida':    b.match ?? '',
+      'Mercado':    b.market,
+      'Esporte':    b.sport?.name ?? '',
+      'Casa':       b.bookmaker.name,
+      'Tipo':       TYPE_PT[b.betType] ?? b.betType,
+      'Odd':        b.odds ?? '',
+      'Apostado':   Number(b.amountWagered.toFixed(2)),
+      'Retorno':    Number(b.payout.toFixed(2)),
+      'Resultado':  RESULT_PT[b.result] ?? b.result,
+      'Lucro':      Number(b.profit.toFixed(2)),
+    }))
+
+    const ws = XLSX.utils.json_to_sheet(rows)
+
+    // Largura das colunas
+    ws['!cols'] = [
+      { wch: 12 }, { wch: 32 }, { wch: 24 }, { wch: 14 },
+      { wch: 14 }, { wch: 12 }, { wch: 8  }, { wch: 12 },
+      { wch: 12 }, { wch: 12 }, { wch: 12 },
+    ]
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Apostas')
+    XLSX.writeFile(wb, `apostas_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
 
   // Grouped mode: fetch all bets at once (large perPage)
   const effectivePage    = viewMode === 'grouped' ? 1 : page
@@ -873,6 +1057,22 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: selCount > 0 ? 80 : 0 }}>
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 100, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 9999, padding: '10px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+          background: toast.ok ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+          border: `1px solid ${toast.ok ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)'}`,
+          color: toast.ok ? '#22c55e' : '#ef4444',
+          backdropFilter: 'blur(12px)', boxShadow: '0 4px 24px rgba(0,0,0,0.4)',
+          animation: 'anim-slide-up 0.2s ease',
+          pointerEvents: 'none',
+        }}>
+          {toast.ok ? '✓ ' : '✕ '}{toast.msg}
+        </div>
+      )}
+
       {editingBet && <EditModal bet={editingBet} onClose={() => setEditingBet(null)} />}
       {deletingBet && (
         <DeleteConfirm
@@ -940,7 +1140,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
         </div>
       )}
 
-      {/* Controles: view mode + filtros */}
+      {/* Controles: view mode + filtros + export */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
         {/* View mode toggle */}
         <div style={{ display: 'flex', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, gap: 2 }}>
@@ -961,19 +1161,37 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
           ))}
         </div>
 
-        <button
-          onClick={() => setShowFilters(v => !v)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 7,
-            padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', transition: 'all 0.15s',
-            background: showFilters ? `${accentColor}20` : 'var(--bg-card)',
-            border: `1px solid ${showFilters ? accentColor + '60' : 'var(--border)'}`,
-            color: showFilters ? accentColor : 'var(--text-secondary)',
-          }}
-        >
-          ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={exportExcel}
+            disabled={sorted.length === 0}
+            title="Exportar Excel (.xlsx)"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: sorted.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              color: 'var(--text-secondary)', opacity: sorted.length === 0 ? 0.4 : 1,
+            }}
+            onMouseEnter={e => { if (sorted.length > 0) { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399' } }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+          >
+            ↓ Excel
+          </button>
+          <button
+            onClick={() => setShowFilters(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+              cursor: 'pointer', transition: 'all 0.15s',
+              background: showFilters ? `${accentColor}20` : 'var(--bg-card)',
+              border: `1px solid ${showFilters ? accentColor + '60' : 'var(--border)'}`,
+              color: showFilters ? accentColor : 'var(--text-secondary)',
+            }}
+          >
+            ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -1102,7 +1320,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
                             {thead}
                             <tbody>
                               {monthBets.map((bet: Bet, i: number) => (
-                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} />
+                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} />
                               ))}
                             </tbody>
                           </table>
@@ -1132,7 +1350,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
                       <tr><td colSpan={11} style={{ padding: '48px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhuma aposta encontrada{hasFilters ? ' com esses filtros' : ''}.</td></tr>
                     )}
                     {!isLoading && sorted.map((bet: Bet, i: number) => (
-                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} />
+                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} />
                     ))}
                   </tbody>
                   {summary && !isLoading && sorted.length > 0 && (

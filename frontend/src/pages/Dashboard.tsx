@@ -9,10 +9,12 @@ import { useCountUp } from '../hooks/useCountUp'
 import { useMobile } from '../hooks/useMobile'
 import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats } from '../hooks/useDashboard'
 import { DashboardPeriod } from '../types/dashboard.types'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useUnit } from '../contexts/UnitContext'
 import { useQuery } from 'react-query'
 import { bankrollService } from '../services/bankrollService'
+import { dashboardService } from '../services/dashboardService'
+import { useBets } from '../hooks/useBets'
 
 // ─── Tooltip style ────────────────────────────────────────────────────────────
 const ttStyle     = { backgroundColor: '#0a0a12', border: '1px solid #2d1f5e', borderRadius: '10px', fontSize: '12px' }
@@ -202,6 +204,28 @@ export default function Dashboard() {
   const { data: tipsterStats = [] } = useTipsterStats()
   const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
   const { data: dashAll } = useDashboard('all')
+  const { data: monthlyStatsRaw = [] } = useQuery(['stats', 'monthly'], () => dashboardService.getMonthlyStats())
+  const { data: recentBetsData } = useBets({ perPage: 50 })
+
+  // Streak computation
+  const streak = useMemo(() => {
+    const bets = recentBetsData?.data ?? []
+    const settled = bets.filter((b: any) => b.result !== 'pending' && b.result !== 'void')
+    if (settled.length === 0) return { count: 0, type: null as string | null }
+    const first = settled[0].result as string
+    let count = 0
+    for (const bet of settled) {
+      if (bet.result === first) count++
+      else break
+    }
+    return { count, type: first }
+  }, [recentBetsData])
+
+  // Monthly stats - last 6 months
+  const monthlyStats = useMemo(() => {
+    const arr = Array.isArray(monthlyStatsRaw) ? monthlyStatsRaw : []
+    return arr.slice(-6)
+  }, [monthlyStatsRaw])
 
   const { showU, unitVal } = useUnit()
   const summary = dash?.summary
@@ -378,6 +402,29 @@ export default function Dashboard() {
               <KpiCard icon="%"  label="Taxa de acerto" rawValue={summary?.hitRatePct   ?? 0} suffix="%" decimals={1}  delay={120} accent="#a78bfa" sub={`${summary?.won ?? 0} ganhou · ${summary?.lost ?? 0} perdeu`} />
               <KpiCard icon="↑"  label="ROI"            rawValue={roi}                         suffix="%" decimals={1}  delay={180} accent="#c084fc" sub={`Odd média: ${summary?.avgOdds?.toFixed(2) ?? '—'}`} />
             </div>
+
+            {/* Streak card */}
+            {streak.count > 0 && streak.type && (
+              <div className="anim-slide-up" style={{ marginTop: 12 }}>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 12,
+                  padding: '10px 18px', borderRadius: 12,
+                  background: streak.type === 'won' ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
+                  border: `1px solid ${streak.type === 'won' ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                }}>
+                  <span style={{ fontSize: 20 }}>{streak.type === 'won' ? '🔥' : '🧊'}</span>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: streak.type === 'won' ? '#22c55e' : '#ef4444' }}>
+                      Sequência atual
+                    </p>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
+                      <span style={{ color: streak.type === 'won' ? '#22c55e' : '#ef4444', fontSize: 22 }}>{streak.count}</span>
+                      {' '}{streak.type === 'won' ? `vitória${streak.count !== 1 ? 's' : ''} seguida${streak.count !== 1 ? 's' : ''}` : `derrota${streak.count !== 1 ? 's' : ''} seguida${streak.count !== 1 ? 's' : ''}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
           </Section>
         </div>
 
@@ -553,6 +600,54 @@ export default function Dashboard() {
                   </ResponsiveContainer>
                 ) : <EmptyChart />}
               </ChartCard>
+
+              {/* Comparativo mensal */}
+              {monthlyStats.length >= 2 && (
+                <ChartCard title="Comparativo mês a mês (Lucro R$)" delay={320}>
+                  <ResponsiveContainer width="100%" height={210}>
+                    <BarChart data={monthlyStats} barSize={32}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#1a1a2e" vertical={false} />
+                      <XAxis dataKey="month" tick={{ fill: '#4a4a68', fontSize: 11 }} axisLine={false} tickLine={false}
+                        tickFormatter={(v: string) => { const [y, m] = v.split('-'); const names = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${names[parseInt(m)-1]}/${y.slice(2)}` }} />
+                      <YAxis tick={{ fill: '#4a4a68', fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={v => `R$${v}`} />
+                      <Tooltip contentStyle={ttStyle} labelStyle={ttLabel} itemStyle={ttItem}
+                        labelFormatter={(v: string) => { const [y, m] = v.split('-'); const names = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']; return `${names[parseInt(m)-1]} ${y}` }}
+                        formatter={(v: number, n: string) => [`R$ ${v.toFixed(2)}`, n === 'totalProfit' ? 'Lucro' : n === 'totalBets' ? 'Apostas' : n]} />
+                      <Bar dataKey="totalProfit" radius={[6, 6, 0, 0]}>
+                        {monthlyStats.map((e: any, i: number) => <Cell key={i} fill={e.totalProfit >= 0 ? '#7c3aed' : '#ef4444'} />)}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  {/* Last 2 months comparison */}
+                  {monthlyStats.length >= 2 && (() => {
+                    const cur  = monthlyStats[monthlyStats.length - 1] as any
+                    const prev = monthlyStats[monthlyStats.length - 2] as any
+                    const diff = (cur?.totalProfit ?? 0) - (prev?.totalProfit ?? 0)
+                    return (
+                      <div style={{ display: 'flex', gap: 12, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mês anterior</p>
+                          <p style={{ fontSize: 15, fontWeight: 800, color: (prev?.totalProfit ?? 0) >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
+                            {(prev?.totalProfit ?? 0) >= 0 ? '+' : ''}R$ {(prev?.totalProfit ?? 0).toFixed(2)}
+                          </p>
+                        </div>
+                        <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Mês atual</p>
+                          <p style={{ fontSize: 15, fontWeight: 800, color: (cur?.totalProfit ?? 0) >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
+                            {(cur?.totalProfit ?? 0) >= 0 ? '+' : ''}R$ {(cur?.totalProfit ?? 0).toFixed(2)}
+                          </p>
+                        </div>
+                        <div style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: diff >= 0 ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)', border: `1px solid ${diff >= 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}` }}>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: '0 0 4px' }}>Variação</p>
+                          <p style={{ fontSize: 15, fontWeight: 800, color: diff >= 0 ? '#22c55e' : '#ef4444', margin: 0, fontFamily: 'monospace' }}>
+                            {diff >= 0 ? '+' : ''}R$ {diff.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </ChartCard>
+              )}
 
             </div>
           </Section>
