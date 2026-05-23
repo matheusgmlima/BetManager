@@ -7,6 +7,7 @@ import { EmptyState, EmptyStateRow } from '../components/EmptyState'
 import { useSports, useBookmakers, useTipsters, useProfiles } from '../hooks/useConfig'
 import { BetResult, BetType, Bet } from '../types/bet.types'
 import { useUnit } from '../contexts/UnitContext'
+import { useMobile } from '../hooks/useMobile'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -892,7 +893,7 @@ function calcMonthStats(bets: Bet[]) {
 
 const PAGE_SIZES = [10, 25, 50]
 
-function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accentColor: string }) {
+function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: number | null; accentColor: string; isMobile?: boolean }) {
   const { fmtMoney } = useUnit()
   const [search,     setSearch]     = useState('')
   const [resultF,    setResultF]    = useState<BetResult | ''>('')
@@ -1161,7 +1162,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
 
       {/* Summary cards */}
       {summary && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
           <SummaryCard label="Total apostado"    value={fmtMoney(summary.totalWagered)} color={accentColor} />
           <SummaryCard
             label="Lucro total"
@@ -1455,6 +1456,7 @@ function BetTable({ tipsterId, accentColor }: { tipsterId: number | null; accent
 // Page
 
 export default function Spreadsheet() {
+  const isMobile = useMobile()
   const { data: tipsters = [], isLoading: loadingTipsters } = useTipsters()
   const [activeTab, setActiveTab] = useState<number | null>(null)
   const [showImport, setShowImport] = useState(false)
@@ -1467,13 +1469,13 @@ export default function Spreadsheet() {
   const activeColor = tabs.find(t => t.id === activeTab)?.color ?? '#8b5cf6'
 
   return (
-    <div style={{ padding: '28px 40px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
+    <div style={{ padding: isMobile ? '16px 14px 24px' : '28px 40px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} />}
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', margin: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 900, letterSpacing: '-0.03em', color: '#fff', margin: 0 }}>
             Planilha de Apostas
           </h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -1483,23 +1485,26 @@ export default function Spreadsheet() {
         <button
           onClick={() => setShowImport(true)}
           style={{
-            display: 'flex', alignItems: 'center', gap: 8,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
             background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))',
             border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd',
             cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
+            width: isMobile ? '100%' : 'auto',
           }}
           onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(99,102,241,0.25))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.color = '#fff' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; e.currentTarget.style.color = '#c4b5fd' }}
         >
-          Importar planilha
+          📥 Importar planilha
         </button>
       </div>
 
       <Section label="Tipsters / VIPs" icon="o">
         <div style={{
-          display: 'flex', gap: 8, flexWrap: 'wrap',
+          display: 'flex', gap: 8, flexWrap: isMobile ? 'nowrap' : 'wrap',
+          overflowX: isMobile ? 'auto' : 'visible',
           borderBottom: '1px solid var(--border)', paddingBottom: 0,
+          WebkitOverflowScrolling: 'touch' as any,
         }}>
           {loadingTipsters
             ? Array.from({ length: 4 }).map((_, i) => (
@@ -1543,7 +1548,7 @@ export default function Spreadsheet() {
         </div>
 
         <div style={{ paddingTop: 4 }}>
-          <BetTable key={String(activeTab)} tipsterId={activeTab} accentColor={activeColor} />
+          <BetTable key={String(activeTab)} tipsterId={activeTab} accentColor={activeColor} isMobile={isMobile} />
         </div>
       </Section>
     </div>

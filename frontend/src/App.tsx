@@ -22,6 +22,7 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import SetupAccount from './pages/SetupAccount'
 import { Tutorial, useTutorial } from './components/Tutorial'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -355,16 +356,18 @@ function ProtectedRoutes() {
 
   return (
     <Layout>
-      <Routes>
-        <Route path="/"              element={<Dashboard />} />
-        <Route path="/apostas/nova"  element={expired ? <Navigate to="/" replace /> : <NewBet />} />
-        <Route path="/analytics"     element={<Analytics />} />
-        <Route path="/estatisticas"  element={<Goals />} />
-        <Route path="/planilha"      element={<Spreadsheet />} />
-        <Route path="/configuracoes" element={<Settings />} />
-        <Route path="/admin"         element={user.role === 'admin' ? <AdminPanel /> : <Navigate to="/" replace />} />
-        <Route path="*"              element={<Navigate to="/" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/"              element={<Dashboard />} />
+          <Route path="/apostas/nova"  element={expired ? <Navigate to="/" replace /> : <NewBet />} />
+          <Route path="/analytics"     element={<Analytics />} />
+          <Route path="/estatisticas"  element={<Goals />} />
+          <Route path="/planilha"      element={<Spreadsheet />} />
+          <Route path="/configuracoes" element={<Settings />} />
+          <Route path="/admin"         element={user.role === 'admin' ? <AdminPanel /> : <Navigate to="/" replace />} />
+          <Route path="*"              element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
       {showTutorial && <Tutorial onClose={closeTutorial} />}
     </Layout>
   )

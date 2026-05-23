@@ -39,14 +39,55 @@ export function useUpdateBetResult() {
   return useMutation(
     ({ id, result, payout }: { id: number; result: string; payout: number }) =>
       betsService.updateResult(id, result, payout),
-    { onSuccess: () => { qc.invalidateQueries('bets'); qc.invalidateQueries('dashboard') } }
+    {
+      onMutate: async ({ id, result, payout }: { id: number; result: string; payout: number }) => {
+        await qc.cancelQueries('bets')
+        const snapshots = qc.getQueriesData('bets')
+        qc.setQueriesData('bets', (old: any) => {
+          if (!old) return old
+          return {
+            ...old,
+            data: old.data.map((b: any) =>
+              b.id === id ? { ...b, result, payout, profit: payout - b.amountWagered } : b
+            ),
+          }
+        })
+        return { snapshots }
+      },
+      onError: (_e: any, _v: any, ctx: any) => {
+        if (ctx && ctx.snapshots) {
+          ctx.snapshots.forEach((entry: any) => qc.setQueryData(entry[0], entry[1]))
+        }
+      },
+      onSettled: () => {
+        qc.invalidateQueries('bets')
+        qc.invalidateQueries('dashboard')
+      },
+    }
   )
 }
 
 export function useDeleteBet() {
   const qc = useQueryClient()
   return useMutation((id: number) => betsService.delete(id), {
-    onSuccess: () => { qc.invalidateQueries('bets'); qc.invalidateQueries('dashboard') },
+    onMutate: async (id: number) => {
+      await qc.cancelQueries('bets')
+      const snapshots = qc.getQueriesData('bets')
+      qc.setQueriesData('bets', (old: any) => {
+        if (!old) return old
+        return { ...old, data: old.data.filter((b: any) => b.id !== id), total: old.total - 1 }
+      })
+      return { snapshots }
+    },
+    onError: (_e: any, _id: any, ctx: any) => {
+      if (ctx && ctx.snapshots) {
+        ctx.snapshots.forEach((entry: any) => qc.setQueryData(entry[0], entry[1]))
+      }
+    },
+    onSettled: () => {
+      qc.invalidateQueries('bets')
+      qc.invalidateQueries('dashboard')
+    },
   })
 }
 
