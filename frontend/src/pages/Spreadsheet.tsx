@@ -1530,7 +1530,7 @@ export default function Spreadsheet() {
   const [showImport, setShowImport] = useState(false)
 
   const tabs = [
-    { id: null, label: 'Todas', color: '#8b5cf6' },
+    { id: null, label: 'Todas as apostas', color: '#8b5cf6' },
     ...tipsters.filter(t => t.active).map((t, i) => ({ id: t.id, label: t.name, color: PROFILE_COLORS[i % PROFILE_COLORS.length] })),
   ]
 
