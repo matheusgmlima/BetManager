@@ -342,11 +342,11 @@ function BancaSection() {
   const [amount, setAmount] = useState('')
   const [note,   setNote]   = useState('')
 
-  const balance  = data?.balance ?? 0
-  const entries  = data?.data ?? []
-  const hasInit  = entries.some(e => e.type === 'initial')
-  const deposited = entries.filter(e => e.type !== 'withdrawal').reduce((s, e) => s + e.amount, 0)
-  const withdrawn = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
+  const balance          = data?.estimatedBalance ?? data?.balance ?? 0
+  const entries          = data?.data ?? []
+  const hasInit          = entries.some(e => e.type === 'initial')
+  const deposited        = entries.filter(e => e.type !== 'withdrawal').reduce((s, e) => s + e.amount, 0)
+  const withdrawn        = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
 
   const typeLabel = (t: string) =>
     t === 'initial' ? 'Banca inicial' : t === 'deposit' ? 'Depósito' : 'Saque'
@@ -470,7 +470,7 @@ function UnidadeSection() {
   const [saved,  setSaved]  = useState(false)
 
   const unitNum = parseFloat(value) || 0
-  const balance = bankroll?.balance ?? 0
+  const balance = bankroll?.estimatedBalance ?? bankroll?.balance ?? 0
   const pct     = balance > 0 ? ((unitNum / balance) * 100) : null
 
   const handleSave = async () => {

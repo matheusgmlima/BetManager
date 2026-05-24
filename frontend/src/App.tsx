@@ -21,6 +21,7 @@ import VerifyEmail from './pages/VerifyEmail'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import SetupAccount from './pages/SetupAccount'
+import ShareBet from './pages/ShareBet'
 import { Tutorial, useTutorial } from './components/Tutorial'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
@@ -416,6 +417,7 @@ export default function App() {
               <Route path="/esqueci-senha"   element={<ForgotPassword />} />
               <Route path="/redefinir-senha" element={<ResetPassword />} />
               <Route path="/setup-conta"     element={<SetupAccount />} />
+              <Route path="/share/:token"    element={<ShareBet />} />
               <Route path="/*"               element={<ProtectedRoutes />} />
             </Routes>
           </BrowserRouter>

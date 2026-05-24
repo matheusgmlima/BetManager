@@ -639,9 +639,9 @@ function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: numb
 
 // ─── BetRow ───────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult, onDuplicate, isMobile = false }: {
+function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpdateResult, onDuplicate, isMobile = false }: {
   bet: Bet; odd: boolean; selected: boolean; isMobile?: boolean
-  onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void
+  onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void; onShare: (b: Bet) => void
   onUpdateResult: (id: number, result: BetResult, payout: number) => void
   onDuplicate: (b: Bet) => void
 }) {
@@ -838,6 +838,18 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.10)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.25)' }}
           >⎘</button>
           <button
+            onClick={() => onShare(bet)}
+            title="Compartilhar"
+            style={{
+              width: 28, height: 28, borderRadius: 7, fontSize: 13, cursor: 'pointer',
+              background: 'rgba(14,165,233,0.10)', border: '1px solid rgba(14,165,233,0.25)',
+              color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(14,165,233,0.22)'; e.currentTarget.style.borderColor = '#38bdf8' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(14,165,233,0.10)'; e.currentTarget.style.borderColor = 'rgba(14,165,233,0.25)' }}
+          >⤴</button>
+          <button
             onClick={() => onEdit(bet)}
             title="Editar"
             style={{
@@ -927,6 +939,18 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
       sonnerToast.error('Erro ao atualizar resultado')
     }
   }
+
+  async function handleShare(bet: Bet) {
+    try {
+      const r = await import('../services/api').then(m => m.api.post<{ token: string }>(`/api/bets/${bet.id}/share`))
+      const url = `${window.location.origin}/share/${r.data.token}`
+      await navigator.clipboard.writeText(url)
+      sonnerToast.success('Link copiado!', { description: url })
+    } catch {
+      sonnerToast.error('Erro ao gerar link')
+    }
+  }
+
 
   async function handleDuplicate(bet: Bet) {
     try {
@@ -1382,7 +1406,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                             {makeThead(monthBets.map((b: Bet) => b.id))}
                             <tbody>
                               {monthBets.map((bet: Bet, i: number) => (
-                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
+                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onShare={handleShare} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
                               ))}
                             </tbody>
                           </table>
@@ -1414,7 +1438,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                         : <EmptyStateRow colSpan={11} icon="target" title="Nenhuma aposta ainda" description="Registre sua primeira aposta para começar a acompanhar seus resultados." />
                     )}
                     {!isLoading && sorted.map((bet: Bet, i: number) => (
-                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
+                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onShare={handleShare} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
                     ))}
                   </tbody>
                   {summary && !isLoading && sorted.length > 0 && (

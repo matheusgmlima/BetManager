@@ -65,3 +65,14 @@ export async function heatmap(req: Request, res: Response, next: NextFunction) {
     res.json({ data })
   } catch (err) { next(err) }
 }
+
+export async function compare(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { dateFrom1, dateTo1, dateFrom2, dateTo2 } = req.query as Record<string, string>
+    const [periodA, periodB] = await Promise.all([
+      statsService.getPeriodSummary(req.user!.userId, dateFrom1, dateTo1),
+      statsService.getPeriodSummary(req.user!.userId, dateFrom2, dateTo2),
+    ])
+    res.json({ periodA, periodB })
+  } catch (err) { next(err) }
+}

@@ -546,11 +546,7 @@ export default function Dashboard() {
                       {showU ? '' : 'R$ '}{(showU && unitVal > 0 ? Math.abs(saldoReal) / unitVal : Math.abs(saldoReal)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
                     </p>
                     <p style={{ fontSize: 12, color: '#6d5a9a', marginTop: 6 }}>
-                      Capital:{' '}
-                      <span style={{ color: '#a78bfa', fontWeight: 700 }}>
-                        {showU ? '' : 'R$ '}{(showU && unitVal > 0 ? bankroll.balance / unitVal : bankroll.balance).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
-                      </span>
-                      {' · '}Lucro total:{' '}
+                      Lucro total:{' '}
                       <span style={{ color: allProfit >= 0 ? '#22c55e' : '#ef4444', fontWeight: 700 }}>
                         {allProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{(showU && unitVal > 0 ? allProfit / unitVal : allProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
                       </span>
@@ -628,7 +624,7 @@ export default function Dashboard() {
 
         {/* ── GRÁFICOS ──────────────────────────────────────── */}
         <div className="anim-slide-up" style={{ animationDelay: '240ms' }}>
-          <Section label="Análise gráfica">
+          <Section label={`Gráficos — ${PERIOD_OPTS.find(p => p.value === period)?.label ?? ''}`}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 
               {/* Lucro acumulado */}
@@ -727,6 +723,15 @@ export default function Dashboard() {
                 ) : <EmptyChart />}
               </ChartCard>
 
+            </div>
+          </Section>
+        </div>
+
+        {/* ── HISTÓRICO GERAL ── */}
+        {monthlyStats.length >= 2 && (
+        <div className="anim-slide-up" style={{ animationDelay: '280ms' }}>
+          <Section label="Histórico geral" icon="◇">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {/* Comparativo mensal */}
               {monthlyStats.length >= 2 && (
                 <ChartCard title="Comparativo mes a mes (Lucro R$)" delay={320}>
@@ -777,6 +782,7 @@ export default function Dashboard() {
             </div>
           </Section>
         </div>
+        )}
 
         {/* Apostas pendentes */}
         {(dash?.pendingBets?.length ?? 0) > 0 && (

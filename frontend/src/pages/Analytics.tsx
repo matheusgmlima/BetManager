@@ -1,11 +1,11 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useMobile } from '../hooks/useMobile'
 import { useQuery } from 'react-query'
 import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, ReferenceLine,
 } from 'recharts'
-import { useProfileDetail, useDashboard, useProfileStats } from '../hooks/useDashboard'
+import { useProfileDetail, useDashboard, useProfileStats, useBetTypeStats, useComparePeriods } from '../hooks/useDashboard'
 import { useUnit } from '../contexts/UnitContext'
 import { dashboardService } from '../services/dashboardService'
 
@@ -33,6 +33,22 @@ const ttStyle = {
 }
 
 // ─── Hooks ────────────────────────────────────────────────────────────────────
+
+const PERIOD_OPTS = [
+  { value: 'week',  label: '7 dias' },
+  { value: 'month', label: '30 dias' },
+  { value: 'year',  label: '12 meses' },
+  { value: 'all',   label: 'Tudo' },
+]
+
+function periodToDates(period: string): { dateFrom?: string; dateTo?: string } {
+  const now = new Date()
+  const fmt = (d: Date) => d.toISOString().split('T')[0]
+  if (period === 'week')  { const d = new Date(now); d.setDate(d.getDate() - 7);         return { dateFrom: fmt(d) } }
+  if (period === 'month') { const d = new Date(now); d.setMonth(d.getMonth() - 1);       return { dateFrom: fmt(d) } }
+  if (period === 'year')  { const d = new Date(now); d.setFullYear(d.getFullYear() - 1); return { dateFrom: fmt(d) } }
+  return {}
+}
 
 function useHeatmap() {
   return useQuery(['stats', 'heatmap'], () => dashboardService.getHeatmap())
@@ -551,8 +567,8 @@ function WeekHeatmap() {
 
 const PROFILE_COLS = ['#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#34d399', '#60a5fa']
 
-function ProfileChart() {
-  const { data: profiles = [], isLoading } = useProfileStats()
+function ProfileChart({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
+  const { data: profiles = [], isLoading } = useProfileStats(dateFrom, dateTo)
   const { fmtMoney } = useUnit()
   const isMobile = useMobile()
 
@@ -654,11 +670,8 @@ function ProfileChart() {
 
 // ─── Simples vs Combinadas ───────────────────────────────────────────────────────────────
 
-function BetTypeChart() {
-  const { data, isLoading } = useQuery(
-    ['stats', 'bet-types'],
-    () => import('../services/dashboardService').then(m => m.dashboardService.getBetTypeStats())
-  )
+function BetTypeChart({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
+  const { data, isLoading } = useBetTypeStats(dateFrom, dateTo)
   const { fmtMoney } = useUnit()
   const isMobile = useMobile()
 
@@ -803,27 +816,77 @@ function StreaksAndTopBets() {
   )
 }
 
+function SectionLabel({ icon, label, tag }: { icon: string; label: string; tag?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8 }}>
+      <div style={{ width: 3, height: 20, borderRadius: 2, background: 'var(--purple-500)', flexShrink: 0 }} />
+      <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+        {icon} {label}
+      </span>
+      {tag && (
+        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.3)', color: '#a78bfa', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+          {tag}
+        </span>
+      )}
+      <div style={{ flex: 1, height: 1, background: 'var(--border)', marginLeft: 4 }} />
+    </div>
+  )
+}
+
+
+
+
 export default function Analytics() {
   const isMobile = useMobile()
+  const [period, setPeriod] = useState('month')
+  const { dateFrom, dateTo } = periodToDates(period)
+
   return (
     <div style={{
       maxWidth: 1160, margin: '0 auto',
       padding: isMobile ? '16px 12px 80px' : '32px 24px 72px',
       display: 'flex', flexDirection: 'column', gap: 20,
     }}>
-      <div style={{ marginBottom: 4 }}>
-        <h1 style={{
-          margin: 0, fontSize: 24, fontWeight: 800,
-          color: C.text, letterSpacing: '-0.02em',
-        }}>
-          Analytics
-        </h1>
-        <p style={{ margin: '5px 0 0', fontSize: 12, color: C.sub }}>
-          Onde voce encontra valor, como sua banca se comporta, quando voce aposta melhor.
-        </p>
+
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: C.text, letterSpacing: '-0.02em' }}>
+            Analytics
+          </h1>
+          <p style={{ margin: '5px 0 0', fontSize: 12, color: C.sub }}>
+            Onde você encontra valor, como sua banca se comporta, quando você aposta melhor.
+          </p>
+        </div>
+
+        {/* Period selector */}
+        <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, flexShrink: 0 }}>
+          {PERIOD_OPTS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setPeriod(opt.value)}
+              style={{
+                padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+                background: period === opt.value ? 'rgba(124,58,237,0.9)' : 'transparent',
+                color: period === opt.value ? '#fff' : 'var(--text-muted)',
+                boxShadow: period === opt.value ? '0 0 12px rgba(124,58,237,0.4)' : 'none',
+              }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <ProfileChart />
+      {/* Analise por periodo */}
+      <SectionLabel icon="◈" label={`Análise — ${PERIOD_OPTS.find(p => p.value === period)?.label ?? ''}`} tag="filtrado" />
+      <ProfileChart dateFrom={dateFrom} dateTo={dateTo} />
+      <BetTypeChart dateFrom={dateFrom} dateTo={dateTo} />
+
+      {/* Historico geral */}
+      <SectionLabel icon="◇" label="Histórico Geral" tag="todos os dados" />
+      <StreaksAndTopBets />
       <CalibrationChart />
       <DrawdownChart />
       <WeekHeatmap />

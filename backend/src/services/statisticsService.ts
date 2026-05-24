@@ -587,3 +587,54 @@ export async function getStatsByTipster(userId: number, filters: DateFilter) {
     }
   }).sort((a, b) => b.totalProfit - a.totalProfit)
 }
+
+export interface PeriodSummary {
+  totalBets: number
+  won: number
+  lost: number
+  void: number
+  pending: number
+  hitRatePct: number | null
+  totalWagered: number
+  totalProfit: number
+  roi: number
+  avgOdds: number | null
+}
+
+export async function getPeriodSummary(userId: number, dateFrom?: string, dateTo?: string): Promise<PeriodSummary> {
+  const where: any = { userId }
+  if (dateFrom || dateTo) {
+    where.date = {}
+    if (dateFrom) where.date.gte = new Date(dateFrom)
+    if (dateTo)   where.date.lte = new Date(dateTo)
+  }
+
+  const bets = await prisma.bet.findMany({ where })
+  const resolved = bets.filter(b => b.result !== 'pending')
+  const won      = resolved.filter(b => b.result === 'won').length
+  const lost     = resolved.filter(b => b.result === 'lost').length
+  const voidB    = resolved.filter(b => b.result === 'void').length
+  const pending  = bets.filter(b => b.result === 'pending').length
+
+  const totalWagered = resolved.reduce((s, b) => s + Number(b.amountWagered), 0)
+  const totalProfit  = resolved.reduce((s, b) => {
+    const a = Number(b.amountWagered)
+    return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+  }, 0)
+
+  const oddsArr = resolved.filter(b => b.odds).map(b => Number(b.odds))
+  const avgOdds = oddsArr.length > 0 ? oddsArr.reduce((s, v) => s + v, 0) / oddsArr.length : null
+
+  return {
+    totalBets: bets.length,
+    won,
+    lost,
+    void: voidB,
+    pending,
+    hitRatePct: calculateHitRate(won, lost),
+    totalWagered: parseFloat(totalWagered.toFixed(2)),
+    totalProfit: parseFloat(totalProfit.toFixed(2)),
+    roi: calculateRoi(totalProfit, totalWagered),
+    avgOdds: avgOdds ? parseFloat(avgOdds.toFixed(4)) : null,
+  }
+}

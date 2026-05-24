@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useCreateBet, useCreateBetsBatch, useExtractBets } from '../hooks/useBets'
-import { useSports, useBookmakers, useProfiles, useTipsters } from '../hooks/useConfig'
+import { useSports, useBookmakers, useProfiles, useTipsters, useCreateSport, useCreateBookmaker, useCreateProfile, useCreateTipster } from '../hooks/useConfig'
 import { betsService } from '../services/betsService'
 import { useMobile } from '../hooks/useMobile'
 import { Icon } from '../components/Icon'
@@ -94,6 +94,128 @@ function SectionCard({ icon, title, children }: { icon: string; title: string; c
       </div>
       <div style={{ padding: '20px' }}>
         {children}
+      </div>
+    </div>
+  )
+}
+
+// ─── Quick Create Modal ───────────────────────────────────────────────────────────────
+
+type QuickCreateType = 'bookmaker' | 'sport' | 'profile' | 'tipster'
+
+function QuickCreateModal({ type, onSelect, onClose }: {
+  type: QuickCreateType
+  onSelect: (id: number, name: string) => void
+  onClose: () => void
+}) {
+  const createBookmaker = useCreateBookmaker()
+  const createSport     = useCreateSport()
+  const createProfile   = useCreateProfile()
+  const createTipster   = useCreateTipster()
+
+  const [name,    setName]    = useState('')
+  const [extra,   setExtra]   = useState(type === 'bookmaker' ? '#7c3aed' : '')
+  const [loading, setLoading] = useState(false)
+  const [err,     setErr]     = useState('')
+
+  const LABELS: Record<QuickCreateType, { title: string; placeholder: string }> = {
+    bookmaker: { title: 'Casa de Apostas', placeholder: 'Ex: Bet365' },
+    sport:     { title: 'Esporte',         placeholder: 'Ex: Futebol' },
+    profile:   { title: 'Perfil de Aposta',placeholder: 'Ex: Value Bet' },
+    tipster:   { title: 'Tipster / VIP',   placeholder: 'Ex: Tipster X' },
+  }
+  const cfg = LABELS[type]
+
+  const handleCreate = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) { setErr('Nome obrigatório'); return }
+    setLoading(true); setErr('')
+    try {
+      let result: any
+      if (type === 'bookmaker') result = await createBookmaker.mutateAsync({ name: trimmed, color: extra || '#7c3aed' })
+      else if (type === 'sport') result = await createSport.mutateAsync({ name: trimmed, icon: extra.trim() || null })
+      else if (type === 'profile') result = await createProfile.mutateAsync({ name: trimmed })
+      else result = await createTipster.mutateAsync({ name: trimmed })
+      onSelect(result.id, result.name)
+    } catch {
+      setErr('Erro ao criar. Tente novamente.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)' }}
+      onClick={onClose}
+    >
+      <div
+        style={{ background: 'var(--bg-card)', border: '1px solid rgba(124,58,237,0.35)', borderRadius: 18, padding: 26, width: 360, maxWidth: '92vw', boxShadow: '0 24px 60px rgba(0,0,0,0.5), 0 0 40px rgba(124,58,237,0.08)' }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ marginBottom: 20 }}>
+          <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#6d5a9a' }}>Criar novo</p>
+          <h3 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: 'var(--text-primary)' }}>{cfg.title}</h3>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Field label="Nome *">
+            <input
+              autoFocus
+              value={name}
+              onChange={e => { setName(e.target.value); setErr('') }}
+              onKeyDown={e => e.key === 'Enter' && !loading && handleCreate()}
+              onFocus={focus} onBlur={blur}
+              style={{ ...inp, borderColor: err ? 'var(--red)' : 'var(--border)' }}
+              placeholder={cfg.placeholder}
+            />
+            {err && <span style={{ fontSize: 11, color: 'var(--red)', marginTop: 2 }}>{err}</span>}
+          </Field>
+
+          {type === 'bookmaker' && (
+            <Field label="Cor">
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="color" value={extra}
+                  onChange={e => setExtra(e.target.value)}
+                  style={{ width: 40, height: 36, borderRadius: 8, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', padding: 2, flexShrink: 0 }}
+                />
+                <input
+                  value={extra} onChange={e => setExtra(e.target.value)}
+                  onFocus={focus} onBlur={blur}
+                  style={{ ...inp }} placeholder="#7c3aed"
+                />
+              </div>
+            </Field>
+          )}
+
+          {type === 'sport' && (
+            <Field label="Emoji (opcional)">
+              <input
+                value={extra} onChange={e => setExtra(e.target.value)}
+                onFocus={focus} onBlur={blur}
+                style={inp} placeholder="⚽ 🏀 🎾…"
+              />
+            </Field>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} style={{
+            padding: '9px 18px', borderRadius: 10, border: '1px solid var(--border)',
+            background: 'transparent', color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+          }}>
+            Cancelar
+          </button>
+          <button type="button" onClick={handleCreate} disabled={!name.trim() || loading} style={{
+            padding: '9px 24px', borderRadius: 10, border: 'none',
+            background: name.trim() ? 'linear-gradient(135deg, var(--purple-700), var(--purple-600))' : 'rgba(255,255,255,0.06)',
+            color: name.trim() ? '#fff' : 'var(--text-muted)',
+            fontSize: 13, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'not-allowed',
+            boxShadow: name.trim() ? '0 0 18px var(--purple-glow)' : 'none',
+            transition: 'all 0.15s',
+          }}>
+            {loading ? 'Criando…' : 'Criar'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -247,6 +369,7 @@ function ManualTab() {
   })
   const [errors, setErrors] = useState<Partial<Record<keyof ManualFormState, string>>>({})
   const [multiMatches, setMultiMatches] = useState<{ game: string; selection: string }[]>([{ game: '', selection: '' }, { game: '', selection: '' }])
+  const [quickCreate, setQuickCreate] = useState<{ type: QuickCreateType; field: keyof ManualFormState } | null>(null)
 
   // Auto-seleciona tipster padrão ("Aposta Própria" ou o primeiro ativo)
   useEffect(() => {
@@ -350,7 +473,10 @@ function ManualTab() {
             />
           </Field>
           <Field label="Casa de Apostas *" error={errors.bookmakerId}>
-            <select value={form.bookmakerId} onChange={e => set('bookmakerId', e.target.value)}
+            <select value={form.bookmakerId} onChange={e => {
+              if (e.target.value === '__create__') { setQuickCreate({ type: 'bookmaker', field: 'bookmakerId' }); return }
+              set('bookmakerId', e.target.value)
+            }}
               onFocus={focus} onBlur={blur}
               style={{ ...inp, borderColor: errors.bookmakerId ? 'var(--red)' : 'var(--border)' }}
             >
@@ -358,16 +484,21 @@ function ManualTab() {
               {bookmakers.filter(b => b.active).map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
+              <option value="__create__">+ Criar nova casa…</option>
             </select>
           </Field>
           <Field label="Esporte">
-            <select value={form.sportId} onChange={e => set('sportId', e.target.value)}
+            <select value={form.sportId} onChange={e => {
+              if (e.target.value === '__create__') { setQuickCreate({ type: 'sport', field: 'sportId' }); return }
+              set('sportId', e.target.value)
+            }}
               onFocus={focus} onBlur={blur} style={inp}
             >
               <option value="">Nenhum</option>
               {sports.filter(s => s.active).map(s => (
                 <option key={s.id} value={s.id}>{s.icon ? `${s.icon} ` : ''}{s.name}</option>
               ))}
+              <option value="__create__">+ Criar esporte…</option>
             </select>
           </Field>
         </div>
@@ -393,25 +524,33 @@ function ManualTab() {
 
           {/* Tipster / VIP */}
           <Field label="Tipster / VIP *" error={errors.tipsterId}>
-            <select value={form.tipsterId} onChange={e => set('tipsterId', e.target.value)}
+            <select value={form.tipsterId} onChange={e => {
+              if (e.target.value === '__create__') { setQuickCreate({ type: 'tipster', field: 'tipsterId' }); return }
+              set('tipsterId', e.target.value)
+            }}
               onFocus={focus} onBlur={blur} style={{ ...inp, borderColor: errors.tipsterId ? 'var(--red)' : 'var(--border)' }}
             >
               <option value="">Nenhum</option>
               {tipsters.filter(t => t.active).map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
+              <option value="__create__">+ Criar tipster…</option>
             </select>
           </Field>
 
           {/* Perfil de estratégia */}
           <Field label="Perfil">
-            <select value={form.bettingProfileId} onChange={e => set('bettingProfileId', e.target.value)}
+            <select value={form.bettingProfileId} onChange={e => {
+              if (e.target.value === '__create__') { setQuickCreate({ type: 'profile', field: 'bettingProfileId' }); return }
+              set('bettingProfileId', e.target.value)
+            }}
               onFocus={focus} onBlur={blur} style={inp}
             >
               <option value="">Nenhum</option>
               {profiles.filter(p => p.active).map(p => (
                 <option key={p.id} value={p.id}>{p.name}</option>
               ))}
+              <option value="__create__">+ Criar perfil…</option>
             </select>
           </Field>
         </div>
@@ -576,6 +715,17 @@ function ManualTab() {
           Erro ao salvar. Verifique os campos e tente novamente.
         </div>
       )}
+
+      {quickCreate && (
+        <QuickCreateModal
+          type={quickCreate.type}
+          onClose={() => setQuickCreate(null)}
+          onSelect={(id) => {
+            set(quickCreate.field, String(id))
+            setQuickCreate(null)
+          }}
+        />
+      )}
     </form>
   )
 
@@ -662,6 +812,7 @@ function AiTab() {
   const [bulkProfileId,   setBulkProfileId]   = useState('')
   const [bulkSportId,     setBulkSportId]     = useState('')
   const [bulkBarHidden,   setBulkBarHidden]   = useState(false)
+  const [quickCreate, setQuickCreate] = useState<{ type: QuickCreateType; applyFn: (id: number) => void } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const tipstersRef = useRef(tipsters)
@@ -1218,6 +1369,7 @@ function AiTab() {
                           <select
                             value={bet.bookmakerId ?? ''}
                             onChange={e => {
+                              if (e.target.value === '__create__') { setQuickCreate({ type: 'bookmaker', applyFn: (id) => { updateBet(i, { bookmakerId: id }); setValidationErrors(prev => { const next = { ...prev }; if (next[i]) next[i] = next[i].filter(x => x !== 'casa'); if (next[i]?.length === 0) delete next[i]; return next }) } }); return }
                               updateBet(i, { bookmakerId: e.target.value ? Number(e.target.value) : null })
                               setValidationErrors(prev => {
                                 const next = { ...prev }
@@ -1233,12 +1385,14 @@ function AiTab() {
                             {bookmakers.filter(b => b.active).map(b => (
                               <option key={b.id} value={b.id}>{b.name}</option>
                             ))}
+                            <option value="__create__">+ Criar nova casa…</option>
                           </select>
                         </Field>
                         <Field label="Tipster / VIP *" error={hasError && betErrors.includes('tipster') ? 'Obrigatório' : undefined}>
                           <select
                             value={bet.tipsterId ?? ''}
                             onChange={e => {
+                              if (e.target.value === '__create__') { setQuickCreate({ type: 'tipster', applyFn: (id) => { updateBet(i, { tipsterId: id }); setValidationErrors(prev => { const next = { ...prev }; if (next[i]) next[i] = next[i].filter(x => x !== 'tipster'); if (next[i]?.length === 0) delete next[i]; return next }) } }); return }
                               updateBet(i, { tipsterId: e.target.value ? Number(e.target.value) : null })
                               setValidationErrors(prev => {
                                 const next = { ...prev }
@@ -1254,12 +1408,16 @@ function AiTab() {
                             {tipsters.filter(t => t.active).map(t => (
                               <option key={t.id} value={t.id}>{t.name}</option>
                             ))}
+                            <option value="__create__">+ Criar tipster…</option>
                           </select>
                         </Field>
                         <Field label="Perfil de Aposta">
                           <select
                             value={bet.bettingProfileId ?? ''}
-                            onChange={e => updateBet(i, { bettingProfileId: e.target.value ? Number(e.target.value) : null })}
+                            onChange={e => {
+                              if (e.target.value === '__create__') { setQuickCreate({ type: 'profile', applyFn: (id) => updateBet(i, { bettingProfileId: id }) }); return }
+                              updateBet(i, { bettingProfileId: e.target.value ? Number(e.target.value) : null })
+                            }}
                             onFocus={focus} onBlur={blur}
                             style={inp}
                           >
@@ -1267,12 +1425,16 @@ function AiTab() {
                             {profiles.filter((p: any) => p.active).map((p: any) => (
                               <option key={p.id} value={p.id}>{p.name}</option>
                             ))}
+                            <option value="__create__">+ Criar perfil…</option>
                           </select>
                         </Field>
                         <Field label="Esporte">
                           <select
                             value={bet.sportId ?? ''}
-                            onChange={e => updateBet(i, { sportId: e.target.value ? Number(e.target.value) : null })}
+                            onChange={e => {
+                              if (e.target.value === '__create__') { setQuickCreate({ type: 'sport', applyFn: (id) => updateBet(i, { sportId: id }) }); return }
+                              updateBet(i, { sportId: e.target.value ? Number(e.target.value) : null })
+                            }}
                             onFocus={focus} onBlur={blur}
                             style={inp}
                           >
@@ -1280,6 +1442,7 @@ function AiTab() {
                             {sports.filter(s => s.active).map(s => (
                               <option key={s.id} value={s.id}>{s.icon ? `${s.icon} ` : ''}{s.name}</option>
                             ))}
+                            <option value="__create__">+ Criar esporte…</option>
                           </select>
                         </Field>
                       </div>
@@ -1378,6 +1541,17 @@ function AiTab() {
             </button>
           </div>
         </>
+      )}
+
+      {quickCreate && (
+        <QuickCreateModal
+          type={quickCreate.type}
+          onClose={() => setQuickCreate(null)}
+          onSelect={(id) => {
+            quickCreate.applyFn(id)
+            setQuickCreate(null)
+          }}
+        />
       )}
 
       <style>{`
