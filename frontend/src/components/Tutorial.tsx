@@ -276,6 +276,22 @@ const STEPS = [
     showSnake: false,
   },
   {
+    icon: '📸',
+    title: 'Importar por Foto',
+    subtitle: 'IA que lê suas apostas',
+    content: `Tem uma planilha antiga ou print de aposta? O BetManager lê a imagem e extrai tudo automaticamente — data, partida, mercado, odd, stake e resultado. Basta arrastar o print, revisar os dados extraídos pela IA e confirmar. Sem redigitação manual.`,
+    highlight: 'Importe meses de apostas em segundos. Acesse em Planilha → Importar por Foto.',
+    showSnake: false,
+  },
+  {
+    icon: '🔗',
+    title: 'Compartilhar Aposta',
+    subtitle: 'Mostre seus resultados',
+    content: `Cada aposta pode ser compartilhada via link público. Clique no botão de compartilhar na Planilha e o link é copiado automaticamente. Quem acessar vê os detalhes da aposta — sem nenhum dado financeiro exposto.`,
+    highlight: 'Compartilhe resultados sem revelar stakes, lucro ou dados da sua banca.',
+    showSnake: false,
+  },
+  {
     icon: '🚀',
     title: 'Tudo pronto!',
     subtitle: 'Hora de começar',

@@ -5,9 +5,10 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell, AreaChart, Area, ReferenceLine,
 } from 'recharts'
-import { useProfileDetail, useDashboard, useProfileStats, useBetTypeStats, useComparePeriods } from '../hooks/useDashboard'
+import { useProfileDetail, useDashboard, useProfileStats, useBetTypeStats, useTipsterStats, useSportStats, useBookmakerStats } from '../hooks/useDashboard'
 import { useUnit } from '../contexts/UnitContext'
 import { dashboardService } from '../services/dashboardService'
+import { useBankroll } from '../hooks/useBankroll'
 
 // ─── Paleta ───────────────────────────────────────────────────────────────────
 
@@ -563,6 +564,153 @@ function WeekHeatmap() {
   )
 }
 
+// ─── Equity Chart (Evolução da Banca) ────────────────────────────────────────
+
+const EQUITY_PERIODS = [
+  { label: '1M', days: 30 },
+  { label: '3M', days: 90 },
+  { label: '6M', days: 180 },
+  { label: '1A', days: 365 },
+  { label: 'Tudo', days: 0 },
+]
+
+function EquityChart() {
+  const { data: dash } = useDashboard('all')
+  const { data: bankroll } = useBankroll()
+  const { fmtMoney } = useUnit()
+  const isMobile = useMobile()
+  const [periodDays, setPeriodDays] = useState(0) // 0 = tudo
+
+  const rawChart = dash?.profitChart ?? []
+  const baseBalance = bankroll?.balance ?? 0
+
+  const chartData = useMemo(() => {
+    let points = rawChart
+    if (periodDays > 0) {
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - periodDays)
+      const cutoffStr = cutoff.toISOString().split('T')[0]
+      points = points.filter(p => p.date >= cutoffStr)
+    }
+    return points.map(p => ({
+      date: p.date,
+      label: new Date(p.date + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      bankroll: parseFloat((baseBalance + p.cumulativeProfit).toFixed(2)),
+      profit: p.cumulativeProfit,
+    }))
+  }, [rawChart, baseBalance, periodDays])
+
+  const minVal  = chartData.length ? Math.min(...chartData.map(d => d.bankroll)) : 0
+  const maxVal  = chartData.length ? Math.max(...chartData.map(d => d.bankroll)) : 0
+  const lastVal = chartData.length ? chartData[chartData.length - 1].bankroll : baseBalance
+  const firstVal = chartData.length ? chartData[0].bankroll : baseBalance
+  const delta   = lastVal - firstVal
+  const isUp    = delta >= 0
+
+  if (rawChart.length === 0) return null
+
+  const tick = (v: number) => fmtMoney(v)
+
+  return (
+    <div style={{
+      background: 'var(--bg-card)', border: '1px solid var(--border)',
+      borderRadius: 16, overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        padding: '16px 20px 12px',
+        borderBottom: '1px solid var(--border)',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
+      }}>
+        <div>
+          <p style={{ margin: 0, fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+            Evolução da Banca
+          </p>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 4 }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: 'var(--text-primary)' }}>{fmtMoney(lastVal)}</span>
+            <span style={{
+              fontSize: 12, fontWeight: 700,
+              color: isUp ? '#22c55e' : '#ef4444',
+              display: 'flex', alignItems: 'center', gap: 3,
+            }}>
+              {isUp ? '▲' : '▼'} {isUp ? '+' : ''}{fmtMoney(delta)}
+            </span>
+          </div>
+        </div>
+        {/* Period pills */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {EQUITY_PERIODS.map(p => (
+            <button key={p.label} onClick={() => setPeriodDays(p.days)} style={{
+              padding: '4px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.15s', border: 'none',
+              background: periodDays === p.days ? '#8b5cf6' : 'rgba(255,255,255,0.05)',
+              color: periodDays === p.days ? '#fff' : 'var(--text-muted)',
+              boxShadow: periodDays === p.days ? '0 0 10px rgba(139,92,246,0.4)' : 'none',
+            }}>{p.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div style={{ padding: '8px 0 4px' }}>
+        <ResponsiveContainer width="100%" height={isMobile ? 180 : 240}>
+          <AreaChart data={chartData} margin={{ top: 10, right: 16, left: isMobile ? 0 : 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="equityGrad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={isUp ? '#22c55e' : '#ef4444'} stopOpacity={0.18} />
+                <stop offset="95%" stopColor={isUp ? '#22c55e' : '#ef4444'} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 10, fill: '#5b4b8a' }}
+              tickLine={false} axisLine={false}
+              interval={Math.max(0, Math.floor(chartData.length / (isMobile ? 4 : 8)) - 1)}
+            />
+            <YAxis
+              tick={{ fontSize: 10, fill: '#5b4b8a' }}
+              tickLine={false} axisLine={false}
+              tickFormatter={tick}
+              domain={[minVal * 0.98, maxVal * 1.02]}
+              width={isMobile ? 50 : 70}
+            />
+            <Tooltip
+              contentStyle={{ background: '#0d0a1a', border: '1px solid rgba(124,58,237,0.3)', borderRadius: 10, fontSize: 12 }}
+              labelStyle={{ color: '#a78bfa', fontWeight: 700 }}
+              formatter={(val: number) => [fmtMoney(val), 'Banca']}
+            />
+            <ReferenceLine y={baseBalance} stroke="rgba(255,255,255,0.12)" strokeDasharray="4 4" />
+            <Area
+              type="monotone" dataKey="bankroll"
+              stroke={isUp ? '#22c55e' : '#ef4444'} strokeWidth={2}
+              fill="url(#equityGrad)"
+              dot={false} activeDot={{ r: 4, fill: isUp ? '#22c55e' : '#ef4444', strokeWidth: 0 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Footer */}
+      <div style={{
+        padding: '8px 20px 14px',
+        display: 'flex', gap: 20, flexWrap: 'wrap',
+      }}>
+        {[
+          { label: 'Mínimo', value: fmtMoney(minVal), color: '#ef4444' },
+          { label: 'Máximo', value: fmtMoney(maxVal), color: '#22c55e' },
+          { label: 'Depósitos', value: fmtMoney(baseBalance), color: '#a78bfa' },
+        ].map(s => (
+          <div key={s.label}>
+            <p style={{ margin: 0, fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{s.label}</p>
+            <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 800, color: s.color }}>{s.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── Profile comparison ──────────────────────────────────────────────────────────────────────────────────
 
 const PROFILE_COLS = ['#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#34d399', '#60a5fa']
@@ -836,10 +984,160 @@ function SectionLabel({ icon, label, tag }: { icon: string; label: string; tag?:
 
 
 
+
+// ─── Stat Table ───────────────────────────────────────────────────────────────
+
+type StatRow = {
+  name: string
+  color?: string
+  icon?: string | null
+  totalBets: number
+  hitRatePct: number | null
+  totalWagered: number
+  totalProfit: number
+  roi?: number | null
+}
+
+function StatTable({ rows, isLoading, emptyMsg = 'Sem dados para o período.' }: {
+  rows: StatRow[]
+  isLoading: boolean
+  emptyMsg?: string
+}) {
+  const { fmtMoney } = useUnit()
+  if (isLoading) return <ChartSkeleton />
+  if (!rows.length) return <EmptyState msg={emptyMsg} />
+  return (
+    <div style={{ overflowX: 'auto', borderRadius: 14, border: '1px solid var(--border)' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: 'rgba(9,9,15,0.85)' }}>
+            {['Nome', 'Apostas', 'Win%', 'Lucro', 'ROI', 'Apostado'].map(h => (
+              <th key={h} style={{
+                padding: '12px 16px', textAlign: h === 'Nome' ? 'left' : 'right',
+                fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+                color: 'var(--text-muted)', textTransform: 'uppercase',
+                borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap',
+              }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => {
+            const roi = r.roi != null ? r.roi : r.totalWagered > 0 ? (r.totalProfit / r.totalWagered) * 100 : null
+            const profitPos = r.totalProfit >= 0
+            const roiPos = roi != null && roi >= 0
+            return (
+              <tr key={i} style={{
+                borderBottom: i < rows.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
+                background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(124,58,237,0.07)')}
+              onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)')}
+              >
+                <td style={{ padding: '12px 16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {r.color && (
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: r.color, flexShrink: 0, display: 'inline-block' }} />
+                    )}
+                    {r.icon && !r.color && (
+                      <span style={{ fontSize: 16, lineHeight: 1 }}>{r.icon}</span>
+                    )}
+                    <span style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{r.name}</span>
+                  </div>
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-secondary)', fontWeight: 600 }}>{r.totalBets}</td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: r.hitRatePct != null && r.hitRatePct >= 50 ? C.green : C.muted, fontWeight: 700 }}>
+                  {r.hitRatePct != null ? `${r.hitRatePct.toFixed(1)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 800, color: profitPos ? C.green : C.red }}>
+                  {profitPos ? '+' : ''}{fmtMoney(r.totalProfit)}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', fontWeight: 700, color: roiPos ? C.green : roi != null ? C.red : C.muted }}>
+                  {roi != null ? `${roiPos ? '+' : ''}${roi.toFixed(1)}%` : '—'}
+                </td>
+                <td style={{ padding: '12px 16px', textAlign: 'right', color: 'var(--text-muted)' }}>
+                  {fmtMoney(r.totalWagered)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─── Tab components ───────────────────────────────────────────────────────────
+
+function TipsterTab({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
+  const { data: raw = [], isLoading } = useTipsterStats(dateFrom, dateTo)
+  const rows: StatRow[] = raw.map(t => ({
+    name: t.tipster,
+    totalBets: t.totalBets,
+    hitRatePct: t.hitRatePct,
+    totalWagered: t.totalWagered,
+    totalProfit: t.totalProfit,
+    roi: t.roi,
+  }))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionLabel icon="👤" label="Desempenho por Tipster" tag="filtrado" />
+      <StatTable rows={rows} isLoading={isLoading} emptyMsg="Nenhum tipster com apostas no período." />
+    </div>
+  )
+}
+
+function SportTab({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
+  const { data: raw = [], isLoading } = useSportStats(dateFrom, dateTo)
+  const rows: StatRow[] = raw.map(s => ({
+    name: s.sport,
+    icon: s.icon,
+    totalBets: s.totalBets,
+    hitRatePct: s.hitRatePct,
+    totalWagered: s.totalWagered,
+    totalProfit: s.totalProfit,
+  }))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionLabel icon="⚽" label="Desempenho por Esporte" tag="filtrado" />
+      <StatTable rows={rows} isLoading={isLoading} emptyMsg="Nenhum esporte com apostas no período." />
+    </div>
+  )
+}
+
+function BookmakerTab({ dateFrom, dateTo }: { dateFrom?: string; dateTo?: string }) {
+  const { data: raw = [], isLoading } = useBookmakerStats(dateFrom, dateTo)
+  const rows: StatRow[] = raw.map(b => ({
+    name: b.bookmaker,
+    color: b.color,
+    totalBets: b.totalBets,
+    hitRatePct: b.hitRatePct,
+    totalWagered: b.totalWagered,
+    totalProfit: b.totalProfit,
+  }))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <SectionLabel icon="🏦" label="Desempenho por Casa de Apostas" tag="filtrado" />
+      <StatTable rows={rows} isLoading={isLoading} emptyMsg="Nenhuma casa com apostas no período." />
+    </div>
+  )
+}
+
 export default function Analytics() {
   const isMobile = useMobile()
   const [period, setPeriod] = useState('month')
+  const [tab, setTab] = useState<'geral' | 'tipsters' | 'sports' | 'bookmakers'>('geral')
   const { dateFrom, dateTo } = periodToDates(period)
+
+  const TABS = [
+    { value: 'geral',      label: 'Geral',        icon: '◈' },
+    { value: 'tipsters',   label: 'Por Tipster',   icon: '👤' },
+    { value: 'sports',     label: 'Por Esporte',   icon: '⚽' },
+    { value: 'bookmakers', label: 'Por Casa',      icon: '🏦' },
+  ] as const
+
+  const showPeriod = tab !== 'geral'
 
   return (
     <div style={{
@@ -859,37 +1157,80 @@ export default function Analytics() {
           </p>
         </div>
 
-        {/* Period selector */}
-        <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, flexShrink: 0 }}>
-          {PERIOD_OPTS.map(opt => (
-            <button
-              key={opt.value}
-              onClick={() => setPeriod(opt.value)}
-              style={{
-                padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
-                background: period === opt.value ? 'rgba(124,58,237,0.9)' : 'transparent',
-                color: period === opt.value ? '#fff' : 'var(--text-muted)',
-                boxShadow: period === opt.value ? '0 0 12px rgba(124,58,237,0.4)' : 'none',
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        {/* Period selector — só nas abas filtradas */}
+        {showPeriod && (
+          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, flexShrink: 0 }}>
+            {PERIOD_OPTS.map(opt => (
+              <button
+                key={opt.value}
+                onClick={() => setPeriod(opt.value)}
+                style={{
+                  padding: '6px 14px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, transition: 'all 0.15s',
+                  background: period === opt.value ? 'rgba(124,58,237,0.9)' : 'transparent',
+                  color: period === opt.value ? '#fff' : 'var(--text-muted)',
+                  boxShadow: period === opt.value ? '0 0 12px rgba(124,58,237,0.4)' : 'none',
+                }}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Analise por periodo */}
-      <SectionLabel icon="◈" label={`Análise — ${PERIOD_OPTS.find(p => p.value === period)?.label ?? ''}`} tag="filtrado" />
-      <ProfileChart dateFrom={dateFrom} dateTo={dateTo} />
-      <BetTypeChart dateFrom={dateFrom} dateTo={dateTo} />
+      {/* Tab bar */}
+      <div style={{
+        display: 'flex', gap: 2,
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: 4,
+        overflowX: 'auto', flexShrink: 0,
+        msOverflowStyle: 'none', scrollbarWidth: 'none',
+      } as React.CSSProperties}>
+        {TABS.map(t => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: isMobile ? '8px 12px' : '8px 18px',
+              borderRadius: 9, border: 'none', cursor: 'pointer',
+              fontSize: isMobile ? 11 : 13, fontWeight: 700,
+              whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0,
+              background: tab === t.value ? 'rgba(124,58,237,0.9)' : 'transparent',
+              color: tab === t.value ? '#fff' : 'var(--text-muted)',
+              boxShadow: tab === t.value ? '0 0 14px rgba(124,58,237,0.4)' : 'none',
+            }}
+          >
+            <span style={{ fontSize: isMobile ? 13 : 15 }}>{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Historico geral */}
-      <SectionLabel icon="◇" label="Histórico Geral" tag="todos os dados" />
-      <StreaksAndTopBets />
-      <CalibrationChart />
-      <DrawdownChart />
-      <WeekHeatmap />
+      {/* ── Aba: Geral ── */}
+      {tab === 'geral' && (
+        <>
+          <EquityChart />
+          <SectionLabel icon="◈" label="Análise de Perfis & Tipos" tag="todos os dados" />
+          <ProfileChart dateFrom={undefined} dateTo={undefined} />
+          <BetTypeChart dateFrom={undefined} dateTo={undefined} />
+          <SectionLabel icon="◇" label="Histórico Geral" tag="todos os dados" />
+          <StreaksAndTopBets />
+          <CalibrationChart />
+          <DrawdownChart />
+          <WeekHeatmap />
+        </>
+      )}
+
+      {/* ── Aba: Tipsters ── */}
+      {tab === 'tipsters' && <TipsterTab dateFrom={dateFrom} dateTo={dateTo} />}
+
+      {/* ── Aba: Esportes ── */}
+      {tab === 'sports' && <SportTab dateFrom={dateFrom} dateTo={dateTo} />}
+
+      {/* ── Aba: Casas ── */}
+      {tab === 'bookmakers' && <BookmakerTab dateFrom={dateFrom} dateTo={dateTo} />}
     </div>
   )
 }

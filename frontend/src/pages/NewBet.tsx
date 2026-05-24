@@ -344,6 +344,158 @@ function PreviewCard({ form, profiles, bookmakers, profit }: {
   )
 }
 
+// ─── Stake Calculator ─────────────────────────────────────────────────────────
+
+function StakeCalculator({ currentOdds, onApply }: { currentOdds: string; onApply: (value: string) => void }) {
+  const [open, setOpen] = useState(false)
+  const [method, setMethod] = useState<'kelly' | 'pct' | 'flat'>('kelly')
+  const [bankroll, setBankroll] = useState('')
+  const [winProb, setWinProb] = useState('')
+  const [pct, setPct] = useState('5')
+  const [flat, setFlat] = useState('')
+
+  const odds = parseFloat(currentOdds) || 0
+
+  const calcStake = (): number | null => {
+    const bk = parseFloat(bankroll)
+    if (method !== 'flat' && (!bk || bk <= 0)) return null
+    if (method === 'kelly') {
+      const p = parseFloat(winProb) / 100
+      if (!p || p <= 0 || p >= 1 || odds < 1.01) return null
+      const b = odds - 1
+      const q = 1 - p
+      const kelly = (b * p - q) / b
+      if (kelly <= 0) return null
+      return Math.round(bk * Math.min(kelly, 0.25) * 100) / 100
+    }
+    if (method === 'pct') {
+      const p = parseFloat(pct)
+      if (!p || p <= 0) return null
+      return Math.round(bk * (p / 100) * 100) / 100
+    }
+    if (method === 'flat') {
+      const f = parseFloat(flat)
+      if (!f || f <= 0) return null
+      return f
+    }
+    return null
+  }
+
+  const stake = calcStake()
+
+  if (!open) return (
+    <button type="button" onClick={() => setOpen(true)} style={{
+      display: 'flex', alignItems: 'center', gap: 6,
+      padding: '8px 14px', borderRadius: 10,
+      border: '1px dashed rgba(124,58,237,0.3)',
+      background: 'rgba(124,58,237,0.04)',
+      color: '#7c3aed', fontSize: 12, fontWeight: 600,
+      cursor: 'pointer', transition: 'all 0.15s', width: 'fit-content',
+    }}>
+      🧮 Calculadora de stake
+    </button>
+  )
+
+  return (
+    <div style={{
+      background: 'rgba(124,58,237,0.04)', border: '1px solid rgba(124,58,237,0.2)',
+      borderRadius: 14, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14,
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14 }}>🧮</span>
+          <span style={{ fontSize: 12, fontWeight: 800, color: '#a78bfa', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Calculadora de Stake</span>
+        </div>
+        <button type="button" onClick={() => setOpen(false)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>×</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6 }}>
+        {([
+          { key: 'kelly' as const, label: 'Kelly' },
+          { key: 'pct'   as const, label: '% Banca' },
+          { key: 'flat'  as const, label: 'Fixo' },
+        ]).map(m => (
+          <button key={m.key} type="button" onClick={() => setMethod(m.key)} style={{
+            flex: 1, padding: '7px 0', borderRadius: 8, fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', transition: 'all 0.15s',
+            border: method === m.key ? '1px solid rgba(124,58,237,0.5)' : '1px solid var(--border)',
+            background: method === m.key ? 'rgba(124,58,237,0.15)' : 'var(--bg-primary)',
+            color: method === m.key ? '#a78bfa' : 'var(--text-muted)',
+          }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {method !== 'flat' && (
+          <Field label="Banca (R$)">
+            <input type="number" min="0" step="0.01" value={bankroll}
+              onChange={e => setBankroll(e.target.value)}
+              onFocus={focus} onBlur={blur} style={inp} placeholder="Ex: 1000" />
+          </Field>
+        )}
+        {method === 'kelly' && (
+          <Field label="Prob. de ganhar (%)">
+            <input type="number" min="1" max="99" step="1" value={winProb}
+              onChange={e => setWinProb(e.target.value)}
+              onFocus={focus} onBlur={blur} style={inp} placeholder="Ex: 55" />
+          </Field>
+        )}
+        {method === 'pct' && (
+          <Field label="Porcentagem (%)">
+            <input type="number" min="0.1" max="100" step="0.1" value={pct}
+              onChange={e => setPct(e.target.value)}
+              onFocus={focus} onBlur={blur} style={inp} />
+          </Field>
+        )}
+        {method === 'flat' && (
+          <Field label="Valor fixo (R$)" >
+            <input type="number" min="0" step="0.01" value={flat}
+              onChange={e => setFlat(e.target.value)}
+              onFocus={focus} onBlur={blur}
+              style={{ ...inp, gridColumn: '1 / -1' }} placeholder="Ex: 50" />
+          </Field>
+        )}
+      </div>
+
+      {method === 'kelly' && (
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+          Odd atual: <strong style={{ color: '#a78bfa' }}>{odds >= 1.01 ? odds.toFixed(2) : '—'}</strong>
+          {' · '}Kelly com cap de 25% da banca
+        </p>
+      )}
+
+      {stake !== null && (
+        <div style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: '12px 16px', borderRadius: 10,
+          background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)',
+        }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 10, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Stake recomendado</p>
+            <p style={{ margin: '3px 0 0', fontSize: 22, fontWeight: 900, color: '#a78bfa' }}>R$ {fmtBRL(stake)}</p>
+          </div>
+          <button type="button" onClick={() => { onApply(stake.toFixed(2)); setOpen(false) }} style={{
+            padding: '9px 18px', borderRadius: 10, border: 'none',
+            background: 'linear-gradient(135deg, var(--purple-700), var(--purple-600))',
+            color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            boxShadow: '0 0 14px var(--purple-glow)',
+          }}>
+            Usar →
+          </button>
+        </div>
+      )}
+
+      {stake === null && method === 'kelly' && odds >= 1.01 && winProb && bankroll && (
+        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+          <p style={{ margin: 0, fontSize: 12, color: '#ef4444' }}>Kelly negativo — sem edge favorável com essa odd e probabilidade.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Manual Form ──────────────────────────────────────────────────────────────
 
 interface ManualFormState {
@@ -619,6 +771,9 @@ function ManualTab() {
           </div>
         )}
       </SectionCard>
+
+      {/* ── Calculadora de Stake ─────────────────────────────── */}
+      <StakeCalculator currentOdds={form.odds} onApply={v => set('amountWagered', v)} />
 
       {/* ── Seção 3: Valores ──────────────────────────────────── */}
       <SectionCard icon="◆" title="Valores">

@@ -26,7 +26,14 @@ import { Tutorial, useTutorial } from './components/Tutorial'
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+      staleTime: 2 * 60 * 1000, // 2 min — troca de aba não refetcha
+      cacheTime: 10 * 60 * 1000, // 10 min de cache no background
+    },
+  },
 })
 
 const navItems = [

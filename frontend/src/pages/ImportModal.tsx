@@ -269,7 +269,7 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
               <div style={{ padding: '14px 16px', borderRadius: 10, background: 'rgba(14,165,233,0.05)', border: '1px solid rgba(14,165,233,0.18)' }}>
                 <p style={{ margin: '0 0 6px', fontSize: 11, fontWeight: 700, color: '#38bdf8', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Como funciona</p>
                 <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-                  Mande um print da sua casa de apostas (Bet365, Betano, Superbet...). A IA extrai data, mercado, odd, valor e resultado automaticamente. Voce revisa antes de importar.
+                  Mande um print da sua planilha atual — Excel, Google Sheets ou qualquer registro que você já tenha. A IA identifica cada aposta automaticamente: data, partida, mercado, odd, stake e resultado. Você revisa e confirma antes de qualquer dado ser salvo.
                 </p>
               </div>
             </div>

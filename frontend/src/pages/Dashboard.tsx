@@ -278,6 +278,7 @@ export default function Dashboard() {
   const { data: profileStats = [], isLoading: loadingProfiles } = useProfileStats()
   const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
   const { data: dashAll } = useDashboard('all')
+  const { data: dashToday } = useDashboard('day')
   const { data: monthlyStatsRaw = [] } = useQuery(['stats', 'monthly'], () => dashboardService.getMonthlyStats())
   const { data: recentBetsData } = useBets({ perPage: 50 })
 
@@ -522,6 +523,9 @@ export default function Dashboard() {
           const allProfit    = dashAll?.summary?.totalProfit ?? 0
           const saldoReal    = bankroll.balance + allProfit
           const saldoPos     = saldoReal >= 0
+          const profitToday  = dashToday?.summary?.totalProfit ?? null
+          const resolvedToday = (dashToday?.summary?.won ?? 0) + (dashToday?.summary?.lost ?? 0)
+          const hasToday     = profitToday !== null && resolvedToday > 0
           const retornoPct   = bankroll.balance > 0 ? ((allProfit / bankroll.balance) * 100) : 0
           return (
             <div className="anim-slide-up" style={{ animationDelay: '120ms' }}>
@@ -551,6 +555,20 @@ export default function Dashboard() {
                         {allProfit >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{(showU && unitVal > 0 ? allProfit / unitVal : allProfit).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
                       </span>
                     </p>
+                    {hasToday && (
+                      <div style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 5,
+                        marginTop: 8, padding: '4px 10px', borderRadius: 20,
+                        background: (profitToday ?? 0) >= 0 ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                        border: `1px solid ${(profitToday ?? 0) >= 0 ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.25)'}`,
+                      }}>
+                        <span style={{ fontSize: 11, color: (profitToday ?? 0) >= 0 ? '#22c55e' : '#ef4444', fontWeight: 700 }}>
+                          {(profitToday ?? 0) >= 0 ? '▲' : '▼'}{' '}
+                          {(profitToday ?? 0) >= 0 ? '+' : ''}{showU ? '' : 'R$ '}{(showU && unitVal > 0 ? (profitToday ?? 0) / unitVal : (profitToday ?? 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{showU ? 'u' : ''}
+                        </span>
+                        <span style={{ fontSize: 10, color: '#6d5a9a', fontWeight: 500 }}>hoje</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Separador */}

@@ -1156,14 +1156,14 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
         transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
         background: 'rgba(8,5,22,0.96)', backdropFilter: 'blur(24px)',
         borderTop: '1px solid rgba(239,68,68,0.3)',
-        padding: '12px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        padding: isMobile ? '10px 16px 20px' : '12px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#ef4444' }}>✕</div>
           <div>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>{selCount} aposta{selCount !== 1 ? 's' : ''} selecionada{selCount !== 1 ? 's' : ''}</p>
-            <p style={{ margin: 0, fontSize: 11, color: '#6d5a9a' }}>Selecione mais ou confirme a ação</p>
+            {!isMobile && <p style={{ margin: 0, fontSize: 11, color: '#6d5a9a' }}>Selecione mais ou confirme a ação</p>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -1236,7 +1236,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             onMouseEnter={e => { if (sorted.length > 0) { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399' } }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
-            ↓ Excel
+            {isMobile ? '↓' : '↓ Excel'}
           </button>
           <button
             onClick={() => setShowFilters(v => !v)}
@@ -1252,6 +1252,32 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
           </button>
         </div>
+      </div>
+
+      {/* Quick result filters */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {([
+          { value: '' as BetResult | '', label: 'Todos', color: '#6d5a9a' },
+          { value: 'won' as BetResult, label: '✓ Ganhou', color: '#22c55e' },
+          { value: 'lost' as BetResult, label: '✗ Perdeu', color: '#ef4444' },
+          { value: 'pending' as BetResult, label: '◷ Pendente', color: '#eab308' },
+          { value: 'void' as BetResult, label: '∅ Void', color: '#7070a0' },
+        ]).map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => { setResultF(opt.value as BetResult | ''); setPage(1) }}
+            style={{
+              padding: '5px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.15s',
+              background: resultF === opt.value ? `${opt.color}18` : 'var(--bg-card)',
+              border: `1px solid ${resultF === opt.value ? opt.color + '55' : 'var(--border)'}`,
+              color: resultF === opt.value ? opt.color : 'var(--text-muted)',
+              boxShadow: resultF === opt.value ? `0 0 10px ${opt.color}22` : 'none',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* Filtros */}
@@ -1270,7 +1296,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
               { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
             ].map(({ label, node }) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
                 <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
                 {node}
               </div>

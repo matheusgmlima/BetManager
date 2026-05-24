@@ -372,7 +372,7 @@ function ProfileDetailPanel({ profileId, profileName, onClose }: {
         position: 'fixed', inset: 0, zIndex: 200,
         background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)',
         display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
-        overflowY: 'auto', padding: '48px 16px 48px',
+        overflowY: 'auto', padding: isMobile ? '16px 12px 32px' : '48px 16px 48px',
       }}
     >
     <div
@@ -818,7 +818,7 @@ export default function Goals() {
       {(yearLoading || goalsLoading) ? (
         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando…</p>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(auto-fill, minmax(130px, 1fr))' : 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 24 }}>
           {(yearData?.months ?? Array.from({ length: 12 }, (_, i) => ({
             month: i + 1, totalBets: 0, won: 0, lost: 0,
             totalWagered: 0, totalProfit: 0, hitRatePct: null, roi: null,
@@ -852,7 +852,7 @@ export default function Goals() {
             <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
               Desempenho por Tipster / VIP — {year}
             </h3>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Clique num tipster para ver análise detalhada →</p>
+            {!isMobile && <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>Clique para ver análise →</p>}
           </div>
           <ProfileTableSimple
             profiles={yearData.profileBreakdown}
