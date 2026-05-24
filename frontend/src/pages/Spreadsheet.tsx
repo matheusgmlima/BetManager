@@ -8,6 +8,7 @@ import { useSports, useBookmakers, useTipsters, useProfiles } from '../hooks/use
 import { BetResult, BetType, Bet } from '../types/bet.types'
 import { useUnit } from '../contexts/UnitContext'
 import { useMobile } from '../hooks/useMobile'
+import { Icon } from '../components/Icon'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -448,8 +449,8 @@ function DeleteConfirm({ bet, onClose, onConfirm }: { bet: Bet; onClose: () => v
     >
       <div style={{ width: '100%', maxWidth: 400, background: '#0a0a14', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 18, padding: '32px 28px', boxShadow: '0 0 60px rgba(239,68,68,0.12), 0 24px 48px rgba(0,0,0,0.6)', textAlign: 'center' }}>
         {/* Icon */}
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, marginLeft: 'auto', marginRight: 'auto', fontSize: 22 }}>
-          🗑️
+        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, marginLeft: 'auto', marginRight: 'auto' }}>
+          <Icon name="trash" size={22} color="#ef4444" />
         </div>
 
         <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 10px' }}>Excluir aposta?</p>
@@ -638,9 +639,9 @@ function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: numb
 
 // ─── BetRow ───────────────────────────────────────────────────────────────────
 
-function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult, onDuplicate }: {
-  bet: Bet; odd: boolean; selected: boolean
-  onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void
+function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpdateResult, onDuplicate, isMobile = false }: {
+  bet: Bet; odd: boolean; selected: boolean; isMobile?: boolean
+  onToggle: (id: number) => void; onEdit: (b: Bet) => void; onDelete: (b: Bet) => void; onShare: (b: Bet) => void
   onUpdateResult: (id: number, result: BetResult, payout: number) => void
   onDuplicate: (b: Bet) => void
 }) {
@@ -796,7 +797,7 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult
           <ResultBadge result={bet.result} />
           {updatingResult
             ? <span style={{ fontSize: 9, color: '#a78bfa', animation: 'pulse 1s infinite' }}>⟳</span>
-            : <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>▾</span>
+            : <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.2)', opacity: (isMobile || hovered) ? 1 : 0, transition: 'opacity 0.15s' }}>▾</span>
           }
         </button>
         {showResultPicker && pickerAnchor && (
@@ -823,7 +824,7 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult
         {bet.profit !== 0 ? fmtMoney(Math.abs(bet.profit)) : '—'}
       </td>
       <td style={{ ...td, whiteSpace: 'nowrap', textAlign: 'right' }}>
-        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s' }}>
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', opacity: (isMobile || hovered) ? 1 : 0, transition: 'opacity 0.15s' }}>
           <button
             onClick={e => { e.stopPropagation(); onDuplicate(bet) }}
             title="Duplicar"
@@ -836,6 +837,18 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onUpdateResult
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.22)'; e.currentTarget.style.borderColor = '#34d399' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(16,185,129,0.10)'; e.currentTarget.style.borderColor = 'rgba(16,185,129,0.25)' }}
           >⎘</button>
+          <button
+            onClick={() => onShare(bet)}
+            title="Compartilhar"
+            style={{
+              width: 28, height: 28, borderRadius: 7, fontSize: 13, cursor: 'pointer',
+              background: 'rgba(14,165,233,0.10)', border: '1px solid rgba(14,165,233,0.25)',
+              color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(14,165,233,0.22)'; e.currentTarget.style.borderColor = '#38bdf8' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(14,165,233,0.10)'; e.currentTarget.style.borderColor = 'rgba(14,165,233,0.25)' }}
+          >⤴</button>
           <button
             onClick={() => onEdit(bet)}
             title="Editar"
@@ -926,6 +939,18 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
       sonnerToast.error('Erro ao atualizar resultado')
     }
   }
+
+  async function handleShare(bet: Bet) {
+    try {
+      const r = await import('../services/api').then(m => m.api.post<{ token: string }>(`/api/bets/${bet.id}/share`))
+      const url = `${window.location.origin}/share/${r.data.token}`
+      await navigator.clipboard.writeText(url)
+      sonnerToast.success('Link copiado!', { description: url })
+    } catch {
+      sonnerToast.error('Erro ao gerar link')
+    }
+  }
+
 
   async function handleDuplicate(bet: Bet) {
     try {
@@ -1131,14 +1156,14 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
         transition: 'transform 0.3s cubic-bezier(0.16,1,0.3,1)',
         background: 'rgba(8,5,22,0.96)', backdropFilter: 'blur(24px)',
         borderTop: '1px solid rgba(239,68,68,0.3)',
-        padding: '12px 24px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        padding: isMobile ? '10px 16px 20px' : '12px 24px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#ef4444' }}>✕</div>
           <div>
             <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>{selCount} aposta{selCount !== 1 ? 's' : ''} selecionada{selCount !== 1 ? 's' : ''}</p>
-            <p style={{ margin: 0, fontSize: 11, color: '#6d5a9a' }}>Selecione mais ou confirme a ação</p>
+            {!isMobile && <p style={{ margin: 0, fontSize: 11, color: '#6d5a9a' }}>Selecione mais ou confirme a ação</p>}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -1156,7 +1181,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.28)'; e.currentTarget.style.borderColor = '#ef4444' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'rgba(239,68,68,0.15)'; e.currentTarget.style.borderColor = 'rgba(239,68,68,0.5)' }}
-          >🗑 Excluir {selCount}</button>
+          ><Icon name="trash" size={14} color="#ef4444" style={{ marginRight: 5 }} /> Excluir {selCount}</button>
         </div>
       </div>
 
@@ -1190,7 +1215,8 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                 boxShadow: viewMode === mode ? `0 0 10px ${accentColor}60` : 'none',
               }}
             >
-              {mode === 'grouped' ? '📅 Por mês' : '⊞ Paginado'}
+              <Icon name={mode === 'grouped' ? 'calendar' : 'grid'} size={13} color={viewMode === mode ? '#fff' : 'var(--text-muted)'} style={{ marginRight: 5 }} />
+              {mode === 'grouped' ? 'Por mês' : 'Paginado'}
             </button>
           ))}
         </div>
@@ -1210,7 +1236,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             onMouseEnter={e => { if (sorted.length > 0) { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399' } }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
           >
-            ↓ Excel
+            {isMobile ? '↓' : '↓ Excel'}
           </button>
           <button
             onClick={() => setShowFilters(v => !v)}
@@ -1226,6 +1252,32 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
           </button>
         </div>
+      </div>
+
+      {/* Quick result filters */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {([
+          { value: '' as BetResult | '', label: 'Todos', color: '#6d5a9a' },
+          { value: 'won' as BetResult, label: '✓ Ganhou', color: '#22c55e' },
+          { value: 'lost' as BetResult, label: '✗ Perdeu', color: '#ef4444' },
+          { value: 'pending' as BetResult, label: '◷ Pendente', color: '#eab308' },
+          { value: 'void' as BetResult, label: '∅ Void', color: '#7070a0' },
+        ]).map(opt => (
+          <button
+            key={opt.value}
+            onClick={() => { setResultF(opt.value as BetResult | ''); setPage(1) }}
+            style={{
+              padding: '5px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', transition: 'all 0.15s',
+              background: resultF === opt.value ? `${opt.color}18` : 'var(--bg-card)',
+              border: `1px solid ${resultF === opt.value ? opt.color + '55' : 'var(--border)'}`,
+              color: resultF === opt.value ? opt.color : 'var(--text-muted)',
+              boxShadow: resultF === opt.value ? `0 0 10px ${opt.color}22` : 'none',
+            }}
+          >
+            {opt.label}
+          </button>
+        ))}
       </div>
 
       {/* Filtros */}
@@ -1244,7 +1296,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
               { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
             ].map(({ label, node }) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
                 <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
                 {node}
               </div>
@@ -1256,35 +1308,46 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
         </div>
       )}
 
-      {/* ── Tabela compartilhada (thead reutilizado) ────────────────────── */}
+      {/* ── Tabela: thead gerado por mês (seleção escoped) ─────────────── */}
       {(() => {
-        const thead = (
-          <thead>
-            <tr>
-              <th style={{ ...thBase, width: 36, paddingRight: 4 }} onClick={toggleAll}>
-                <div style={{
-                  width: 16, height: 16, borderRadius: 4, cursor: 'pointer',
-                  border: `2px solid ${allSelected ? '#7c3aed' : someSelected ? '#7c3aed' : 'rgba(255,255,255,0.2)'}`,
-                  background: allSelected ? '#7c3aed' : someSelected ? 'rgba(124,58,237,0.3)' : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
-                }}>
-                  {allSelected && <span style={{ color: '#fff', fontSize: 9, fontWeight: 900, lineHeight: 1 }}>✓</span>}
-                  {!allSelected && someSelected && <span style={{ color: '#a78bfa', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>—</span>}
-                </div>
-              </th>
-              <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
-              <th style={{ ...thSortable, minWidth: 200 }} onClick={() => handleSort('description')}>Descrição <SortIcon active={sortKey === 'description'} dir={sortDir} /></th>
-              <th style={thBase}>Esporte</th>
-              <th style={thBase}>Casa</th>
-              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('odds')}>Odd <SortIcon active={sortKey === 'odds'} dir={sortDir} /></th>
-              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('amountWagered')}>Apostado <SortIcon active={sortKey === 'amountWagered'} dir={sortDir} /></th>
-              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
-              <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
-              <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
-              <th style={{ ...thBase, textAlign: 'right' }}>Ações</th>
-            </tr>
-          </thead>
-        )
+        function makeThead(monthIds: number[]) {
+          const allSel  = monthIds.length > 0 && monthIds.every(id => selectedIds.has(id))
+          const someSel = monthIds.some(id => selectedIds.has(id))
+          function toggle() {
+            if (allSel) {
+              setSelectedIds(prev => { const next = new Set(prev); monthIds.forEach(id => next.delete(id)); return next })
+            } else {
+              setSelectedIds(prev => { const next = new Set(prev); monthIds.forEach(id => next.add(id)); return next })
+            }
+          }
+          return (
+            <thead>
+              <tr>
+                <th style={{ ...thBase, width: 36, paddingRight: 4 }} onClick={toggle}>
+                  <div style={{
+                    width: 16, height: 16, borderRadius: 4, cursor: 'pointer',
+                    border: `2px solid ${allSel ? '#7c3aed' : someSel ? '#7c3aed' : 'rgba(255,255,255,0.2)'}`,
+                    background: allSel ? '#7c3aed' : someSel ? 'rgba(124,58,237,0.3)' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s',
+                  }}>
+                    {allSel  && <span style={{ color: '#fff',    fontSize: 9,  fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                    {!allSel && someSel && <span style={{ color: '#a78bfa', fontSize: 11, fontWeight: 900, lineHeight: 1 }}>—</span>}
+                  </div>
+                </th>
+                <th style={thSortable} onClick={() => handleSort('date')}>Data <SortIcon active={sortKey === 'date'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, minWidth: 200 }} onClick={() => handleSort('description')}>Descrição <SortIcon active={sortKey === 'description'} dir={sortDir} /></th>
+                <th style={thBase}>Esporte</th>
+                <th style={thBase}>Casa</th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('odds')}>Odd <SortIcon active={sortKey === 'odds'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('amountWagered')}>Apostado <SortIcon active={sortKey === 'amountWagered'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('payout')}>Retorno <SortIcon active={sortKey === 'payout'} dir={sortDir} /></th>
+                <th style={thSortable} onClick={() => handleSort('result')}>Resultado <SortIcon active={sortKey === 'result'} dir={sortDir} /></th>
+                <th style={{ ...thSortable, textAlign: 'right' }} onClick={() => handleSort('profit')}>Lucro <SortIcon active={sortKey === 'profit'} dir={sortDir} /></th>
+                <th style={{ ...thBase, textAlign: 'right' }}>Ações</th>
+              </tr>
+            </thead>
+          )
+        }
 
         // ── MODO AGRUPADO POR MÊS ──────────────────────────────────────────
         if (viewMode === 'grouped') {
@@ -1294,7 +1357,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
-                      {thead}
+                      {makeThead([])}
                       <tbody>{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
                     </table>
                   </div>
@@ -1306,13 +1369,13 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               {!isLoading && !isError && sorted.length === 0 && (
                 hasFilters ? (
                   <EmptyState
-                    icon="🔍"
+                    icon="search"
                     title="Nenhuma aposta encontrada"
                     description="Tente ajustar os filtros ou limpar a busca."
                   />
                 ) : (
                   <EmptyState
-                    icon="🎯"
+                    icon="target"
                     title="Nenhuma aposta ainda"
                     description="Registre sua primeira aposta para começar a acompanhar seus resultados."
                   />
@@ -1343,14 +1406,19 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 500 }}>{stats.total} aposta{stats.total !== 1 ? 's' : ''}</span>
                       </div>
                       {/* Right: mini stats */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          <span style={{ color: '#22c55e', fontWeight: 700 }}>{stats.won}G</span>
-                          {' · '}
-                          <span style={{ color: '#ef4444', fontWeight: 700 }}>{stats.lost}P</span>
-                          {stats.hitRate != null && <span style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 6 }}>{stats.hitRate.toFixed(0)}%</span>}
-                        </span>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: profitPos ? '#22c55e' : '#ef4444', fontFamily: 'monospace', minWidth: 80, textAlign: 'right' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        {!isMobile && (
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            <span style={{ color: '#22c55e', fontWeight: 700 }}>{stats.won}G</span>
+                            {' · '}
+                            <span style={{ color: '#ef4444', fontWeight: 700 }}>{stats.lost}P</span>
+                            {stats.hitRate != null && <span style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 6 }}>{stats.hitRate.toFixed(0)}%</span>}
+                          </span>
+                        )}
+                        {isMobile && stats.hitRate != null && (
+                          <span style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>{stats.hitRate.toFixed(0)}%</span>
+                        )}
+                        <span style={{ fontSize: 13, fontWeight: 800, color: profitPos ? '#22c55e' : '#ef4444', fontFamily: 'monospace', textAlign: 'right' }}>
                           {profitPos ? '+' : ''}{fmtMoney(stats.profit)}
                         </span>
                       </div>
@@ -1361,10 +1429,10 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                       <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(124,58,237,0.15)', borderTop: 'none', borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
                         <div style={{ overflowX: 'auto' }}>
                           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
-                            {thead}
+                            {makeThead(monthBets.map((b: Bet) => b.id))}
                             <tbody>
                               {monthBets.map((bet: Bet, i: number) => (
-                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} />
+                                <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onShare={handleShare} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
                               ))}
                             </tbody>
                           </table>
@@ -1384,7 +1452,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
-                  {thead}
+                  {makeThead(allIdsOnPage)}
                   <tbody>
                     {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
                     {isError && (
@@ -1392,11 +1460,11 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                     )}
                     {!isLoading && !isError && sorted.length === 0 && (
                       hasFilters
-                        ? <EmptyStateRow colSpan={11} icon="🔍" title="Nenhuma aposta encontrada" description="Tente ajustar os filtros ou limpar a busca." />
-                        : <EmptyStateRow colSpan={11} icon="🎯" title="Nenhuma aposta ainda" description="Registre sua primeira aposta para começar a acompanhar seus resultados." />
+                        ? <EmptyStateRow colSpan={11} icon="search" title="Nenhuma aposta encontrada" description="Tente ajustar os filtros ou limpar a busca." />
+                        : <EmptyStateRow colSpan={11} icon="target" title="Nenhuma aposta ainda" description="Registre sua primeira aposta para começar a acompanhar seus resultados." />
                     )}
                     {!isLoading && sorted.map((bet: Bet, i: number) => (
-                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} />
+                      <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onShare={handleShare} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
                     ))}
                   </tbody>
                   {summary && !isLoading && sorted.length > 0 && (
@@ -1469,7 +1537,7 @@ export default function Spreadsheet() {
   const activeColor = tabs.find(t => t.id === activeTab)?.color ?? '#8b5cf6'
 
   return (
-    <div style={{ padding: isMobile ? '16px 14px 24px' : '28px 40px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
+    <div style={{ padding: isMobile ? '16px 14px 80px' : '28px 40px 60px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} />}
 
@@ -1495,7 +1563,7 @@ export default function Spreadsheet() {
           onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(99,102,241,0.25))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.color = '#fff' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; e.currentTarget.style.color = '#c4b5fd' }}
         >
-          📥 Importar planilha
+          <Icon name="download" size={14} style={{ marginRight: 6 }} /> Importar planilha
         </button>
       </div>
 

@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { useAuth, UserRole } from '../contexts/AuthContext'
+import { useMobile } from '../hooks/useMobile'
+import { Icon } from '../components/Icon'
 
 const API = import.meta.env.VITE_API_URL || '/api'
 
@@ -133,6 +135,7 @@ function Btn({ onClick, variant = 'primary', disabled, full, children }: { onCli
 // ─── Edit Modal ───────────────────────────────────────────────────────────────
 
 function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => void; onSave: () => void }) {
+  const isMobile = useMobile()
   const [role, setRole]           = useState<string>(user.role)
   const [expiry, setExpiry]       = useState(user.accessExpiresAt ? user.accessExpiresAt.split('T')[0] : '')
   const [loading, setLoading]     = useState(false)
@@ -158,7 +161,7 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
 
   return (
     <Modal title={`Editar - ${user.username}`} onClose={onClose} wide>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 20px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 0 : '0 20px' }}>
         <Field label="Username"><Input value={user.username} disabled /></Field>
         <Field label="Email"><Input value={user.email} disabled /></Field>
         <Field label="Role">
@@ -184,7 +187,7 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
 
       <div style={{ background: 'var(--bg-card)', borderRadius: 10, padding: '12px 16px', marginBottom: 16, border: '1px solid var(--border)' }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 10 }}>Resumo de atividade</p>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', gap: 12 }}>
           {[
             { label: 'Apostas',       value: String(user.stats.totalBets) },
             { label: 'Ganhas',        value: String(user.stats.wonBets) },
@@ -204,7 +207,7 @@ function EditModal({ user, onClose, onSave }: { user: AdminUser; onClose: () => 
       {err && <p style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{err}</p>}
       {resetSent && <p style={{ fontSize: 12, color: 'var(--green)', marginBottom: 12 }}>Email de reducao enviado para {user.email}</p>}
 
-      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4 }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'space-between', marginTop: 4, flexWrap: 'wrap' }}>
         <Btn variant="ghost" onClick={sendReset} disabled={loading || resetSent}>
           {resetSent ? 'Email enviado' : 'Enviar reset por email'}
         </Btn>
@@ -308,12 +311,12 @@ function MiniBar({ value, max, color }: { value: number; max: number; color: str
   )
 }
 
-function StatCard({ label, value, sub, color = 'var(--text-primary)', icon }: { label: string; value: string | number; sub?: string; color?: string; icon: string }) {
+function StatCard({ label, value, sub, color = 'var(--text-primary)', icon }: { label: string; value: string | number; sub?: string; color?: string; icon: import('../components/Icon').IconName }) {
   return (
     <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</span>
-        <span style={{ fontSize: 18 }}>{icon}</span>
+        <Icon name={icon} size={18} />
       </div>
       <p style={{ fontSize: 28, fontWeight: 800, color, margin: 0, letterSpacing: '-0.02em' }}>{value}</p>
       {sub && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>{sub}</p>}
@@ -321,7 +324,7 @@ function StatCard({ label, value, sub, color = 'var(--text-primary)', icon }: { 
   )
 }
 
-function DashboardTab({ users }: { users: AdminUser[] }) {
+function DashboardTab({ users, isMobile = false }: { users: AdminUser[]; isMobile?: boolean }) {
   const subs      = users.filter(u => u.role !== 'admin')
   const active    = subs.filter(u => {
     if (u.role === 'permanent' || u.role === 'partner') return true
@@ -360,14 +363,14 @@ function DashboardTab({ users }: { users: AdminUser[] }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-        <StatCard label="Assinantes ativos" value={active.length}   sub={`de ${subs.length} total`}        color="var(--green)"      icon="checkmark" />
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 12 }}>
+        <StatCard label="Assinantes ativos" value={active.length}   sub={`de ${subs.length} total`}        color="var(--green)"      icon="users" />
         <StatCard label="Expirados"         value={expired.length}  sub="precisam renovar"                 color="var(--red)"        icon="lock" />
         <StatCard label="Parcerias"         value={partners.length} sub={`${permanent.length} vitalícios`} color="#38bdf8"           icon="handshake" />
-        <StatCard label="Novos este mes"    value={newThisMonth}    sub="cadastros recentes"               color="var(--purple-400)" icon="new" />
+        <StatCard label="Novos este mes"    value={newThisMonth}    sub="cadastros recentes"               color="var(--purple-400)" icon="plus" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 18 }}>Engajamento da plataforma</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
@@ -408,7 +411,7 @@ function DashboardTab({ users }: { users: AdminUser[] }) {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12 }}>
         <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '20px 22px' }}>
           <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>
             Expiracoes nos proximos 30 dias
@@ -507,6 +510,7 @@ function DashboardTab({ users }: { users: AdminUser[] }) {
 
 export default function AdminPanel() {
   const { user: me } = useAuth()
+  const isMobile = useMobile()
   const [tab, setTab]               = useState<'dashboard' | 'users'>('dashboard')
   const [users, setUsers]           = useState<AdminUser[]>([])
   const [loading, setLoading]       = useState(true)
@@ -539,20 +543,20 @@ export default function AdminPanel() {
   })
 
   return (
-    <div style={{ padding: '32px 28px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 14px 80px' : '32px 28px 60px', maxWidth: 1200, margin: '0 auto' }}>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12 }}>
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Painel Admin</h1>
+          <h1 style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>Painel Admin</h1>
           <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Gerencie usuarios, roles e acessos</p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', borderRadius: 10, padding: 4, border: '1px solid var(--border)' }}>
-            <button style={tabStyle(tab === 'dashboard')} onClick={() => setTab('dashboard')}>Dashboard</button>
-            <button style={tabStyle(tab === 'users')}     onClick={() => setTab('users')}>Usuarios</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 4, background: 'var(--bg-card)', borderRadius: 10, padding: 4, border: '1px solid var(--border)', flex: isMobile ? 1 : 'none' }}>
+            <button style={{ ...tabStyle(tab === 'dashboard'), flex: isMobile ? 1 : 'none' }} onClick={() => setTab('dashboard')}>Dashboard</button>
+            <button style={{ ...tabStyle(tab === 'users'), flex: isMobile ? 1 : 'none' }}     onClick={() => setTab('users')}>Usuarios</button>
           </div>
           {tab === 'users' && (
-            <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--purple-700), var(--purple-500))', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            <button onClick={() => setShowCreate(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 18px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, var(--purple-700), var(--purple-500))', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: isMobile ? '100%' : 'auto' }}>
               + Criar usuario
             </button>
           )}
@@ -562,82 +566,138 @@ export default function AdminPanel() {
       {tab === 'dashboard' && (
         loading
           ? <div style={{ textAlign: 'center', padding: 60, color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
-          : <DashboardTab users={users} />
+          : <DashboardTab users={users} isMobile={isMobile} />
       )}
 
       {tab === 'users' && (
         <>
-          <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 10, marginBottom: 16 }}>
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por nome ou email..."
               style={{ flex: 1, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 13, outline: 'none' }}
               onFocus={e => (e.target.style.borderColor = 'var(--purple-500)')}
               onBlur={e  => (e.target.style.borderColor = 'var(--border)')}
             />
             <select value={filterRole} onChange={e => setFilterRole(e.target.value)}
-              style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer' }}>
+              style={{ padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 13, outline: 'none', cursor: 'pointer', width: isMobile ? '100%' : 'auto' }}>
               <option value="all">Todas as roles</option>
               {ROLES.map(r => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
             </select>
           </div>
 
-          <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 90px 90px 90px 90px 110px 90px', padding: '10px 20px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              <span>Usuario</span><span>Email</span><span>Role</span><span>Status</span>
-              <span>Apostas</span><span>Lucro</span><span>Saldo banca</span><span style={{ textAlign: 'right' }}>Acoes</span>
-            </div>
-
-            {loading && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>}
-            {!loading && filtered.length === 0 && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum usuario encontrado.</div>}
-
-            {!loading && filtered.map((u, i) => (
-              <div key={u.id}
-                style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 90px 90px 90px 90px 110px 90px', padding: '13px 20px', alignItems: 'center', borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.1s' }}
-                onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card)')}
-                onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                  <Avatar username={u.username} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                      {u.username}
-                      {u.id === me?.id && <span style={{ fontSize: 9, color: 'var(--purple-400)', fontWeight: 700 }}>EU</span>}
-                      {!u.emailVerified && <span style={{ fontSize: 9, color: '#f59e0b' }}>email nao verificado</span>}
-                      {u.mustChangePassword && <span style={{ fontSize: 9, color: 'var(--red)' }}>troca senha</span>}
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {loading && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>}
+              {!loading && filtered.length === 0 && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum usuario encontrado.</div>}
+              {!loading && filtered.map(u => (
+                <div key={u.id} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {/* Top: avatar + name + badges + actions */}
+                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <Avatar username={u.username} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+                          {u.username}
+                          {u.id === me?.id && <span style={{ fontSize: 9, color: 'var(--purple-400)', fontWeight: 700 }}>EU</span>}
+                          <RoleBadge role={u.role} />
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+                      </div>
                     </div>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                      {u.stats.lastBetDate ? `Ultima aposta ${new Date(u.stats.lastBetDate).toLocaleDateString('pt-BR')}` : `Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}`}
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                      <button onClick={() => setEditUser(u)}
+                        style={{ padding: '5px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                      >Editar</button>
+                      {u.id !== me?.id && (
+                        <button onClick={() => setDelUser(u)}
+                          style={{ padding: '5px 10px', borderRadius: 6, fontSize: 12, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        >✕</button>
+                      )}
+                    </div>
+                  </div>
+                  {/* Bottom: stats row */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</div>
+                      <StatusDot role={u.role} expiresAt={u.accessExpiresAt} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Apostas</div>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>{u.stats.totalBets}</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lucro</div>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: u.stats.netProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                        {u.stats.netProfit >= 0 ? '+' : ''}R${fmt(u.stats.netProfit)}
+                      </span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 9, color: 'var(--text-muted)', marginBottom: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Banca</div>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>R${fmt(u.stats.bankrollBalance)}</span>
                     </div>
                   </div>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</span>
-                <div><RoleBadge role={u.role} /></div>
-                <div><StatusDot role={u.role} expiresAt={u.accessExpiresAt} /></div>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{u.stats.totalBets} <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>({u.stats.wonBets}G)</span></span>
-                <span style={{ fontSize: 12, fontWeight: 600, color: u.stats.netProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
-                  {u.stats.netProfit >= 0 ? '+' : ''}R${fmt(u.stats.netProfit)}
-                </span>
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>R${fmt(u.stats.bankrollBalance)}</span>
-                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                  <button onClick={() => setEditUser(u)}
-                    style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }}
-                    onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--purple-400)'; el.style.color = 'var(--purple-400)' }}
-                    onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--border)'; el.style.color = 'var(--text-secondary)' }}
-                  >Editar</button>
-                  {u.id !== me?.id && (
-                    <button onClick={() => setDelUser(u)}
-                      style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
-                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--red)'; el.style.color = 'var(--red)' }}
-                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--border)'; el.style.color = 'var(--text-muted)' }}
-                    >x</button>
-                  )}
-                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 90px 90px 90px 90px 110px 90px', padding: '10px 20px', borderBottom: '1px solid var(--border)', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                <span>Usuario</span><span>Email</span><span>Role</span><span>Status</span>
+                <span>Apostas</span><span>Lucro</span><span>Saldo banca</span><span style={{ textAlign: 'right' }}>Acoes</span>
               </div>
-            ))}
-          </div>
+
+              {loading && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>}
+              {!loading && filtered.length === 0 && <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum usuario encontrado.</div>}
+
+              {!loading && filtered.map((u, i) => (
+                <div key={u.id}
+                  style={{ display: 'grid', gridTemplateColumns: '2fr 1.5fr 90px 90px 90px 90px 110px 90px', padding: '13px 20px', alignItems: 'center', borderBottom: i < filtered.length - 1 ? '1px solid var(--border)' : 'none', transition: 'background 0.1s' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg-card)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                    <Avatar username={u.username} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {u.username}
+                        {u.id === me?.id && <span style={{ fontSize: 9, color: 'var(--purple-400)', fontWeight: 700 }}>EU</span>}
+                        {!u.emailVerified && <span style={{ fontSize: 9, color: '#f59e0b' }}>email nao verificado</span>}
+                        {u.mustChangePassword && <span style={{ fontSize: 9, color: 'var(--red)' }}>troca senha</span>}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                        {u.stats.lastBetDate ? `Ultima aposta ${new Date(u.stats.lastBetDate).toLocaleDateString('pt-BR')}` : `Desde ${new Date(u.createdAt).toLocaleDateString('pt-BR')}`}
+                      </div>
+                    </div>
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</span>
+                  <div><RoleBadge role={u.role} /></div>
+                  <div><StatusDot role={u.role} expiresAt={u.accessExpiresAt} /></div>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{u.stats.totalBets} <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>({u.stats.wonBets}G)</span></span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: u.stats.netProfit >= 0 ? 'var(--green)' : 'var(--red)' }}>
+                    {u.stats.netProfit >= 0 ? '+' : ''}R${fmt(u.stats.netProfit)}
+                  </span>
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>R${fmt(u.stats.bankrollBalance)}</span>
+                  <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                    <button onClick={() => setEditUser(u)}
+                      style={{ padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--purple-400)'; el.style.color = 'var(--purple-400)' }}
+                      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--border)'; el.style.color = 'var(--text-secondary)' }}
+                    >Editar</button>
+                    {u.id !== me?.id && (
+                      <button onClick={() => setDelUser(u)}
+                        style={{ padding: '4px 8px', borderRadius: 6, fontSize: 11, background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer' }}
+                        onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--red)'; el.style.color = 'var(--red)' }}
+                        onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.borderColor = 'var(--border)'; el.style.color = 'var(--text-muted)' }}
+                      >x</button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {editUser   && <EditModal   user={editUser} onClose={() => setEditUser(null)} onSave={load} />}
           {delUser    && <DeleteModal user={delUser}  onClose={() => setDelUser(null)}  onSave={load} />}
-          {showCreate && <CreateModal onClose={() => setShowCreate(false)} onSave={load} />}
+          {showCreate && <CreateModal                 onClose={() => setShowCreate(false)} onSave={load} />}
         </>
       )}
     </div>

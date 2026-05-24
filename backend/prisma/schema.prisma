@@ -217,6 +217,8 @@ model Bet {
   result           BetResult        @default(pending)
   notes            String?
   source           BetSource        @default(manual)
+  shareToken       String?          @unique @map("share_token") @db.VarChar(64)
+  shareExpiresAt   DateTime?        @map("share_expires_at")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 

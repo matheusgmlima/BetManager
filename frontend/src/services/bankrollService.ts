@@ -12,6 +12,8 @@ export interface BankrollEntry {
 export interface BankrollData {
   data: BankrollEntry[]
   balance: number
+  estimatedBalance: number
+  totalProfit: number
 }
 
 export const bankrollService = {

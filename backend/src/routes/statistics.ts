@@ -11,5 +11,6 @@ router.get('/profiles',        ctrl.byProfile)
 router.get('/bet-types',  ctrl.byBetType)
 router.get('/monthly',    ctrl.monthly)
 router.get('/heatmap',    ctrl.heatmap)
+router.get('/compare',    ctrl.compare)
 
 export default router

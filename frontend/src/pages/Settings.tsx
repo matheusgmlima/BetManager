@@ -333,6 +333,7 @@ function ColorPicker({ value, onChange }: { value: string; onChange: (c: string)
 // ─── BANCA ────────────────────────────────────────────────────────────────────
 
 function BancaSection() {
+  const isMobile = useMobile()
   const { data, isLoading } = useBankroll()
   const addEntry    = useAddBankroll()
   const removeEntry = useRemoveBankroll()
@@ -341,11 +342,11 @@ function BancaSection() {
   const [amount, setAmount] = useState('')
   const [note,   setNote]   = useState('')
 
-  const balance  = data?.balance ?? 0
-  const entries  = data?.data ?? []
-  const hasInit  = entries.some(e => e.type === 'initial')
-  const deposited = entries.filter(e => e.type !== 'withdrawal').reduce((s, e) => s + e.amount, 0)
-  const withdrawn = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
+  const balance          = data?.estimatedBalance ?? data?.balance ?? 0
+  const entries          = data?.data ?? []
+  const hasInit          = entries.some(e => e.type === 'initial')
+  const deposited        = entries.filter(e => e.type !== 'withdrawal').reduce((s, e) => s + e.amount, 0)
+  const withdrawn        = entries.filter(e => e.type === 'withdrawal').reduce((s, e) => s + e.amount, 0)
 
   const typeLabel = (t: string) =>
     t === 'initial' ? 'Banca inicial' : t === 'deposit' ? 'Depósito' : 'Saque'
@@ -354,7 +355,7 @@ function BancaSection() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* KPI row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
         {[
           { label: 'Saldo atual',    value: isLoading ? '—' : fmt(balance),    accent: true },
           { label: 'Total depositado', value: isLoading ? '—' : fmt(deposited), accent: false },
@@ -378,16 +379,16 @@ function BancaSection() {
 
       {/* Action buttons */}
       {!mode && (
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!hasInit && (
-            <button onClick={() => setMode('initial')} style={primaryBtn}>
+            <button onClick={() => setMode('initial')} style={{ ...primaryBtn, flex: isMobile ? '1' : 'none' }}>
               Definir banca inicial
             </button>
           )}
           {hasInit && (
             <>
-              <button onClick={() => setMode('deposit')} style={primaryBtn}>Registrar depósito</button>
-              <button onClick={() => setMode('withdrawal')} style={ghostBtn}>Registrar saque</button>
+              <button onClick={() => setMode('deposit')} style={{ ...primaryBtn, flex: isMobile ? '1' : 'none' }}>Registrar depósito</button>
+              <button onClick={() => setMode('withdrawal')} style={{ ...ghostBtn, flex: isMobile ? '1' : 'none' }}>Registrar saque</button>
             </>
           )}
         </div>
@@ -399,7 +400,7 @@ function BancaSection() {
           <p style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 600, color: '#a78bfa' }}>
             {mode === 'initial' ? 'Banca inicial' : mode === 'deposit' ? 'Depósito' : 'Saque'}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 10, marginBottom: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 2fr', gap: 10, marginBottom: 12 }}>
             <div>
               <p style={{ margin: '0 0 5px', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Valor (R$)</p>
               <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
@@ -469,7 +470,7 @@ function UnidadeSection() {
   const [saved,  setSaved]  = useState(false)
 
   const unitNum = parseFloat(value) || 0
-  const balance = bankroll?.balance ?? 0
+  const balance = bankroll?.estimatedBalance ?? bankroll?.balance ?? 0
   const pct     = balance > 0 ? ((unitNum / balance) * 100) : null
 
   const handleSave = async () => {
@@ -1007,11 +1008,11 @@ export default function Settings() {
   const activeTab = TABS.find(t => t.key === tab)!
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '56px 16px 40px' : '36px 44px' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary)', padding: isMobile ? '16px 14px 80px' : '36px 44px' }}>
       <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
         {/* ── Header ── */}
-        <div style={{ marginBottom: 28, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ marginBottom: isMobile ? 16 : 28, display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{
             width: 34, height: 34, borderRadius: 9, flexShrink: 0,
             background: 'linear-gradient(135deg,#5b21b6,#7c3aed)',
@@ -1021,53 +1022,81 @@ export default function Settings() {
           }}>🐍</div>
           <div>
             <h1 style={{
-              margin: 0, fontSize: 18, fontWeight: 700,
+              margin: 0, fontSize: isMobile ? 16 : 18, fontWeight: 700,
               background: 'linear-gradient(90deg,#a78bfa,#c4b5fd)',
               WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
             }}>
               Configurações
             </h1>
-            <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
-              Banca &middot; Unidade &middot; Tipsters &middot; Casas &middot; Esportes &middot; Perfis &middot; Conta
-            </p>
+            {!isMobile && (
+              <p style={{ margin: '2px 0 0', fontSize: 11, color: 'var(--text-muted)' }}>
+                Banca &middot; Unidade &middot; Tipsters &middot; Casas &middot; Esportes &middot; Perfis &middot; Conta
+              </p>
+            )}
           </div>
         </div>
 
         <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '188px 1fr', gap: 16, alignItems: 'start' }}>
 
-          {/* ── Sidebar ── */}
-          <nav style={{
-            background: 'var(--bg-card)',
-            border: '1px solid #1e1040',
-            borderRadius: 10,
-            overflow: 'hidden',
-            marginBottom: isMobile ? 14 : 0,
-          }}>
-            {TABS.map((t, i) => {
-              const isActive = tab === t.key
-              return (
-                <button key={t.key} onClick={() => setTab(t.key)} style={{
-                  width: '100%', display: 'block',
-                  padding: '11px 16px', textAlign: 'left',
-                  border: 'none',
-                  borderLeft: `2px solid ${isActive ? '#7c3aed' : 'transparent'}`,
-                  borderBottom: i < TABS.length - 1 ? '1px solid #1c1c2e' : 'none',
-                  background: isActive ? 'rgba(124,58,237,0.1)' : 'transparent',
-                  cursor: 'pointer',
-                  transition: 'all 0.12s',
-                  boxShadow: isActive ? 'inset 0 0 20px rgba(124,58,237,0.05)' : 'none',
-                }}>
-                  <span style={{
-                    fontSize: 13, display: 'block',
-                    fontWeight: isActive ? 600 : 400,
+          {/* ── Sidebar / Mobile tabs ── */}
+          {isMobile ? (
+            <div style={{
+              display: 'flex', gap: 6, overflowX: 'auto',
+              paddingBottom: 4, marginBottom: 12,
+              msOverflowStyle: 'none', scrollbarWidth: 'none',
+              WebkitOverflowScrolling: 'touch',
+            } as React.CSSProperties}>
+              {TABS.map(t => {
+                const isActive = tab === t.key
+                return (
+                  <button key={t.key} onClick={() => setTab(t.key)} style={{
+                    flexShrink: 0, padding: '9px 16px', borderRadius: 10,
+                    border: `1px solid ${isActive ? '#7c3aed' : '#1e1040'}`,
+                    background: isActive ? 'rgba(124,58,237,0.15)' : 'var(--bg-card)',
                     color: isActive ? '#a78bfa' : 'var(--text-muted)',
+                    fontSize: 13, fontWeight: isActive ? 600 : 400,
+                    cursor: 'pointer', whiteSpace: 'nowrap',
+                    boxShadow: isActive ? '0 0 10px rgba(124,58,237,0.2)' : 'none',
+                    transition: 'all 0.12s',
                   }}>
                     {t.label}
-                  </span>
-                </button>
-              )
-            })}
-          </nav>
+                  </button>
+                )
+              })}
+            </div>
+          ) : (
+            <nav style={{
+              background: 'var(--bg-card)',
+              border: '1px solid #1e1040',
+              borderRadius: 10,
+              overflow: 'hidden',
+            }}>
+              {TABS.map((t, i) => {
+                const isActive = tab === t.key
+                return (
+                  <button key={t.key} onClick={() => setTab(t.key)} style={{
+                    width: '100%', display: 'block',
+                    padding: '11px 16px', textAlign: 'left',
+                    border: 'none',
+                    borderLeft: `2px solid ${isActive ? '#7c3aed' : 'transparent'}`,
+                    borderBottom: i < TABS.length - 1 ? '1px solid #1c1c2e' : 'none',
+                    background: isActive ? 'rgba(124,58,237,0.1)' : 'transparent',
+                    cursor: 'pointer',
+                    transition: 'all 0.12s',
+                    boxShadow: isActive ? 'inset 0 0 20px rgba(124,58,237,0.05)' : 'none',
+                  }}>
+                    <span style={{
+                      fontSize: 13, display: 'block',
+                      fontWeight: isActive ? 600 : 400,
+                      color: isActive ? '#a78bfa' : 'var(--text-muted)',
+                    }}>
+                      {t.label}
+                    </span>
+                  </button>
+                )
+              })}
+            </nav>
+          )}
 
           {/* ── Content ── */}
           <div style={{
@@ -1080,7 +1109,7 @@ export default function Settings() {
             <div style={{ height: 2, background: 'linear-gradient(90deg,#7c3aed,rgba(124,58,237,0.2),transparent)' }} />
 
             {/* panel header */}
-            <div style={{ padding: '13px 20px', borderBottom: '1px solid #1c1c2e', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ padding: isMobile ? '11px 14px' : '13px 20px', borderBottom: '1px solid #1c1c2e', display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{
                 fontSize: 10, fontWeight: 800, letterSpacing: '0.12em', textTransform: 'uppercase',
                 background: 'linear-gradient(90deg,#a78bfa,#c4b5fd,#a78bfa)',
@@ -1091,11 +1120,11 @@ export default function Settings() {
                 ◈ {activeTab.label}
               </span>
               <div style={{ flex: 1, height: 1, background: 'linear-gradient(to right,rgba(124,58,237,0.25),transparent)' }} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{activeTab.desc}</span>
+              {!isMobile && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{activeTab.desc}</span>}
             </div>
 
             {/* body */}
-            <div style={{ padding: '20px' }}>
+            <div style={{ padding: isMobile ? '14px' : '20px' }}>
               {content[tab]}
             </div>
 

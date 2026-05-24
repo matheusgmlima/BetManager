@@ -5,19 +5,35 @@ import { AppError } from '../middlewares/errorHandler'
 
 const router = Router()
 
-// GET /api/bankroll — entries + computed balance
+// GET /api/bankroll — entries + computed balance + estimated balance (includes bet profit)
 router.get('/', async (req: Request, res, next) => {
   try {
     const userId = req.user!.userId
-    const entries = await prisma.bankrollEntry.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' },
-    })
+    const [entries, bets] = await Promise.all([
+      prisma.bankrollEntry.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
+      prisma.bet.findMany({
+        where: { userId, result: { in: ['won', 'lost', 'void'] } },
+        select: { amountWagered: true, payout: true, result: true },
+      }),
+    ])
     const balance = entries.reduce((sum, e) => {
       const amt = Number(e.amount)
       return e.type === 'withdrawal' ? sum - amt : sum + amt
     }, 0)
-    res.json({ data: entries.map(e => ({ ...e, amount: Number(e.amount) })), balance: parseFloat(balance.toFixed(2)) })
+    const totalProfit = bets.reduce((sum, b) => {
+      const wagered = Number(b.amountWagered)
+      const payout  = Number(b.payout)
+      if (b.result === 'lost') return sum - wagered
+      if (b.result === 'void') return sum  // void: payout = wagered, net 0
+      return sum + (payout - wagered)      // won
+    }, 0)
+    const estimatedBalance = parseFloat((balance + totalProfit).toFixed(2))
+    res.json({
+      data: entries.map(e => ({ ...e, amount: Number(e.amount) })),
+      balance: parseFloat(balance.toFixed(2)),
+      estimatedBalance,
+      totalProfit: parseFloat(totalProfit.toFixed(2)),
+    })
   } catch (err) { next(err) }
 })
 

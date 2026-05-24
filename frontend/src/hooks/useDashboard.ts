@@ -18,12 +18,12 @@ export function useBookmakerStats(dateFrom?: string, dateTo?: string) {
   )
 }
 
-export function useProfileStats() {
-  return useQuery(['stats', 'profiles'], () => dashboardService.getProfileStats())
+export function useProfileStats(dateFrom?: string, dateTo?: string) {
+  return useQuery(['stats', 'profiles', dateFrom, dateTo], () => dashboardService.getProfileStats(dateFrom, dateTo))
 }
 
-export function useBetTypeStats() {
-  return useQuery(['stats', 'bet-types'], () => dashboardService.getBetTypeStats())
+export function useBetTypeStats(dateFrom?: string, dateTo?: string) {
+  return useQuery(['stats', 'bet-types', dateFrom, dateTo], () => dashboardService.getBetTypeStats(dateFrom, dateTo))
 }
 
 export function useGoals() {
@@ -50,6 +50,18 @@ export function useTipsterDetail(tipsterId: number | null | undefined, enabled: 
   return useQuery(
     ['stats', 'tipster-detail', tipsterId],
     () => dashboardService.getTipsterDetail(tipsterId),
+    { enabled, keepPreviousData: true }
+  )
+}
+
+export function useComparePeriods(
+  dateFrom1: string, dateTo1: string,
+  dateFrom2: string, dateTo2: string,
+  enabled: boolean
+) {
+  return useQuery(
+    ['stats', 'compare', dateFrom1, dateTo1, dateFrom2, dateTo2],
+    () => dashboardService.comparePeriods(dateFrom1, dateTo1, dateFrom2, dateTo2),
     { enabled, keepPreviousData: true }
   )
 }

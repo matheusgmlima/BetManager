@@ -9,11 +9,13 @@ import aiRouter         from './ai'
 import configRouter     from './config'
 import bankrollRouter   from './bankroll'
 import adminRouter      from './admin'
+import shareRouter      from './share'
 
 const router = Router()
 
 // Public
 router.use('/auth', authRouter)
+router.use('/', shareRouter)  // share tem rotas públicas e privadas internamente
 
 // Protected
 router.use(authenticate)

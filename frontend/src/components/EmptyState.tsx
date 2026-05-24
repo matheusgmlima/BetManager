@@ -1,25 +1,26 @@
+import { Icon, IconName } from './Icon'
+
 interface EmptyStateProps {
-  icon?: string
+  icon?: IconName
   title: string
   description?: string
   action?: { label: string; onClick: () => void }
 }
 
-export function EmptyState({ icon = '📭', title, description, action }: EmptyStateProps) {
+export function EmptyState({ icon = 'inbox', title, description, action }: EmptyStateProps) {
   return (
     <div style={{
       display: 'flex', flexDirection: 'column', alignItems: 'center',
       justifyContent: 'center', padding: '64px 24px', gap: 12, textAlign: 'center',
     }}>
-      {/* Icon ring */}
       <div style={{
         width: 72, height: 72, borderRadius: '50%',
         background: 'rgba(124,58,237,0.06)',
         border: '1px solid rgba(124,58,237,0.15)',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        fontSize: 30, marginBottom: 4,
+        marginBottom: 4,
       }}>
-        {icon}
+        <Icon name={icon} size={30} strokeWidth={1.5} />
       </div>
 
       <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -53,10 +54,9 @@ export function EmptyState({ icon = '📭', title, description, action }: EmptyS
   )
 }
 
-// Versao inline para dentro de <td> (tabelas)
-export function EmptyStateRow({ colSpan, icon = '📭', title, description }: {
+export function EmptyStateRow({ colSpan, icon = 'inbox', title, description }: {
   colSpan: number
-  icon?: string
+  icon?: IconName
   title: string
   description?: string
 }) {

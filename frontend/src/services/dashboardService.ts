@@ -27,8 +27,8 @@ export const dashboardService = {
       params: tipsterId === undefined ? {} : { tipsterId: tipsterId === null ? 'null' : tipsterId },
     }).then((r) => r.data.data),
 
-  getBetTypeStats: () =>
-    api.get<{ data: BetTypeStat[]; recommendation: string }>('/api/stats/bet-types').then((r) => r.data),
+  getBetTypeStats: (dateFrom?: string, dateTo?: string) =>
+    api.get<{ data: BetTypeStat[]; recommendation: string }>('/api/stats/bet-types', { params: { dateFrom, dateTo } }).then((r) => r.data),
 
   getMonthlyStats: () =>
     api.get('/api/stats/monthly').then((r) => r.data.data),
@@ -47,4 +47,7 @@ export const dashboardService = {
 
   deleteGoal: (id: number) =>
     api.delete(`/api/goals/${id}`).then((r) => r.data),
+
+  comparePeriods: (dateFrom1: string, dateTo1: string, dateFrom2: string, dateTo2: string) =>
+    api.get<{ periodA: any; periodB: any }>('/api/stats/compare', { params: { dateFrom1, dateTo1, dateFrom2, dateTo2 } }).then((r) => r.data),
 }
