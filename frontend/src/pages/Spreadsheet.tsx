@@ -1601,7 +1601,7 @@ export default function Spreadsheet() {
                     onMouseLeave={e => { if (!isActive) { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'transparent' } }}
                   >
                     {tab.id === null
-                      ? <span>all {tab.label}</span>
+                      ? <span>{tab.label}</span>
                       : (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: tab.color, flexShrink: 0, boxShadow: isActive ? `0 0 6px ${tab.color}` : 'none' }} />
