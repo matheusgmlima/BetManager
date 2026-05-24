@@ -8,4 +8,4 @@ echo "▶ Seeding defaults..."
 npx prisma db seed
 
 echo "▶ Starting server..."
-exec npm run dev
+exec npm run start
