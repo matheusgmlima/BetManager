@@ -29,7 +29,7 @@ const SHARE_TTL_DAYS = 7
 // POST /api/bets/:id/share — gera/renova token (autenticado)
 router.post('/bets/:id/share', shareGenLimit, authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const betId = parseInt(req.params.id)
+    const betId = parseInt(req.params.id as string)
     const userId = req.user!.userId
 
     const bet = await prisma.bet.findFirst({ where: { id: betId, userId } })
@@ -51,7 +51,7 @@ router.post('/bets/:id/share', shareGenLimit, authenticate, async (req: Request,
 // DELETE /api/bets/:id/share — revoga (autenticado)
 router.delete('/bets/:id/share', authenticate, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const betId = parseInt(req.params.id)
+    const betId = parseInt(req.params.id as string)
     const userId = req.user!.userId
 
     const bet = await prisma.bet.findFirst({ where: { id: betId, userId } })
@@ -65,8 +65,9 @@ router.delete('/bets/:id/share', authenticate, async (req: Request, res: Respons
 // GET /api/share/:token — público
 router.get('/share/:token', shareViewLimit, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const token = req.params.token as string
     const bet = await prisma.bet.findUnique({
-      where: { shareToken: req.params.token },
+      where: { shareToken: token },
       include: { sport: true, bookmaker: true, tipster: true, bettingProfile: true },
     })
 
