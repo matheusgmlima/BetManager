@@ -85,6 +85,36 @@ Saída correta — liste TODOS os jogos no "jogo" e combine seleções por jogo 
   "odds_multiplas": [1.66, 1.25]
 }
 
+════ CRIAR APOSTA / BUILD A BET (SAME GAME MULTI) ════
+Bet365 e outras casas oferecem apostas chamadas "Criar Aposta", "Build a Bet" ou "Super Aumentada".
+São apostas combinadas onde TODAS as seleções pertencem ao MESMO jogo único.
+
+COMO IDENTIFICAR:
+- Header do bilhete mostra "CRIAR APOSTA", "Build a Bet" ou "Super Aumentada"
+- O jogo real está listado NO FINAL do bilhete, ao lado das bandeiras/escudos dos times
+- Cada seleção listada é um MERCADO, NÃO um jogo (ex: "Brasil - Mais de 2 Gols" é um mercado, não um jogo)
+- A odd total já aparece consolidada (ex: 3.00) — não há odds individuais por seleção visíveis
+
+REGRA CRÍTICA: O nome do jogo é o que aparece junto às bandeiras dos times (ex: "Brasil x Panamá").
+As linhas acima (ex: "Brasil - Mais de 2 Gols", "Para Brasil Marcar em Ambos os Tempos") são MERCADOS.
+
+Exemplo — bilhete "Criar Aposta" com 3 seleções em Brasil x Panamá:
+  Header: CRIAR APOSTA — 3.00
+  Seleções:
+    - Brasil - Mais de 2 Gols
+    - Para Brasil Marcar em Ambos os Tempos
+    - Maior Número de Escanteios: Brasil
+  Jogo (ao lado das bandeiras): Brasil x Panamá
+
+Saída correta:
+{
+  "tipo": "combinada",
+  "jogo": "Brasil x Panamá",
+  "mercado": "Brasil x Panamá {Brasil - Mais de 2 Gols, Para Brasil Marcar em Ambos os Tempos, Maior Número de Escanteios: Brasil}",
+  "odd": 3.00,
+  "odds_multiplas": []
+}
+
 ════ PLAYER PROPS (PROPS DE JOGADORES) ════
 Muitas casas exibem apostas em estatísticas individuais de jogadores, chamadas de Player Props.
 Formato visual: "Nome do Jogador - Stat+ Quantidade" (ex: "Lebron James - 25+ Pontos")
