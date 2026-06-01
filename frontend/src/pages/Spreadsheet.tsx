@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import MonthlyReportModal from '../components/MonthlyReportModal'
 import { toast as sonnerToast } from 'sonner'
 import * as XLSX from 'xlsx'
 import { useBets, useUpdateBet, useDeleteBet, useUpdateBetResult, useCreateBet } from '../hooks/useBets'
@@ -1528,6 +1529,7 @@ export default function Spreadsheet() {
   const { data: tipsters = [], isLoading: loadingTipsters } = useTipsters()
   const [activeTab, setActiveTab] = useState<number | null>(null)
   const [showImport, setShowImport] = useState(false)
+  const [showReport, setShowReport] = useState(false)
 
   const tabs = [
     { id: null, label: 'Todas as apostas', color: '#8b5cf6' },
@@ -1540,6 +1542,7 @@ export default function Spreadsheet() {
     <div style={{ padding: isMobile ? '16px 14px 80px' : '28px 40px 60px', maxWidth: 1300, margin: '0 auto', color: 'var(--text-primary)', position: 'relative', zIndex: 1 }} className="space-y-8 anim-fade-in">
 
       {showImport && <ImportModal onClose={() => setShowImport(false)} />}
+      {showReport && <MonthlyReportModal onClose={() => setShowReport(false)} />}
 
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'flex-start', justifyContent: 'space-between', gap: 12 }}>
         <div>
@@ -1550,21 +1553,38 @@ export default function Spreadsheet() {
             Filtre por tipster / VIP nas abas abaixo
           </p>
         </div>
-        <button
-          onClick={() => setShowImport(true)}
-          style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-            padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
-            background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))',
-            border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd',
-            cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
-            width: isMobile ? '100%' : 'auto',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(99,102,241,0.25))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.color = '#fff' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; e.currentTarget.style.color = '#c4b5fd' }}
-        >
-          <Icon name="download" size={14} style={{ marginRight: 6 }} /> Importar planilha
-        </button>
+        <div style={{ display: 'flex', gap: 8, width: isMobile ? '100%' : 'auto', flexDirection: isMobile ? 'column' : 'row' }}>
+          <button
+            onClick={() => setShowReport(true)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(16,185,129,0.08))',
+              border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80',
+              cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
+              width: isMobile ? '100%' : 'auto',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34,197,94,0.2), rgba(16,185,129,0.15))'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.6)'; e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(34,197,94,0.1), rgba(16,185,129,0.08))'; e.currentTarget.style.borderColor = 'rgba(34,197,94,0.3)'; e.currentTarget.style.color = '#4ade80' }}
+          >
+            📄 Relatório Mensal
+          </button>
+          <button
+            onClick={() => setShowImport(true)}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              padding: '10px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700,
+              background: 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))',
+              border: '1px solid rgba(124,58,237,0.4)', color: '#c4b5fd',
+              cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap',
+              width: isMobile ? '100%' : 'auto',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.35), rgba(99,102,241,0.25))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.7)'; e.currentTarget.style.color = '#fff' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(124,58,237,0.2), rgba(99,102,241,0.15))'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.4)'; e.currentTarget.style.color = '#c4b5fd' }}
+          >
+            <Icon name="download" size={14} style={{ marginRight: 6 }} /> Importar planilha
+          </button>
+        </div>
       </div>
 
       <Section label="Tipsters / VIPs" icon="o">
