@@ -53,7 +53,7 @@ export default function MonthlyReportModal({ onClose }: Props) {
 
       for (const bet of allBets) {
         if (bet.result === 'pending' || bet.result === 'void') continue
-        const day = new Date(bet.date).getDate()
+        const day = parseInt(bet.date.split('T')[0].split('-')[2], 10)
         byDay[day] = (byDay[day] || 0) + (unitType === 'units' ? bet.profit / unitValue : bet.profit)
       }
 
