@@ -320,8 +320,8 @@ export default function ImportModal({ onClose }: { onClose: () => void }) {
                           <td style={{ padding: '5px 10px', color: '#eab308', fontFamily: 'monospace' }}>{row.odds?.toFixed(2) ?? '-'}</td>
                           <td style={{ padding: '5px 10px', fontFamily: 'monospace', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>R$ {row.amountWagered.toFixed(2)}</td>
                           <td style={{ padding: '5px 10px' }}>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: row.result === 'won' ? '#22c55e' : row.result === 'lost' ? '#ef4444' : row.result === 'void' ? '#7070a0' : '#eab308' }}>
-                              {row.result === 'won' ? 'Ganhou' : row.result === 'lost' ? 'Perdeu' : row.result === 'void' ? 'Void' : 'Pendente'}
+                            <span style={{ fontSize: 10, fontWeight: 700, color: row.result === 'won' ? '#22c55e' : row.result === 'lost' ? '#ef4444' : row.result === 'void' ? '#7070a0' : row.result === 'cashout' ? '#3b82f6' : '#eab308' }}>
+                              {row.result === 'won' ? 'Ganhou' : row.result === 'lost' ? 'Perdeu' : row.result === 'void' ? 'Void' : row.result === 'cashout' ? 'Cashout' : 'Pendente'}
                             </span>
                           </td>
                         </tr>
