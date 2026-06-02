@@ -115,7 +115,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
       pending,
       simpleCount,
       combinedCount,
-      hitRatePct: calculateHitRate(won, lost),
+      hitRatePct: calculateHitRate(won, lost, cashout),
       totalWagered: parseFloat(totalWagered.toFixed(2)),
       totalPayout: parseFloat(totalPayout.toFixed(2)),
       totalProfit,

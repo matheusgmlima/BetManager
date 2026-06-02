@@ -16,12 +16,13 @@ export function calculatePayout(amountWagered: number, odds: number): number {
 
 /**
  * Calcula o hit rate (% de apostas ganhas)
+ * Cashout conta como 0.5 — meio green/meio red
  * Ignora apostas void e pending no cálculo
  */
-export function calculateHitRate(won: number, lost: number): number | null {
-  const total = won + lost
+export function calculateHitRate(won: number, lost: number, cashout = 0): number | null {
+  const total = won + lost + cashout
   if (total === 0) return null
-  return parseFloat(((won / total) * 100).toFixed(2))
+  return parseFloat((((won + cashout * 0.5) / total) * 100).toFixed(2))
 }
 
 /**

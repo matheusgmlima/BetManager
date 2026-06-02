@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middlewares/errorHandler'
-import { calculateProfit } from '../utils/calculations'
+import { calculateProfit, calculateHitRate } from '../utils/calculations'
 import {
   BetCreateInput as CreateBetInput,
   BetUpdateInput as UpdateBetInput,
@@ -94,7 +94,8 @@ export async function listBets(userId: number, filters: BetFiltersInput): Promis
   const totalProfit = resolved.reduce((s, b) => s + b.profit, 0)
   const won = resolved.filter((b) => b.result === 'won').length
   const lost = resolved.filter((b) => b.result === 'lost').length
-  const hitRatePct = won + lost > 0 ? parseFloat(((won / (won + lost)) * 100).toFixed(2)) : null
+  const cashout = resolved.filter((b) => b.result === 'cashout').length
+  const hitRatePct = calculateHitRate(won, lost, cashout)
 
   return {
     data: formatted,
