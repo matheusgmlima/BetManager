@@ -31,6 +31,7 @@ export async function getStatsBySport(userId: number, filters: DateFilter): Prom
   return Array.from(grouped.values()).map(({ sport, bets: sb }) => {
     const won = sb.filter((b) => b.result === 'won').length
     const lost = sb.filter((b) => b.result === 'lost').length
+    const cashout = sb.filter((b) => b.result === 'cashout').length
     const totalWagered = sb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = sb.reduce((s, b) => {
       const a = Number(b.amountWagered)
@@ -66,6 +67,7 @@ export async function getStatsByBookmaker(userId: number, filters: DateFilter): 
   return Array.from(grouped.values()).map(({ bookmaker, bets: bb }) => {
     const won = bb.filter((b) => b.result === 'won').length
     const lost = bb.filter((b) => b.result === 'lost').length
+    const cashout = bb.filter((b) => b.result === 'cashout').length
     const totalWagered = bb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = bb.reduce((s, b) => {
       const a = Number(b.amountWagered)
@@ -93,6 +95,7 @@ export async function getStatsByBetType(userId: number, filters: DateFilter): Pr
     const typeBets = bets.filter((b) => b.betType === betType)
     const won = typeBets.filter((b) => b.result === 'won').length
     const lost = typeBets.filter((b) => b.result === 'lost').length
+    const cashout = typeBets.filter((b) => b.result === 'cashout').length
     const totalWagered = typeBets.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = typeBets.reduce((s, b) => {
       const a = Number(b.amountWagered)
@@ -156,6 +159,7 @@ export async function getStatsByProfile(userId: number, filters: DateFilter) {
   return Array.from(grouped.entries()).map(([name, { profile, resolved, total }]) => {
     const won = resolved.filter((b) => b.result === 'won').length
     const lost = resolved.filter((b) => b.result === 'lost').length
+    const cashout = resolved.filter((b) => b.result === 'cashout').length
     const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
     return {
@@ -229,6 +233,7 @@ export async function getProfileDetail(userId: number, profileIdParam: string | 
 
   const won  = bets.filter(b => b.result === 'won').length
   const lost = bets.filter(b => b.result === 'lost').length
+  const cashout = bets.filter((b) => b.result === 'cashout').length
 
   const oddsRanges = ODDS_RANGES.map(r => {
     const rb   = bets.filter(b => { const o = Number(b.odds); return o >= r.min && o < r.max })
@@ -380,6 +385,7 @@ export async function getTipsterDetail(userId: number, tipsterIdParam: string | 
 
   const won  = bets.filter(b => b.result === 'won').length
   const lost = bets.filter(b => b.result === 'lost').length
+  const cashout = bets.filter((b) => b.result === 'cashout').length
 
   const oddsRanges = ODDS_RANGES.map(r => {
     const rb   = bets.filter(b => { const o = Number(b.odds); return o >= r.min && o < r.max })
@@ -486,6 +492,7 @@ export async function getMonthlyStats(userId: number): Promise<MonthlyStats[]> {
   return Array.from(grouped.entries()).map(([month, mb]) => {
     const won = mb.filter((b) => b.result === 'won').length
     const lost = mb.filter((b) => b.result === 'lost').length
+    const cashout = mb.filter((b) => b.result === 'cashout').length
     const totalProfit = mb.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
     return {
       month,
@@ -515,6 +522,7 @@ export async function getHeatmap(userId: number) {
   return days.map(({ day, label, bets: db }) => {
     const won  = db.filter(b => b.result === 'won').length
     const lost = db.filter(b => b.result === 'lost').length
+    const cashout = db.filter((b) => b.result === 'cashout').length
     const totalWagered = db.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit  = db.reduce((s, b) => {
       const a = Number(b.amountWagered)
@@ -572,6 +580,7 @@ export async function getStatsByTipster(userId: number, filters: DateFilter) {
   return Array.from(grouped.entries()).map(([name, { tipster, resolved, total }]) => {
     const won = resolved.filter((b) => b.result === 'won').length
     const lost = resolved.filter((b) => b.result === 'lost').length
+    const cashout = resolved.filter((b) => b.result === 'cashout').length
     const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit  = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
     return {
@@ -613,6 +622,7 @@ export async function getPeriodSummary(userId: number, dateFrom?: string, dateTo
   const resolved = bets.filter(b => b.result !== 'pending')
   const won      = resolved.filter(b => b.result === 'won').length
   const lost     = resolved.filter(b => b.result === 'lost').length
+  const cashout  = resolved.filter(b => b.result === 'cashout').length
   const voidB    = resolved.filter(b => b.result === 'void').length
   const pending  = bets.filter(b => b.result === 'pending').length
 
