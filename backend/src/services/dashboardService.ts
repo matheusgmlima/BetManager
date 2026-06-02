@@ -16,6 +16,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
   const won = resolved.filter((b) => b.result === 'won').length
   const lost = resolved.filter((b) => b.result === 'lost').length
   const voidBets = resolved.filter((b) => b.result === 'void').length
+  const cashout = resolved.filter((b) => b.result === 'cashout').length
   const pending = bets.filter((b) => b.result === 'pending').length
   const simpleCount   = bets.filter((b) => b.betType === 'simple').length
   const combinedCount = bets.filter((b) => b.betType === 'combined').length
@@ -110,6 +111,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
       won,
       lost,
       void: voidBets,
+      cashout,
       pending,
       simpleCount,
       combinedCount,

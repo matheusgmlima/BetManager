@@ -13,7 +13,7 @@ import { Icon } from '../components/Icon'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const RESULT_LABELS: Record<BetResult, string> = {
-  won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente',
+  won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente', cashout: 'Cashout',
 }
 
 const RESULT_STYLES: Record<BetResult, { bg: string; color: string; border: string; dot: string }> = {
@@ -42,7 +42,7 @@ function ResultBadge({ result }: { result: BetResult }) {
 }
 
 // ─── Inline result picker ─────────────────────────────────────────────────────
-const RESULT_ORDER: BetResult[] = ['won', 'lost', 'void', 'pending']
+const RESULT_ORDER: BetResult[] = ['won', 'lost', 'void', 'pending', 'cashout']
 
 function InlineResultPicker({ current, onPick, onClose, anchorRect }: {
   current: BetResult
@@ -309,6 +309,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
     { value: 'lost',    label: '✗ Perdeu',   color: '#ef4444' },
     { value: 'pending', label: '◷ Pendente', color: '#eab308' },
     { value: 'void',    label: '∅ Void',     color: '#7070a0' },
+    { value: 'cashout', label: '↩ Cashout',  color: '#3b82f6' },
   ]
 
   return (
@@ -976,7 +977,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   }
 
   function exportExcel() {
-    const RESULT_PT: Record<string, string> = { won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente' }
+    const RESULT_PT: Record<string, string> = { won: 'Ganhou', lost: 'Perdeu', void: 'Void', pending: 'Pendente', cashout: 'Cashout' }
     const TYPE_PT: Record<string, string>   = { simple: 'Simples', combined: 'Combinada' }
 
     const rows = sorted.map(b => ({
@@ -1262,6 +1263,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
           { value: 'lost' as BetResult, label: '✗ Perdeu', color: '#ef4444' },
           { value: 'pending' as BetResult, label: '◷ Pendente', color: '#eab308' },
           { value: 'void' as BetResult, label: '∅ Void', color: '#7070a0' },
+          { value: 'cashout' as BetResult, label: '↩ Cashout', color: '#3b82f6' },
         ]).map(opt => (
           <button
             key={opt.value}
@@ -1289,7 +1291,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               <input style={inputStyle} placeholder="Descrição..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} />
             </div>
             {[
-              { label: 'Resultado', node: <select style={inputStyle} value={resultF} onChange={e => { setResultF(e.target.value as BetResult | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="won">Ganhou</option><option value="lost">Perdeu</option><option value="pending">Pendente</option><option value="void">Void</option></select> },
+              { label: 'Resultado', node: <select style={inputStyle} value={resultF} onChange={e => { setResultF(e.target.value as BetResult | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="won">Ganhou</option><option value="lost">Perdeu</option><option value="pending">Pendente</option><option value="void">Void</option><option value="cashout">Cashout</option></select> },
               { label: 'Tipo', node: <select style={inputStyle} value={betTypeF} onChange={e => { setBetTypeF(e.target.value as BetType | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="simple">Simples</option><option value="combined">Combinada</option></select> },
               { label: 'Esporte', node: <select style={inputStyle} value={sportIdF} onChange={e => { setSportIdF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
               { label: 'Casa', node: <select style={inputStyle} value={bookmakerF} onChange={e => { setBookmakerF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todas</option>{bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select> },

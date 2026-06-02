@@ -15,6 +15,7 @@ const RESULT_OPTS: { value: BetResult; label: string; icon: string; color: strin
   { value: 'lost',    label: 'Perdeu',   icon: '✗', color: '#ef4444' },
   { value: 'pending', label: 'Pendente', icon: '◷', color: '#eab308' },
   { value: 'void',    label: 'Void',     icon: '∅', color: '#7070a0' },
+  { value: 'cashout', label: 'Cashout',  icon: '↩', color: '#3b82f6' },
 ]
 
 const CONFIDENCE_STYLE: Record<string, { color: string; label: string }> = {

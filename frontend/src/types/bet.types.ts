@@ -1,4 +1,4 @@
-export type BetResult = 'won' | 'lost' | 'void' | 'pending'
+export type BetResult = 'won' | 'lost' | 'void' | 'pending' | 'cashout'
 export type BetType = 'simple' | 'combined'
 
 export interface Sport {

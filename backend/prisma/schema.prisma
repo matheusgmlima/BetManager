@@ -15,6 +15,7 @@ enum BetResult {
   lost
   void
   pending
+  cashout
 }
 
 enum BetType {

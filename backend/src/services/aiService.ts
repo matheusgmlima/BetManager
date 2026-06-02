@@ -154,9 +154,10 @@ ATENÇÃO: Leia TODAS as seleções de props — elas costumam aparecer empilhad
 Não pare na primeira seleção. Percorra toda a imagem de cima a baixo.
 
 ════ RESULTADO — PALAVRAS-CHAVE ════
-"won"     → Retorno Obtido / Ganhou / Won / Cash Out
+"won"     → Retorno Obtido / Ganhou / Won
 "lost"    → Perdeu / Sem Retorno / Lost
 "void"    → Nula / Void / Cancelada
+"cashout" → Cash Out / Cashout / Encerrado Antecipadamente / valor parcial retirado antes do fim
 "pending" → Ao Vivo / Pendente / Em aberto / sem resultado visível
 
 ════ REGRAS PARA COMBINADAS ════

@@ -13,7 +13,7 @@ export const createBetSchema = z.object({
   amountWagered: z.number().positive({ message: 'Valor apostado deve ser maior que zero' }),
   odds: z.number().min(1.0, 'Odd deve ser >= 1.0').optional().nullable(),
   payout: z.number().min(0),
-  result: z.enum(['won', 'lost', 'void', 'pending']),
+  result: z.enum(['won', 'lost', 'void', 'pending', 'cashout']),
   notes: z.string().max(1000).optional().nullable(),
   combinedId: z.number().int().positive().optional().nullable(),
   bettingProfileId: z.number().int().positive().optional().nullable(),
@@ -23,7 +23,7 @@ export const createBetSchema = z.object({
 export const updateBetSchema = createBetSchema.partial()
 
 export const resultUpdateSchema = z.object({
-  result: z.enum(['won', 'lost', 'void', 'pending']),
+  result: z.enum(['won', 'lost', 'void', 'pending', 'cashout']),
   payout: z.number().min(0),
 })
 
@@ -42,7 +42,7 @@ export const betFiltersSchema = z.object({
   perPage: z.coerce.number().int().positive().max(5000).default(25),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
-  result: z.enum(['won', 'lost', 'void', 'pending']).optional(),
+  result: z.enum(['won', 'lost', 'void', 'pending', 'cashout']).optional(),
   sportId: z.coerce.number().int().positive().optional(),
   bookmakerId: z.coerce.number().int().positive().optional(),
   betType: z.enum(['simple', 'combined']).optional(),
