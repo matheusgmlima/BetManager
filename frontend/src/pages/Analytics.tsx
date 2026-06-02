@@ -915,7 +915,7 @@ function StreaksAndTopBets() {
         <p style={{ fontSize: 12, fontWeight: 600, color: C.text, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {b.match ?? b.market}
         </p>
-        <p style={{ fontSize: 10, color: C.muted, margin: 0 }}>{b.market} · odd {Number(b.odds).toFixed(2)} · {b.date}</p>
+        <p style={{ fontSize: 10, color: C.muted, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.market} · odd {Number(b.odds).toFixed(2)} · {b.date}</p>
       </div>
       <p style={{ fontSize: 13, fontWeight: 800, color: isWin ? C.green : C.red, margin: 0, fontFamily: 'monospace', flexShrink: 0 }}>
         {isWin ? '+' : '−'}{fmtMoney(isWin ? b.profit : b.loss)}

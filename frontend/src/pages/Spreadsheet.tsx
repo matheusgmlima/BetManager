@@ -949,13 +949,15 @@ function monthLabel(key: string) {
   return `${MONTH_NAMES[parseInt(m) - 1]} ${y}`
 }
 function calcMonthStats(bets: Bet[]) {
-  const settled = bets.filter(b => b.result !== 'pending')
-  const won     = settled.filter(b => b.result === 'won').length
-  const lost    = settled.filter(b => b.result === 'lost').length
-  const wagered = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
-  const profit  = bets.reduce((s, b) => s + Number(b.profit ?? 0), 0)
-  const hr      = settled.length > 0 ? (won / settled.length) * 100 : null
-  return { total: bets.length, won, lost, wagered, profit, hitRate: hr }
+  const settled  = bets.filter(b => b.result !== 'pending')
+  const won      = settled.filter(b => b.result === 'won').length
+  const lost     = settled.filter(b => b.result === 'lost').length
+  const cashout  = settled.filter(b => b.result === 'cashout').length
+  const wagered  = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
+  const profit   = bets.reduce((s, b) => s + Number(b.profit ?? 0), 0)
+  const total    = won + lost + cashout
+  const hr       = total > 0 ? ((won + cashout * 0.5) / total) * 100 : null
+  return { total: bets.length, won, lost, cashout, wagered, profit, hitRate: hr }
 }
 
 // ─── BetTable (tabela — reutilizada por cada tab) ─────────────────────────────
@@ -1469,6 +1471,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                             <span style={{ color: '#22c55e', fontWeight: 700 }}>{stats.won}G</span>
                             {' · '}
                             <span style={{ color: '#ef4444', fontWeight: 700 }}>{stats.lost}P</span>
+                            {stats.cashout > 0 && <>{' · '}<span style={{ color: '#3b82f6', fontWeight: 700 }}>{stats.cashout}C</span></>}
                             {stats.hitRate != null && <span style={{ color: '#a78bfa', fontWeight: 600, marginLeft: 6 }}>{stats.hitRate.toFixed(0)}%</span>}
                           </span>
                         )}
