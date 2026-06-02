@@ -206,3 +206,9 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Select dropdown options — dark theme */
+select option {
+  background: #1a1a2e;
+  color: #e2d9f3;
+}

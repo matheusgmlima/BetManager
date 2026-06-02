@@ -87,7 +87,7 @@ export async function getYearAnalytics(userId: number, year: number) {
     const m     = i + 1
     const mBets = allBets.filter((b) => {
       const d = new Date(b.date)
-      return d.getMonth() + 1 === m
+      return d.getUTCMonth() + 1 === m
     })
     const stats     = calcBetStats(mBets)
     const goal      = goals.find((g) => g.month === m)
@@ -115,7 +115,7 @@ export async function getYearAnalytics(userId: number, year: number) {
   const goalsSet    = goals.length
   const goalsHit    = goals.filter((g) => {
     const m     = g.month
-    const mBets = allBets.filter((b) => new Date(b.date).getMonth() + 1 === m)
+    const mBets = allBets.filter((b) => new Date(b.date).getUTCMonth() + 1 === m)
     const stats = calcBetStats(mBets)
     return stats.totalProfit >= Number(g.targetProfit)
   }).length

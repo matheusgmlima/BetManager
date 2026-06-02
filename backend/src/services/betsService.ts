@@ -37,8 +37,13 @@ function formatBet(bet: any): BetWithRelations {
                : bet.result === 'void'    ? 0
                : bet.result === 'pending' ? 0
                : calculateProfit(payout, amount)
+  // Serializa date como YYYY-MM-DD evitando shift de timezone UTC->local
+  const dateStr = bet.date instanceof Date
+    ? bet.date.toISOString().split('T')[0]
+    : String(bet.date).split('T')[0]
   return {
     ...bet,
+    date: dateStr,
     amountWagered: amount,
     odds: bet.odds ? Number(bet.odds) : null,
     payout,
@@ -58,8 +63,8 @@ export async function listBets(userId: number, filters: BetFiltersInput): Promis
   const orderDir = _orderDir ?? 'desc'
 
   const where: any = { userId }
-  if (dateFrom) where.date = { ...where.date, gte: new Date(dateFrom) }
-  if (dateTo) where.date = { ...where.date, lte: new Date(dateTo) }
+  if (dateFrom) where.date = { ...where.date, gte: new Date(dateFrom + 'T00:00:00.000Z') }
+  if (dateTo)   where.date = { ...where.date, lte: new Date(dateTo   + 'T23:59:59.999Z') }
   if (result) where.result = result
   if (sportId) where.sportId = sportId
   if (bookmakerId) where.bookmakerId = bookmakerId
@@ -108,7 +113,7 @@ export async function createBet(userId: number, data: CreateBetInput): Promise<B
   const bet = await prisma.bet.create({
     data: {
       userId,
-      date: new Date(data.date),
+      date: new Date(data.date + 'T12:00:00.000Z'),
       match: data.match ?? null,
       market: data.market,
       sportId: data.sportId,
@@ -135,7 +140,7 @@ export async function createBetsBatch(userId: number, bets: CreateBetInput[]): P
       prisma.bet.create({
         data: {
           userId,
-          date: new Date(b.date),
+          date: new Date(b.date + 'T12:00:00.000Z'),
           match: b.match ?? null,
           market: b.market,
           sportId: b.sportId,
@@ -163,7 +168,7 @@ export async function updateBet(userId: number, id: number, data: UpdateBetInput
   const bet = await prisma.bet.update({
     where: { id },
     data: {
-      ...(data.date && { date: new Date(data.date) }),
+      ...(data.date && { date: new Date(data.date + 'T12:00:00.000Z') }),
       ...(data.match !== undefined && { match: data.match }),
       ...(data.market && { market: data.market }),
       ...(data.sportId !== undefined && { sportId: data.sportId }),
