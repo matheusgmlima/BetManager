@@ -549,6 +549,7 @@ function ManualTab() {
         else if (v === 'void' && !isNaN(amount) && amount > 0)             next.payout = amount.toFixed(2)
         else if (v === 'won'  && !isNaN(amount) && !isNaN(odds) && odds >= 1 && amount > 0)
           next.payout = (amount * odds).toFixed(2)
+        else if (v === 'cashout')                                           next.payout = ''
       }
       return next
     })
@@ -797,11 +798,11 @@ function ManualTab() {
               </p>
             )}
           </Field>
-          <Field label="Retorno Total (R$) *" error={errors.payout}>
+          <Field label={form.result === 'cashout' ? 'Valor Recebido no Cashout (R$) *' : 'Retorno Total (R$) *'} error={errors.payout}>
             <input type="number" min="0" step="0.01" value={form.payout}
-              placeholder="0,00" onChange={e => set('payout', e.target.value)}
+              placeholder={form.result === 'cashout' ? 'Quanto recebeu?' : '0,00'} onChange={e => set('payout', e.target.value)}
               onFocus={focus} onBlur={blur}
-              style={{ ...inp, borderColor: errors.payout ? 'var(--red)' : 'var(--border)', gridColumn: isMobile ? '1 / -1' : 'auto' }}
+              style={{ ...inp, borderColor: errors.payout ? 'var(--red)' : form.result === 'cashout' ? 'rgba(59,130,246,0.5)' : 'var(--border)', gridColumn: isMobile ? '1 / -1' : 'auto' }}
             />
           </Field>
         </div>

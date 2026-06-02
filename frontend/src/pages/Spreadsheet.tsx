@@ -653,6 +653,7 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpd
   const [showResultPicker, setShowResultPicker] = useState(false)
   const [pickerAnchor,     setPickerAnchor]     = useState<DOMRect | null>(null)
   const [updatingResult,   setUpdatingResult]   = useState(false)
+  const [cashoutDialog,    setCashoutDialog]    = useState<{ open: boolean; value: string }>({ open: false, value: '' })
   const { fmtMoney }                      = useUnit()
   const td: React.CSSProperties = { padding: '11px 14px', fontSize: 12 }
 
@@ -810,6 +811,10 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpd
             onPick={async r => {
               setShowResultPicker(false)
               if (r === bet.result) return
+              if (r === 'cashout') {
+                setCashoutDialog({ open: true, value: String(bet.amountWagered) })
+                return
+              }
               setUpdatingResult(true)
               const payout = r === 'won' ? (bet.amountWagered * (bet.odds ?? 1)) : r === 'void' ? bet.amountWagered : 0
               await onUpdateResult(bet.id, r, payout)
@@ -817,6 +822,54 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpd
             }}
             onClose={() => setShowResultPicker(false)}
           />
+        )}
+
+        {/* ── Cashout dialog ── */}
+        {cashoutDialog.open && (
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            onMouseDown={e => { if (e.target === e.currentTarget) setCashoutDialog({ open: false, value: '' }) }}
+          >
+            <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: 14, padding: '24px 28px', minWidth: 300, boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
+              <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Valor do Cashout</p>
+              <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>Apostado: R$ {bet.amountWagered.toFixed(2)}</p>
+              <input
+                autoFocus
+                type="number"
+                step="0.01"
+                min="0"
+                value={cashoutDialog.value}
+                onChange={e => setCashoutDialog(d => ({ ...d, value: e.target.value }))}
+                onKeyDown={async e => {
+                  if (e.key === 'Enter') {
+                    const v = parseFloat(cashoutDialog.value)
+                    if (isNaN(v) || v < 0) return
+                    setCashoutDialog({ open: false, value: '' })
+                    setUpdatingResult(true)
+                    await onUpdateResult(bet.id, 'cashout', v)
+                    setUpdatingResult(false)
+                  }
+                  if (e.key === 'Escape') setCashoutDialog({ open: false, value: '' })
+                }}
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.4)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
+                placeholder="Ex: 12.50"
+              />
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button onClick={() => setCashoutDialog({ open: false, value: '' })} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                <button
+                  onClick={async () => {
+                    const v = parseFloat(cashoutDialog.value)
+                    if (isNaN(v) || v < 0) return
+                    setCashoutDialog({ open: false, value: '' })
+                    setUpdatingResult(true)
+                    await onUpdateResult(bet.id, 'cashout', v)
+                    setUpdatingResult(false)
+                  }}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >Confirmar</button>
+              </div>
+            </div>
+          </div>
         )}
       </td>
       <td style={{
