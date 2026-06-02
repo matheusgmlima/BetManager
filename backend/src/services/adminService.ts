@@ -21,7 +21,7 @@ export async function listUsers() {
   })
 
   return users.map(u => {
-    const settled     = u.bets.filter(b => b.result === 'won' || b.result === 'lost')
+    const settled     = u.bets.filter(b => b.result === 'won' || b.result === 'lost' || b.result === 'cashout')
     const won         = u.bets.filter(b => b.result === 'won')
     const wagered     = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
     const payout      = settled.reduce((s, b) => s + Number(b.payout), 0)
