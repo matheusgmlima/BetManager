@@ -322,10 +322,11 @@ export default function Dashboard() {
 
   // Distribution for donut
   const distribution = summary ? [
-    { name: 'Ganhou',   value: summary.won,     color: '#22c55e' },
-    { name: 'Perdeu',   value: summary.lost,    color: '#ef4444' },
-    { name: 'Pendente', value: summary.pending, color: '#eab308' },
-    { name: 'Void',     value: summary.void,    color: '#3b3b55' },
+    { name: 'Ganhou',   value: summary.won,          color: '#22c55e' },
+    { name: 'Perdeu',   value: summary.lost,         color: '#ef4444' },
+    { name: 'Pendente', value: summary.pending,      color: '#eab308' },
+    { name: 'Void',     value: summary.void,         color: '#3b3b55' },
+    { name: 'Cashout',  value: summary.cashout ?? 0, color: '#3b82f6' },
   ].filter(d => d.value > 0) : []
 
   // Format month label from chart date

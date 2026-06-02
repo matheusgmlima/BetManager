@@ -22,13 +22,14 @@ const RESULT_STYLES: Record<BetResult, { bg: string; color: string; border: stri
   lost:    { bg: 'rgba(239,68,68,0.10)',  color: '#ef4444', border: 'rgba(239,68,68,0.25)',  dot: '#ef4444' },
   void:    { bg: 'rgba(90,90,120,0.15)',  color: '#7070a0', border: 'rgba(90,90,120,0.30)',  dot: '#7070a0' },
   pending: { bg: 'rgba(234,179,8,0.10)',  color: '#eab308', border: 'rgba(234,179,8,0.25)',  dot: '#eab308' },
+  cashout: { bg: 'rgba(59,130,246,0.10)', color: '#3b82f6', border: 'rgba(59,130,246,0.25)', dot: '#3b82f6' },
 }
 
 // Cores únicas por perfil (cycling se tiver mais de 4)
 const PROFILE_COLORS = ['#a78bfa', '#818cf8', '#c084fc', '#f472b6', '#34d399', '#60a5fa']
 
 function ResultBadge({ result }: { result: BetResult }) {
-  const s = RESULT_STYLES[result]
+  const s = RESULT_STYLES[result] ?? RESULT_STYLES['pending']
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -79,7 +80,7 @@ function InlineResultPicker({ current, onPick, onClose, anchorRect }: {
       boxShadow: '0 8px 32px rgba(0,0,0,0.6)', minWidth: 120,
     }}>
       {RESULT_ORDER.map(r => {
-        const s = RESULT_STYLES[r]
+        const s = RESULT_STYLES[r] ?? RESULT_STYLES['pending']
         return (
           <button
             key={r}
