@@ -226,8 +226,6 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
   const { data: tipsters   = [] } = useTipsters()
   const updateBet = useUpdateBet()
 
-  function today() { return new Date().toISOString().split('T')[0] }
-
   const [form, setForm] = useState({
     date:            bet.date.split('T')[0],
     match:           bet.match ?? '',
@@ -336,7 +334,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
           {/* Data */}
-          <div><label style={lbl}>Data *</label><input type="date" style={inp} value={form.date} max={today()} onChange={e => set('date', e.target.value)} /></div>
+          <div><label style={lbl}>Data *</label><input type="date" style={inp} value={form.date} onChange={e => set('date', e.target.value)} /></div>
           {/* Perfil */}
           <div>
             <label style={lbl}>Perfil *</label>

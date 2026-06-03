@@ -95,10 +95,16 @@ COMO IDENTIFICAR:
 - Cada seleção listada é um MERCADO, NÃO um jogo (ex: "Brasil - Mais de 2 Gols" é um mercado, não um jogo)
 - A odd total já aparece consolidada (ex: 3.00) — não há odds individuais por seleção visíveis
 
-REGRA CRÍTICA: O nome do jogo é o que aparece junto às bandeiras dos times (ex: "Brasil x Panamá").
-As linhas acima (ex: "Brasil - Mais de 2 Gols", "Para Brasil Marcar em Ambos os Tempos") são MERCADOS.
+═══ REGRAS CRÍTICAS PARA CRIAR APOSTA ═══
+1. O campo "jogo" DEVE conter EXATAMENTE UM jogo (sem ponto-e-vírgula). NUNCA divida em vários jogos.
+2. O nome do jogo é APENAS o que aparece junto às bandeiras/escudos dos times no final do bilhete (ex: "Brasil x Panamá", "Espanha x Iraque", "Filipinas x Guame").
+3. Seleções que COMEÇAM com o nome de um time (ex: "Iraque - Menos de 6.5 Chutes", "Brasil - Mais de 2 Gols", "ASA - Menos de 2 Gols", "1º Tempo: Filipinas") NÃO são jogos separados — o prefixo é apenas o time-alvo daquela estatística. Trate a linha INTEIRA como um único MERCADO dentro do jogo único da Criar Aposta.
+4. Subtítulos abaixo da seleção (ex: "Time Visitante - Chutes", "Escanteios - Aposta Comparativa", "Intervalo", "Total de Gols - 3 Opções - Alternativas") são apenas categorias do mercado — NÃO os trate como seleções separadas e NÃO os inclua no "mercado". Use somente a linha principal da seleção.
+5. TODAS as seleções da Criar Aposta vão dentro de UM ÚNICO par de chaves {}, separadas por vírgula.
+6. LEIA TODAS as seleções do bilhete — cada ícone de check verde (✓) ou bullet circular ao lado esquerdo marca uma seleção distinta. NÃO PARE na primeira. Conte os ícones e garanta que o número de seleções dentro de {} corresponde ao número de ícones visíveis.
+7. As seleções aparecem empilhadas verticalmente, cada uma com sua linha principal + um subtítulo de categoria abaixo. Percorra a lista INTEIRA de cima a baixo antes de fechar o JSON.
 
-Exemplo — bilhete "Criar Aposta" com 3 seleções em Brasil x Panamá:
+Exemplo 1 — bilhete "Criar Aposta" com 3 seleções em Brasil x Panamá:
   Header: CRIAR APOSTA — 3.00
   Seleções:
     - Brasil - Mais de 2 Gols
@@ -113,6 +119,50 @@ Saída correta:
   "mercado": "Brasil x Panamá {Brasil - Mais de 2 Gols, Para Brasil Marcar em Ambos os Tempos, Maior Número de Escanteios: Brasil}",
   "odd": 3.00,
   "odds_multiplas": []
+}
+
+Exemplo 2 — bilhete "Criar Aposta" em Espanha x Iraque com seleção prefixada por time:
+  Header: CRIAR APOSTA — 1.61
+  Seleções:
+    - Iraque - Menos de 6.5 Chutes   (subtítulo: Time Visitante - Chutes)
+    - Maior Número de Escanteios: Espanha   (subtítulo: Escanteios - Aposta Comparativa)
+  Jogo (ao lado das bandeiras): Espanha x Iraque
+
+Saída correta (UM único jogo, ambas seleções dentro do mesmo {}):
+{
+  "tipo": "combinada",
+  "jogo": "Espanha x Iraque",
+  "mercado": "Espanha x Iraque {Iraque - Menos de 6.5 Chutes, Maior Número de Escanteios: Espanha}",
+  "odd": 1.61,
+  "odds_multiplas": []
+}
+
+ERRADO (NÃO faça isso — "Iraque" NÃO é um jogo separado só porque a seleção começa com "Iraque -"):
+{
+  "jogo": "Iraque; Iraque x Espanha",
+  "mercado": "Iraque {Iraque - Menos de 6.5 Chutes, Time Visitante - Chutes}; Iraque x Espanha {Maior Número de Escanteios: Espanha}"
+}
+
+Exemplo 3 — bilhete "Criar Aposta" em Filipinas x Guame com 2 seleções (cuidado para NÃO esquecer a segunda):
+  Header: CRIAR APOSTA — 1.41
+  Seleções (DUAS — conte os ícones de check):
+    ✓ 1º Tempo: Filipinas   (subtítulo: Intervalo)
+    ✓ Mais de 2 Gols   (subtítulo: Total de Gols - 3 Opções - Alternativas)
+  Jogo (ao lado das bandeiras): Filipinas x Guame
+
+Saída correta (AMBAS as seleções dentro do mesmo {}):
+{
+  "tipo": "combinada",
+  "jogo": "Filipinas x Guame",
+  "mercado": "Filipinas x Guame {1º Tempo: Filipinas, Mais de 2 Gols}",
+  "odd": 1.41,
+  "odds_multiplas": []
+}
+
+ERRADO (NÃO faça isso — esquecer a segunda seleção "Mais de 2 Gols"):
+{
+  "jogo": "Filipinas x Guame",
+  "mercado": "Filipinas x Guame {1º Tempo: Filipinas}"
 }
 
 ════ PLAYER PROPS (PROPS DE JOGADORES) ════
