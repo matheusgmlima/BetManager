@@ -3,8 +3,7 @@ import { z } from 'zod'
 export const createBetSchema = z.object({
   date: z
     .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD')
-    .refine((d) => new Date(d) <= new Date(), { message: 'Data nao pode ser futura' }),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Data deve estar no formato YYYY-MM-DD'),
   match: z.string().max(200).optional().nullable(),
   market: z.string().min(1, 'Mercado e obrigatorio').max(500),
   sportId: z.number().int().positive().optional(),

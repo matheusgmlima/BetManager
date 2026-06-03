@@ -620,7 +620,7 @@ function ManualTab() {
       <SectionCard icon="◈" title="Identificação">
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 14 }}>
           <Field label="Data *" error={errors.date}>
-            <input type="date" value={form.date} max={today()}
+            <input type="date" value={form.date}
               onChange={e => set('date', e.target.value)}
               onFocus={focus} onBlur={blur}
               style={{ ...inp, borderColor: errors.date ? 'var(--red)' : 'var(--border)' }}
@@ -975,12 +975,11 @@ function AiTab() {
   const tipstersRef = useRef(tipsters)
   useEffect(() => { tipstersRef.current = tipsters }, [tipsters])
 
-  const profilesRef = useRef(profiles)
-  useEffect(() => { profilesRef.current = profiles }, [profiles])
-
-  const fixDate = (d: string | null | undefined): string => {
+  const fixDate = (d: string | null | undefined, result?: BetResult | null): string => {
     const base = d ?? today()
-    if (new Date(base + 'T00:00:00') > new Date(today() + 'T23:59:59')) {
+    const isFuture = new Date(base + 'T00:00:00') > new Date(today() + 'T23:59:59')
+    // Só vira o ano para trás se a aposta já está fechada — pendente pode ser futura intencionalmente
+    if (isFuture && result && result !== 'pending') {
       const [y, m, day] = base.split('-')
       return `${Number(y) - 1}-${m}-${day}`
     }
@@ -1002,17 +1001,15 @@ function AiTab() {
         setExtractionIds(prev => [...prev, result.extractionId])
         const activeTipsters = tipstersRef.current.filter(t => t.active)
         const defaultTipster = activeTipsters.find(t => t.name === 'Aposta Própria') ?? activeTipsters[0] ?? null
-        const activeProfiles = profilesRef.current.filter((p: any) => p.active)
-        const defaultProfile = activeProfiles.find((p: any) => p.isDefault) ?? activeProfiles[0] ?? null
         setBets(prev => [
           ...prev,
           ...result.bets.map(b => ({
             ...b, selected: true, expanded: true,
-            dateEdit: fixDate(b.date), matchEdit: b.match ?? '',
+            dateEdit: fixDate(b.date, b.result), matchEdit: b.match ?? '',
             marketEdit: b.market ?? '', amountWageredEdit: String(b.amountWagered ?? ''),
             oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
             resultEdit: b.result ?? 'pending' as BetResult,
-            bookmakerId: b.bookmakerId, bettingProfileId: defaultProfile?.id ?? null,
+            bookmakerId: b.bookmakerId, bettingProfileId: null,
             tipsterId: defaultTipster?.id ?? null, sportId: null,
           }))
         ])
@@ -1048,11 +1045,6 @@ function AiTab() {
     if (files.length) processFiles(files)
   }, [processFiles])
 
-  const isDateFuture = (dateStr: string) => {
-    if (!dateStr) return false
-    return new Date(dateStr + 'T00:00:00') > new Date(today() + 'T23:59:59')
-  }
-
   const toggleBet   = (i: number) => setBets(p => p.map((b, idx) => idx === i ? { ...b, selected: !b.selected } : b))
   const expandBet   = (i: number) => setBets(p => p.map((b, idx) => idx === i ? { ...b, expanded: !b.expanded } : b))
   const updateBet   = (i: number, patch: Partial<ExtractedBetEdit>) => setBets(p => p.map((b, idx) => idx === i ? { ...b, ...patch } : b))
@@ -1068,7 +1060,6 @@ function AiTab() {
       const errs: string[] = []
       if (!b.bookmakerId) errs.push('casa')
       if (!b.tipsterId)   errs.push('tipster')
-      if (isDateFuture(b.dateEdit)) errs.push('data')
       if (errs.length) errors[idx] = errs
     })
     if (Object.keys(errors).length > 0) {
@@ -1606,17 +1597,12 @@ function AiTab() {
 
                       {/* Numeric fields */}
                       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
-                        <Field label="Data" error={hasError && betErrors.includes('data') ? 'Data futura — corrija para hoje ou antes' : undefined}>
-                          <input type="date" value={bet.dateEdit} max={today()}
+                        <Field label="Data">
+                          <input type="date" value={bet.dateEdit}
                             onChange={e => updateBet(i, { dateEdit: e.target.value })}
                             onFocus={focus} onBlur={blur}
-                            style={{ ...inp, borderColor: hasError && betErrors.includes('data') ? '#ef4444' : isDateFuture(bet.dateEdit) ? '#f59e0b' : 'var(--border)' }}
+                            style={inp}
                           />
-                          {isDateFuture(bet.dateEdit) && !betErrors.includes('data') && (
-                            <p style={{ margin: '4px 0 0', fontSize: 11, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 4 }}>
-                              ⚠ Data futura detectada — a aposta deve ser do dia atual ou anterior
-                            </p>
-                          )}
                         </Field>
                         <Field label="Apostado (R$)">
                           <input type="number" min="0" step="0.01" value={bet.amountWageredEdit}
