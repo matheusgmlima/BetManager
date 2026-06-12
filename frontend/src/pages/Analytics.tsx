@@ -201,34 +201,34 @@ function CalibrationChart() {
 
   const ranges: any[] = data?.oddsRanges ?? []
 
+  // Lucratividade real (ROI) é a fonte da verdade — uma faixa só é "boa" se deu lucro,
+  // independentemente de o acerto ter ficado acima do breakeven teórico (que assume stake fixa).
   const best = useMemo(() => {
-    const q = ranges.filter(r => r.hitRatePct != null && r.expectedHitRatePct != null && r.total >= 3)
+    const q = ranges.filter(r => r.roi != null && r.total >= 3)
     return q.length
-      ? q.reduce((a: any, b: any) =>
-          (b.hitRatePct - b.expectedHitRatePct) > (a.hitRatePct - a.expectedHitRatePct) ? b : a)
+      ? q.reduce((a: any, b: any) => (b.roi > a.roi ? b : a))
       : null
   }, [ranges])
 
-  const aboveCount = ranges.filter(r =>
-    r.hitRatePct != null && r.expectedHitRatePct != null && r.hitRatePct >= r.expectedHitRatePct
-  ).length
-  const totalRanges = ranges.filter(r => r.hitRatePct != null && r.expectedHitRatePct != null).length
+  const profitableCount = ranges.filter(r => r.roi != null && r.roi >= 0).length
+  const totalRanges     = ranges.filter(r => r.roi != null).length
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (!active || !payload?.length) return null
     const d = payload[0]?.payload
     if (!d) return null
-    const edge = d.hitRatePct != null && d.expectedHitRatePct != null
+    const calib = d.hitRatePct != null && d.expectedHitRatePct != null
       ? d.hitRatePct - d.expectedHitRatePct : null
+    const profitable = d.roi != null && d.roi >= 0
     return (
       <div style={ttStyle}>
         <p style={{ margin: '0 0 8px', fontWeight: 700, color: C.purpleL }}>{d.label}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <Row label="Apostas"      val={String(d.total)} />
-          <Row label="Acerto real"  val={fmtPct(d.hitRatePct)}         color={d.hitRatePct >= (d.expectedHitRatePct ?? 0) ? C.green : C.red} />
+          <Row label="Acerto real"  val={fmtPct(d.hitRatePct)}         color={profitable ? C.green : C.red} />
           <Row label="Breakeven"    val={fmtPct(d.expectedHitRatePct)} color={C.amber} />
-          {edge != null && <Row label="Vantagem" val={`${edge >= 0 ? '+' : ''}${edge.toFixed(1)}%`} color={edge >= 0 ? C.green : C.red} />}
-          <Row label="ROI"          val={fmtPct(d.roi)}                color={d.roi >= 0 ? C.green : C.red} />
+          {calib != null && <Row label="Calibração" val={`${calib >= 0 ? '+' : ''}${calib.toFixed(1)}%`} color={C.muted} />}
+          <Row label="ROI"          val={fmtPct(d.roi)}                color={profitable ? C.green : C.red} />
           <Row label="Lucro"        val={fmtMoney(d.totalProfit)}      color={d.totalProfit >= 0 ? C.green : C.red} />
           <Row label="Odd média"    val={d.avgOdds ? d.avgOdds.toFixed(2) : '—'} />
         </div>
@@ -244,13 +244,13 @@ function CalibrationChart() {
         <Sidebar
           isMobile={isMobile}
           title="Calibração de Odds"
-          subtitle="Acerto real vs. mínimo necessário para lucrar em cada faixa"
+          subtitle="Cor pela lucratividade real (ROI); linha = breakeven teórico (1 ÷ odd)"
           accent={C.purple}
         >
           <Stat
-            label="Faixas com valor"
-            value={`${aboveCount} / ${totalRanges}`}
-            color={aboveCount >= totalRanges / 2 ? C.green : C.amber}
+            label="Faixas lucrativas"
+            value={`${profitableCount} / ${totalRanges}`}
+            color={profitableCount >= totalRanges / 2 ? C.green : C.amber}
             size="lg"
           />
           {best && <>
@@ -261,8 +261,8 @@ function CalibrationChart() {
           </>}
           <Divider />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <LegendItem color={C.green} label="Acima do breakeven" />
-            <LegendItem color={C.red}   label="Abaixo do breakeven" />
+            <LegendItem color={C.green} label="Faixa lucrativa (ROI ≥ 0)" />
+            <LegendItem color={C.red}   label="Faixa com prejuízo" />
             <LegendItem color={C.amber} label="Breakeven (1 ÷ odd)" dash />
           </div>
         </Sidebar>
@@ -277,7 +277,7 @@ function CalibrationChart() {
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139,92,246,0.06)' }} />
                 <Bar dataKey="hitRatePct" radius={[5, 5, 0, 0]} maxBarSize={56}>
                   {ranges.map((r: any, i: number) => (
-                    <Cell key={i} fill={r.hitRatePct >= (r.expectedHitRatePct ?? 0) ? C.green : C.red} fillOpacity={0.75} />
+                    <Cell key={i} fill={r.roi != null && r.roi >= 0 ? C.green : C.red} fillOpacity={0.75} />
                   ))}
                 </Bar>
                 <Line

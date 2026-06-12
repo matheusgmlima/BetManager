@@ -25,4 +25,7 @@ export const bankrollService = {
 
   remove: (id: number) =>
     api.delete(`/api/bankroll/${id}`).then(r => r.data),
+
+  clear: () =>
+    api.delete('/api/bankroll').then(r => r.data),
 }

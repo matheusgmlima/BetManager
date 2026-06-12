@@ -969,6 +969,9 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   const [betTypeF,   setBetTypeF]   = useState<BetType | ''>('')
   const [sportIdF,   setSportIdF]   = useState<number | ''>('')
   const [bookmakerF, setBookmakerF] = useState<number | ''>('')
+  const [profileF,   setProfileF]   = useState<number | ''>('')
+  const [oddsMinF,   setOddsMinF]   = useState('')
+  const [oddsMaxF,   setOddsMaxF]   = useState('')
   const [dateFrom,   setDateFrom]   = useState('')
   const [dateTo,     setDateTo]     = useState('')
   const [page,       setPage]       = useState(1)
@@ -1074,6 +1077,9 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
     betType:          betTypeF    || undefined,
     sportId:          sportIdF    || undefined,
     bookmakerId:      bookmakerF  || undefined,
+    bettingProfileId: profileF    || undefined,
+    oddsMin:          oddsMinF ? Number(oddsMinF) : undefined,
+    oddsMax:          oddsMaxF ? Number(oddsMaxF) : undefined,
     dateFrom:         dateFrom    || undefined,
     dateTo:           dateTo      || undefined,
     tipsterId:        tipsterId   ?? undefined,
@@ -1081,12 +1087,13 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
 
   const { data: sports     = [] } = useSports()
   const { data: bookmakers = [] } = useBookmakers()
+  const { data: profiles   = [] } = useProfiles()
 
   const bets       = data?.data ?? []
   const pagination = data?.pagination
   const summary    = data?.summary
   const totalPages = pagination?.totalPages ?? 1
-  const hasFilters = !!(search || resultF || betTypeF || sportIdF || bookmakerF || dateFrom || dateTo)
+  const hasFilters = !!(search || resultF || betTypeF || sportIdF || bookmakerF || profileF || oddsMinF || oddsMaxF || dateFrom || dateTo)
 
   const allIdsOnPage = bets.map((b: Bet) => b.id)
   const allSelected  = allIdsOnPage.length > 0 && allIdsOnPage.every((id: number) => selectedIds.has(id))
@@ -1131,7 +1138,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
 
   const sorted = useMemo(() => {
     const rows = [...bets]
-    rows.sort((a, b) => {
+    const primary = (a: Bet, b: Bet): number => {
       let va: string | number, vb: string | number
       if (sortKey === 'description') { va = a.market; vb = b.market }
       else if (sortKey === 'result') { va = a.result; vb = b.result }
@@ -1139,6 +1146,17 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
       if (va < vb) return sortDir === 'asc' ? -1 : 1
       if (va > vb) return sortDir === 'asc' ?  1 : -1
       return 0
+    }
+    rows.sort((a, b) => {
+      const p = primary(a, b)
+      if (p !== 0) return p
+      // Escada: empate no critério principal (ex.: mesma data) → mantém apostas
+      // do mesmo jogo adjacentes, ordenadas por mercado para formar a sequência.
+      const ma = (a.match ?? '').toLowerCase()
+      const mb = (b.match ?? '').toLowerCase()
+      if (ma < mb) return -1
+      if (ma > mb) return 1
+      return (a.market ?? '').localeCompare(b.market ?? '')
     })
     return rows
   }, [bets, sortKey, sortDir])
@@ -1162,7 +1180,8 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
 
   function resetFilters() {
     setSearch(''); setResultF(''); setBetTypeF('')
-    setSportIdF(''); setBookmakerF(''); setDateFrom(''); setDateTo('')
+    setSportIdF(''); setBookmakerF(''); setProfileF('')
+    setOddsMinF(''); setOddsMaxF(''); setDateFrom(''); setDateTo('')
     setPage(1)
   }
 
@@ -1350,6 +1369,9 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               { label: 'Tipo', node: <select style={inputStyle} value={betTypeF} onChange={e => { setBetTypeF(e.target.value as BetType | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="simple">Simples</option><option value="combined">Combinada</option></select> },
               { label: 'Esporte', node: <select style={inputStyle} value={sportIdF} onChange={e => { setSportIdF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
               { label: 'Casa', node: <select style={inputStyle} value={bookmakerF} onChange={e => { setBookmakerF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todas</option>{bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select> },
+              { label: 'Perfil', node: <select style={inputStyle} value={profileF} onChange={e => { setProfileF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{profiles.filter((p: any) => p.active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select> },
+              { label: 'Odd mín.', node: <input type="number" step="0.01" min="1" placeholder="1.50" style={inputStyle} value={oddsMinF} onChange={e => { setOddsMinF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+              { label: 'Odd máx.', node: <input type="number" step="0.01" min="1" placeholder="3.00" style={inputStyle} value={oddsMaxF} onChange={e => { setOddsMaxF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
               { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
               { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
             ].map(({ label, node }) => (

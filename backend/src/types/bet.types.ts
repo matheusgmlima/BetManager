@@ -37,6 +37,8 @@ export interface BetFilters {
   betType?: BetType
   bettingProfileId?: number
   tipsterId?: number
+  oddsMin?: number
+  oddsMax?: number
   search?: string
   orderBy?: string
   orderDir?: 'asc' | 'desc'

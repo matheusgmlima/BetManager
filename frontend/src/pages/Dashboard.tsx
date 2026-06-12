@@ -10,7 +10,7 @@ import { useCountUp } from '../hooks/useCountUp'
 import { useMobile } from '../hooks/useMobile'
 import { useDashboard, useSportStats, useBookmakerStats, useTipsterStats, useProfileStats } from '../hooks/useDashboard'
 import { DashboardPeriod } from '../types/dashboard.types'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { Icon } from '../components/Icon'
 import { useUnit } from '../contexts/UnitContext'
 import { useQuery } from 'react-query'
@@ -50,6 +50,68 @@ function Section({ label, children, icon = '◈' }: { label: string; children: R
         <span style={{ fontSize: 14, color: '#8b5cf6', filter: 'drop-shadow(0 0 6px #8b5cf6)', lineHeight: 1, flexShrink: 0 }}>{icon}</span>
       </div>
       {children}
+    </div>
+  )
+}
+
+// ─── Carrossel horizontal com setas ──────────────────────────────────────────
+function Carousel({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [canLeft, setCanLeft]   = useState(false)
+  const [canRight, setCanRight] = useState(false)
+
+  const update = () => {
+    const el = ref.current
+    if (!el) return
+    setCanLeft(el.scrollLeft > 4)
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }
+
+  useEffect(() => {
+    update()
+    const el = ref.current
+    if (!el) return
+    el.addEventListener('scroll', update, { passive: true })
+    window.addEventListener('resize', update)
+    return () => { el.removeEventListener('scroll', update); window.removeEventListener('resize', update) }
+  })
+
+  const scrollBy = (dir: number) => ref.current?.scrollBy({ left: dir * 320, behavior: 'smooth' })
+
+  const arrowStyle = (side: 'left' | 'right'): React.CSSProperties => ({
+    position: 'absolute', top: '50%', [side]: -6, transform: 'translateY(-50%)',
+    zIndex: 5, width: 36, height: 36, borderRadius: '50%',
+    background: 'rgba(18,12,38,0.92)', border: '1px solid rgba(124,58,237,0.45)',
+    color: '#c4b5fd', fontSize: 20, fontWeight: 700, cursor: 'pointer',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    boxShadow: '0 4px 16px rgba(0,0,0,0.5)', transition: 'all 0.15s',
+  })
+
+  return (
+    <div style={{ position: 'relative' }}>
+      {canLeft && (
+        <button
+          aria-label="Anterior"
+          onClick={() => scrollBy(-1)}
+          style={arrowStyle('left')}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.35)'; e.currentTarget.style.borderColor = '#7c3aed' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(18,12,38,0.92)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.45)' }}
+        >‹</button>
+      )}
+      <div ref={ref} style={{ overflowX: 'auto', marginRight: -4, paddingBottom: 4, msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
+        <div style={{ display: 'flex', gap: 12, minWidth: 'max-content' }}>
+          {children}
+        </div>
+      </div>
+      {canRight && (
+        <button
+          aria-label="Próximo"
+          onClick={() => scrollBy(1)}
+          style={arrowStyle('right')}
+          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.35)'; e.currentTarget.style.borderColor = '#7c3aed' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'rgba(18,12,38,0.92)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.45)' }}
+        >›</button>
+      )}
     </div>
   )
 }
@@ -265,15 +327,87 @@ function EmptyChart({ msg = 'Nenhum dado ainda' }: { msg?: string }) {
   )
 }
 
+// ─── Apostas pendentes (linha + telinha) ─────────────────────────────────────
+function fmtPtDate(iso: string) {
+  const [y, m, d] = iso.split('T')[0].split('-')
+  return `${d}/${m}/${y}`
+}
+
+function PendingRow({ b, isLast }: { b: any; isLast: boolean }) {
+  const today = new Date(); today.setHours(0, 0, 0, 0)
+  const betDay = new Date(b.date.split('T')[0] + 'T00:00:00')
+  const isFuture = betDay > today
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: 16,
+      padding: '12px 18px',
+      borderBottom: isLast ? 'none' : '1px solid var(--border)',
+    }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {b.match && <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.match}</p>}
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.market}</p>
+      </div>
+      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+        <p style={{ margin: 0, fontSize: 11, color: isFuture ? '#34d399' : 'var(--text-muted)', fontWeight: isFuture ? 700 : 500 }}>
+          {fmtPtDate(b.date)}{isFuture ? ' · futura' : ''}
+        </p>
+      </div>
+      <div style={{ textAlign: 'right', flexShrink: 0, minWidth: 78 }}>
+        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>{(b.bookmaker as any)?.name ?? b.bookmaker}</p>
+        <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>R$ {Number(b.amountWagered).toFixed(2)}</p>
+      </div>
+    </div>
+  )
+}
+
+function PendingBetsModal({ bets, onClose }: { bets: any[]; onClose: () => void }) {
+  const totalStake = bets.reduce((s, b) => s + Number(b.amountWagered), 0)
+  return (
+    <div
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div style={{ width: '100%', maxWidth: 560, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: '#0a0a14', border: '1px solid #2d1f5e', borderRadius: 18, boxShadow: '0 0 60px rgba(124,58,237,0.2)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 22px', borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#fff' }}>Apostas pendentes</p>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>{bets.length} em aberto · R$ {totalStake.toFixed(2)} apostado</p>
+          </div>
+          <button onClick={onClose} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}>×</button>
+        </div>
+        <div style={{ overflowY: 'auto' }}>
+          {bets.map((b, i) => <PendingRow key={b.id} b={b} isLast={i === bets.length - 1} />)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const navigate = useNavigate()
   const isMobile = useMobile()
   const [period, setPeriod] = useState<DashboardPeriod>('month')
 
+  // Range de datas do período selecionado (alinha os gráficos por esporte/casa
+  // com o restante do dashboard — mês/ano cobrem o período-calendário inteiro).
+  const statsRange = useMemo(() => {
+    const now = new Date()
+    const y = now.getFullYear(), m = now.getMonth()
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    switch (period) {
+      case 'day':   return { dateFrom: fmt(now), dateTo: fmt(now) }
+      case 'week':  { const f = new Date(now); f.setDate(f.getDate() - 6); return { dateFrom: fmt(f), dateTo: fmt(now) } }
+      case 'month': return { dateFrom: fmt(new Date(y, m, 1)), dateTo: fmt(new Date(y, m + 1, 0)) }
+      case 'year':  return { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` }
+      default:      return { dateFrom: undefined, dateTo: undefined } // all
+    }
+  }, [period])
+
   const { data: dash, isLoading: loadingDash } = useDashboard(period)
-  const { data: sportStats = [], isLoading: loadingSports } = useSportStats()
-  const { data: bookmakerStats = [], isLoading: loadingBooks } = useBookmakerStats()
+  const { data: sportStats = [], isLoading: loadingSports } = useSportStats(statsRange.dateFrom, statsRange.dateTo)
+  const { data: bookmakerStats = [], isLoading: loadingBooks } = useBookmakerStats(statsRange.dateFrom, statsRange.dateTo)
   const { data: tipsterStats = [], isLoading: loadingTipsters } = useTipsterStats()
   const { data: profileStats = [], isLoading: loadingProfiles } = useProfileStats()
   const { data: bankroll } = useQuery(['bankroll'], () => bankrollService.get())
@@ -281,6 +415,14 @@ export default function Dashboard() {
   const { data: dashToday } = useDashboard('day')
   const { data: monthlyStatsRaw = [] } = useQuery(['stats', 'monthly'], () => dashboardService.getMonthlyStats())
   const { data: recentBetsData } = useBets({ perPage: 50 })
+  // Todas as pendentes (independente do período) — soonest/futuras primeiro
+  const { data: pendingData } = useBets({ result: 'pending', perPage: 500 })
+  const [showPending, setShowPending] = useState(false)
+
+  const pendingAll = useMemo(() => {
+    const arr = pendingData?.data ?? []
+    return [...arr].sort((a: any, b: any) => a.date.localeCompare(b.date))
+  }, [pendingData])
 
   // Streak computation
   const streak = useMemo(() => {
@@ -599,18 +741,16 @@ export default function Dashboard() {
         {(loadingTipsters || tipsterStats.length > 0) && (
           <div className="anim-slide-up" style={{ animationDelay: '160ms' }}>
             <Section label="Desempenho por tipster">
-              <div style={{ overflowX: 'auto', marginRight: -4, paddingBottom: 4, msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
-                <div style={{ display: 'flex', gap: 12, minWidth: 'max-content' }}>
-                  {loadingTipsters
-                    ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
-                    : tipsterStats.map((t, i) => (
-                        <div key={t.tipster} style={{ width: 260, flexShrink: 0 }}>
-                          <TipsterCard t={t} i={i} />
-                        </div>
-                      ))
-                  }
-                </div>
-              </div>
+              <Carousel>
+                {loadingTipsters
+                  ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
+                  : tipsterStats.map((t, i) => (
+                      <div key={t.tipster} style={{ width: 260, flexShrink: 0 }}>
+                        <TipsterCard t={t} i={i} />
+                      </div>
+                    ))
+                }
+              </Carousel>
             </Section>
           </div>
         )}
@@ -623,18 +763,16 @@ export default function Dashboard() {
                 const filtered = (profileStats as any[]).filter((p: any) => p.profileId !== null)
                 const maxP = Math.max(...filtered.map((p: any) => Math.abs(p.totalProfit)), 1)
                 return (
-                  <div style={{ overflowX: 'auto', marginRight: -4, paddingBottom: 4, msOverflowStyle: 'none', scrollbarWidth: 'none' } as React.CSSProperties}>
-                    <div style={{ display: 'flex', gap: 12, minWidth: 'max-content' }}>
-                      {loadingProfiles
-                        ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
-                        : filtered.map((p: any, i: number) => (
-                            <div key={p.profileId ?? p.profile} style={{ width: 260, flexShrink: 0 }}>
-                              <ProfileCard p={p} i={i} maxProfit={maxP} />
-                            </div>
-                          ))
-                      }
-                    </div>
-                  </div>
+                  <Carousel>
+                    {loadingProfiles
+                      ? Array.from({ length: 3 }).map((_, i) => <div key={i} style={{ width: 260, flexShrink: 0 }}><SkeletonCard h={160} /></div>)
+                      : filtered.map((p: any, i: number) => (
+                          <div key={p.profileId ?? p.profile} style={{ width: 260, flexShrink: 0 }}>
+                            <ProfileCard p={p} i={i} maxProfit={maxP} />
+                          </div>
+                        ))
+                    }
+                  </Carousel>
                 )
               })()}
             </Section>
@@ -803,36 +941,34 @@ export default function Dashboard() {
         </div>
         )}
 
-        {/* Apostas pendentes */}
-        {(dash?.pendingBets?.length ?? 0) > 0 && (
+        {/* Apostas pendentes (todas, independente do período) */}
+        {pendingAll.length > 0 && (
           <div className="anim-slide-up" style={{ animationDelay: '300ms' }}>
             <Section label="Apostas pendentes">
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
-                {dash!.pendingBets.map((b, i) => (
-                  <div
-                    key={b.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 16,
-                      padding: '12px 18px',
-                      borderBottom: i < dash!.pendingBets.length - 1 ? '1px solid var(--border)' : 'none',
-                    }}
-                  >
-                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#eab308', flexShrink: 0 }} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      {b.match && <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.match}</p>}
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.market}</p>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: '#a78bfa' }}>{(b.bookmaker as any)?.name ?? b.bookmaker}</p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)' }}>R$ {Number(b.amountWagered).toFixed(2)}</p>
-                    </div>
-                  </div>
+                {pendingAll.slice(0, 5).map((b: any, i: number) => (
+                  <PendingRow key={b.id} b={b} isLast={i === Math.min(pendingAll.length, 5) - 1} />
                 ))}
+                {pendingAll.length > 5 && (
+                  <button
+                    onClick={() => setShowPending(true)}
+                    style={{
+                      width: '100%', padding: '12px 18px', background: 'rgba(124,58,237,0.06)',
+                      border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer',
+                      color: '#a78bfa', fontSize: 12, fontWeight: 700, transition: 'background 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.12)' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.06)' }}
+                  >
+                    Ver todas as {pendingAll.length} apostas pendentes →
+                  </button>
+                )}
               </div>
             </Section>
           </div>
         )}
       </div>
+      {showPending && <PendingBetsModal bets={pendingAll} onClose={() => setShowPending(false)} />}
   </>
   )
 }
