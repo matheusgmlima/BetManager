@@ -18,13 +18,20 @@ export function getPeriodRange(period: DashboardPeriod): { from: Date; to: Date 
       from.setDate(from.getDate() - 6)
       break
     case 'month':
+      // Mês-calendário inteiro: do dia 1 até o último dia do mês,
+      // incluindo apostas futuras (pendentes) ainda dentro do mês.
       from.setDate(1)
+      to.setMonth(to.getMonth() + 1, 0)
+      to.setHours(23, 59, 59, 999)
       break
     case 'year':
       from.setMonth(0, 1)
+      to.setMonth(11, 31)
+      to.setHours(23, 59, 59, 999)
       break
     case 'all':
       from.setFullYear(2000, 0, 1)
+      to.setFullYear(to.getFullYear() + 100)
       break
   }
 

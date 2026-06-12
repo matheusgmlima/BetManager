@@ -18,3 +18,10 @@ export function useRemoveBankroll() {
     onSuccess: () => qc.invalidateQueries(['bankroll']),
   })
 }
+
+export function useClearBankroll() {
+  const qc = useQueryClient()
+  return useMutation(() => bankrollService.clear(), {
+    onSuccess: () => qc.invalidateQueries(['bankroll']),
+  })
+}

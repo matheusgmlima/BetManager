@@ -4,12 +4,17 @@ import { SportStat, BookmakerStat, BetTypeStat, MonthlyStats } from '../types/da
 
 interface DateFilter { dateFrom?: string; dateTo?: string }
 
+// Aceita dateFrom/dateTo no formato YYYY-MM-DD e cobre o dia inteiro
+// (gte início do dia, lte fim do dia) para não cortar apostas salvas ao meio-dia UTC.
+function parseFrom(d: string) { return new Date(/T/.test(d) ? d : d + 'T00:00:00.000Z') }
+function parseTo(d: string)   { return new Date(/T/.test(d) ? d : d + 'T23:59:59.999Z') }
+
 function buildDateWhere(userId: number, filters: DateFilter) {
   const where: any = { userId, result: { not: 'pending' } }
   if (filters.dateFrom || filters.dateTo) {
     where.date = {}
-    if (filters.dateFrom) where.date.gte = new Date(filters.dateFrom)
-    if (filters.dateTo) where.date.lte = new Date(filters.dateTo)
+    if (filters.dateFrom) where.date.gte = parseFrom(filters.dateFrom)
+    if (filters.dateTo) where.date.lte = parseTo(filters.dateTo)
   }
   return where
 }

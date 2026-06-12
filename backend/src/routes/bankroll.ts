@@ -57,6 +57,15 @@ router.post('/', async (req: Request, res, next) => {
   } catch (err) { next(err) }
 })
 
+// DELETE /api/bankroll — zera a banca (remove todas as movimentações do usuário)
+router.delete('/', async (req: Request, res, next) => {
+  try {
+    const userId = req.user!.userId
+    const { count } = await prisma.bankrollEntry.deleteMany({ where: { userId } })
+    res.json({ message: 'Banca zerada', removed: count })
+  } catch (err) { next(err) }
+})
+
 // DELETE /api/bankroll/:id
 router.delete('/:id', async (req: Request, res, next) => {
   try {

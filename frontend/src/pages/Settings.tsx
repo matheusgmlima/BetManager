@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useMobile } from '../hooks/useMobile'
 import { useAuth } from '../contexts/AuthContext'
-import { useBankroll, useAddBankroll, useRemoveBankroll } from '../hooks/useBankroll'
+import { useBankroll, useAddBankroll, useRemoveBankroll, useClearBankroll } from '../hooks/useBankroll'
 import {
   useSports, useCreateSport, useUpdateSport, useToggleSport,
   useBookmakers, useCreateBookmaker, useUpdateBookmaker, useToggleBookmaker,
@@ -337,10 +337,12 @@ function BancaSection() {
   const { data, isLoading } = useBankroll()
   const addEntry    = useAddBankroll()
   const removeEntry = useRemoveBankroll()
+  const clearBank   = useClearBankroll()
 
-  const [mode,   setMode]   = useState<null | 'initial' | 'deposit' | 'withdrawal'>(null)
-  const [amount, setAmount] = useState('')
-  const [note,   setNote]   = useState('')
+  const [mode,    setMode]    = useState<null | 'initial' | 'deposit' | 'withdrawal'>(null)
+  const [amount,  setAmount]  = useState('')
+  const [note,    setNote]    = useState('')
+  const [confirmClear, setConfirmClear] = useState(false)
 
   const balance          = data?.estimatedBalance ?? data?.balance ?? 0
   const entries          = data?.data ?? []
@@ -391,6 +393,38 @@ function BancaSection() {
               <button onClick={() => setMode('withdrawal')} style={{ ...ghostBtn, flex: isMobile ? '1' : 'none' }}>Registrar saque</button>
             </>
           )}
+          {entries.length > 0 && (
+            <button
+              onClick={() => setConfirmClear(true)}
+              style={{
+                ...ghostBtn, flex: isMobile ? '1' : 'none',
+                borderColor: 'rgba(239,68,68,0.35)', color: 'var(--red)',
+                marginLeft: isMobile ? 0 : 'auto',
+              }}
+            >Zerar banca</button>
+          )}
+        </div>
+      )}
+
+      {/* Confirmação de zerar banca */}
+      {confirmClear && (
+        <div style={{ ...editCard, border: '1px solid rgba(239,68,68,0.35)' }}>
+          <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 700, color: 'var(--red)' }}>Zerar banca?</p>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--text-muted)' }}>
+            Remove todas as movimentações (banca inicial, depósitos e saques) para você recalcular do zero.
+            Suas apostas <strong>não</strong> são afetadas. Esta ação não pode ser desfeita.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setConfirmClear(false)} style={ghostBtn}>Cancelar</button>
+            <button
+              onClick={async () => {
+                await clearBank.mutateAsync()
+                setConfirmClear(false); setMode(null); setAmount(''); setNote('')
+              }}
+              disabled={clearBank.isLoading}
+              style={{ ...primaryBtn, background: 'var(--red)', borderColor: 'var(--red)' }}
+            >{clearBank.isLoading ? 'Zerando...' : 'Sim, zerar banca'}</button>
+          </div>
         </div>
       )}
 

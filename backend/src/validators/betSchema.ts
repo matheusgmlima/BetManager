@@ -47,6 +47,8 @@ export const betFiltersSchema = z.object({
   betType: z.enum(['simple', 'combined']).optional(),
   bettingProfileId: z.coerce.number().int().positive().optional(),
   tipsterId: z.coerce.number().int().positive().optional(),
+  oddsMin: z.coerce.number().positive().optional(),
+  oddsMax: z.coerce.number().positive().optional(),
   search: z.string().optional(),
   orderBy: z.string().default('date'),
   orderDir: z.enum(['asc', 'desc']).default('desc'),
