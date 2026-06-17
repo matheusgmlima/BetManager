@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import { calculateProfit, calculateHitRate } from '../utils/calculations'
+import { betProfit, calculateHitRate } from '../utils/calculations'
 import { getPeriodRange, daysRemainingInMonth, toDateString } from '../utils/dateUtils'
 import { DashboardPeriod, DashboardData } from '../types/dashboard.types'
 
@@ -23,10 +23,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
 
   const totalWagered = bets.reduce((s, b) => s + Number(b.amountWagered), 0)
   const totalPayout  = bets.reduce((s, b) => s + Number(b.payout), 0)
-  const totalProfit  = resolved.reduce((s, b) => {
-    const amount = Number(b.amountWagered)
-    return s + (b.result === 'lost' ? -amount : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), amount))
-  }, 0)
+  const totalProfit  = resolved.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
   const avgOdds = resolved.length > 0
     ? resolved.reduce((s, b) => s + (b.odds ? Number(b.odds) : 0), 0) / resolved.filter((b) => b.odds).length
     : null
@@ -34,10 +31,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
   const profitByDay = new Map<string, number>()
   for (const bet of resolved) {
     const key    = toDateString(bet.date)
-    const amount = Number(bet.amountWagered)
-    const profit = bet.result === 'lost' ? -amount
-                 : bet.result === 'void' ? 0
-                 : calculateProfit(Number(bet.payout), amount)
+    const profit = betProfit(bet.result, Number(bet.payout), Number(bet.amountWagered))
     profitByDay.set(key, (profitByDay.get(key) ?? 0) + profit)
   }
 
@@ -72,7 +66,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
       where: { userId, date: { gte: monthStart }, result: { not: 'pending' } },
     })
     const monthProfit = monthBets.reduce(
-      (s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0
+      (s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0
     )
     const targetProfit = Number(currentGoal.targetProfit)
     const daysRemaining = daysRemainingInMonth()
@@ -100,7 +94,7 @@ export async function getDashboard(userId: number, period: DashboardPeriod): Pro
       match: b.match ?? null,
       market: b.market,
       bookmaker: b.bookmaker.name,
-      profit: calculateProfit(Number(b.payout), Number(b.amountWagered)),
+      profit: betProfit(b.result, Number(b.payout), Number(b.amountWagered)),
       result: b.result,
     }))
 

@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middlewares/errorHandler'
-import { calculateProfit, calculateHitRate } from '../utils/calculations'
+import { betProfit, calculateHitRate } from '../utils/calculations'
 import { CreateGoalInput, UpdateGoalInput } from '../validators/goalSchema'
 
 function calcBetStats(bets: any[]) {
@@ -10,7 +10,7 @@ function calcBetStats(bets: any[]) {
   const cashout = settled.filter((b) => b.result === 'cashout').length
   const totalBets     = settled.length
   const totalWagered  = settled.reduce((s, b) => s + Number(b.amountWagered), 0)
-  const totalProfit   = settled.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+  const totalProfit   = settled.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
   const hitRatePct    = calculateHitRate(won, lost, cashout)
   const roi           = totalWagered > 0 ? parseFloat(((totalProfit / totalWagered) * 100).toFixed(2)) : null
   return { totalBets, won, lost, totalWagered, totalProfit, hitRatePct, roi }

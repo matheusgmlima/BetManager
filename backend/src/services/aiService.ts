@@ -1,6 +1,7 @@
 import { groq, AI_MODELS, AiModel } from '../lib/groq'
 import { prisma } from '../lib/prisma'
 import { parseDDMM } from '../utils/dateUtils'
+import { prepareBetImages } from '../utils/imagePrep'
 import { AiExtractedBet, AiExtractionResponse } from '../types/api.types'
 
 function buildPrompt(bookmakerNames: string[]): string {
@@ -12,6 +13,11 @@ function buildPrompt(bookmakerNames: string[]): string {
 
 Analise a imagem cuidadosamente e extraia TODAS as apostas visíveis.
 Retorne APENAS um JSON válido, sem markdown, sem \`\`\`, sem explicações.
+
+════ IMAGEM EM PARTES ════
+A imagem pode ter sido DIVIDIDA em várias partes horizontais (de cima para baixo) que, juntas, formam UM ÚNICO print contínuo (geralmente de celular). Pode haver leve SOBREPOSIÇÃO entre partes vizinhas — uma mesma linha pode aparecer no fim de uma parte e no início da próxima.
+- Trate TODAS as partes como a MESMA tela contínua, na ordem em que aparecem.
+- NÃO duplique uma aposta que apareça repetida na borda entre duas partes — conte-a UMA única vez.
 
 ════ REGRA FUNDAMENTAL ════
 Uma aposta COMBINADA (múltipla) com várias seleções é UMA ÚNICA aposta, não várias.
@@ -228,7 +234,6 @@ export async function extractBetsFromImage(
   model: AiModel = 'fast'
 ): Promise<AiExtractionResponse> {
   const modelId = AI_MODELS[model]
-  const base64  = imageBuffer.toString('base64')
 
   let inputTokens  = 0
   let outputTokens = 0
@@ -238,6 +243,22 @@ export async function extractBetsFromImage(
     where: { active: true, OR: [{ isDefault: true }, { userId }] },
   })
   const EXTRACT_PROMPT = buildPrompt(bookmakers.map(b => b.name))
+
+  // Pré-processa: normaliza e fatia prints muito altos (celular) em partes
+  // contínuas, para o texto pequeno não se perder no downscale do modelo.
+  let imageParts: { type: 'image_url'; image_url: { url: string } }[]
+  try {
+    const prepped = await prepareBetImages(imageBuffer)
+    imageParts = prepped.map(im => ({
+      type: 'image_url' as const,
+      image_url: { url: `data:${im.mimeType};base64,${im.buffer.toString('base64')}` },
+    }))
+  } catch {
+    imageParts = [{
+      type: 'image_url' as const,
+      image_url: { url: `data:${mimeType};base64,${imageBuffer.toString('base64')}` },
+    }]
+  }
 
   const modelsToTry = modelId === AI_MODELS.smart
     ? [AI_MODELS.smart, AI_MODELS.fast]
@@ -255,8 +276,8 @@ export async function extractBetsFromImage(
           {
             role: 'user',
             content: [
-              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
-              { type: 'text',      text: EXTRACT_PROMPT },
+              ...imageParts,
+              { type: 'text', text: EXTRACT_PROMPT },
             ],
           },
         ],

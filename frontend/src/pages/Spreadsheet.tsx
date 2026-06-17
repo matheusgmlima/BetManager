@@ -134,8 +134,12 @@ function Section({ label, children, icon = '◈' }: { label: string; children: R
 
 // ─── Sort ─────────────────────────────────────────────────────────────────────
 
-type SortKey = 'date' | 'description' | 'odds' | 'amountWagered' | 'payout' | 'profit' | 'result'
+// 'smart' = agrupamento padrão: jogos com pendentes no topo, depois nome → mercado → status
+type SortKey = 'smart' | 'date' | 'description' | 'odds' | 'amountWagered' | 'payout' | 'profit' | 'result'
 type SortDir = 'asc' | 'desc'
+
+// Prioridade de status dentro de um mesmo jogo/mercado (pendente primeiro)
+const RESULT_PRIORITY: Record<string, number> = { pending: 0, won: 1, cashout: 2, lost: 3, void: 4 }
 
 function SortIcon({ active, dir }: { active: boolean; dir: SortDir }) {
   return (
@@ -638,6 +642,37 @@ function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: numb
   )
 }
 
+// ─── Cashout dialog (compartilhado desktop/mobile) ────────────────────────────
+
+function CashoutDialog({ amountWagered, value, onChange, onCancel, onConfirm }: {
+  amountWagered: number; value: string
+  onChange: (v: string) => void; onCancel: () => void; onConfirm: () => void
+}) {
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onCancel() }}
+    >
+      <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: 14, padding: '24px 28px', minWidth: 300, maxWidth: '100%', boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
+        <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Valor do Cashout</p>
+        <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>Apostado: R$ {amountWagered.toFixed(2)}</p>
+        <input
+          autoFocus type="number" step="0.01" min="0"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') onConfirm(); if (e.key === 'Escape') onCancel() }}
+          style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.4)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
+          placeholder="Ex: 12.50"
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onCancel} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onConfirm} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Confirmar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── BetRow ───────────────────────────────────────────────────────────────────
 
 function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpdateResult, onDuplicate, isMobile = false }: {
@@ -714,6 +749,141 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpd
           +{gameCount - 1} jogos
         </span>
       </button>
+    )
+  }
+
+  async function pickResult(r: BetResult) {
+    setShowResultPicker(false)
+    if (r === bet.result) return
+    if (r === 'cashout') { setCashoutDialog({ open: true, value: String(bet.amountWagered) }); return }
+    setUpdatingResult(true)
+    const payout = r === 'won' ? (bet.amountWagered * (bet.odds ?? 1)) : r === 'void' ? bet.amountWagered : 0
+    await onUpdateResult(bet.id, r, payout)
+    setUpdatingResult(false)
+  }
+
+  // Overlays compartilhados (popup combinada, picker de resultado, cashout)
+  const overlays = (
+    <>
+      {showCombined && <CombinedDetailsPopup bet={bet} onClose={() => setShowCombined(false)} />}
+      {showResultPicker && pickerAnchor && (
+        <InlineResultPicker current={bet.result} anchorRect={pickerAnchor} onPick={pickResult} onClose={() => setShowResultPicker(false)} />
+      )}
+      {cashoutDialog.open && (
+        <CashoutDialog
+          amountWagered={bet.amountWagered}
+          value={cashoutDialog.value}
+          onChange={v => setCashoutDialog(d => ({ ...d, value: v }))}
+          onCancel={() => setCashoutDialog({ open: false, value: '' })}
+          onConfirm={async () => {
+            const v = parseFloat(cashoutDialog.value)
+            if (isNaN(v) || v < 0) return
+            setCashoutDialog({ open: false, value: '' })
+            setUpdatingResult(true)
+            await onUpdateResult(bet.id, 'cashout', v)
+            setUpdatingResult(false)
+          }}
+        />
+      )}
+    </>
+  )
+
+  // ── Layout mobile: card por aposta (sem rolagem horizontal) ──
+  if (isMobile) {
+    const cellLabel: React.CSSProperties = { margin: '0 0 1px', fontSize: 8.5, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }
+    const actBtn = (color: string, bg: string, bd: string): React.CSSProperties => ({
+      width: 28, height: 28, borderRadius: 7, fontSize: 13, cursor: 'pointer',
+      background: bg, border: `1px solid ${bd}`, color,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+    })
+    return (
+      <>
+        {overlays}
+        <tr>
+          <td colSpan={11} style={{ padding: '3px 0', borderBottom: 'none' }}>
+            <div style={{
+              background: selected ? 'rgba(124,58,237,0.10)' : 'var(--bg-primary)',
+              border: `1px solid ${selected ? 'rgba(124,58,237,0.5)' : 'var(--border)'}`,
+              borderRadius: 11, padding: '9px 11px',
+            }}>
+              {/* Topo: checkbox + jogo + resultado */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
+                <div
+                  onClick={e => { e.stopPropagation(); onToggle(bet.id) }}
+                  style={{
+                    width: 16, height: 16, borderRadius: 4, cursor: 'pointer', marginTop: 1, flexShrink: 0,
+                    border: `2px solid ${selected ? '#7c3aed' : 'rgba(255,255,255,0.25)'}`,
+                    background: selected ? '#7c3aed' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}
+                >
+                  {selected && <span style={{ color: '#fff', fontSize: 10, fontWeight: 900, lineHeight: 1 }}>✓</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <GameHeader />
+                  {marketSubtitle && (
+                    <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 } as React.CSSProperties}>
+                      {marketSubtitle}
+                    </span>
+                  )}
+                  {(isCombined || bet.source === 'ai_extract') && (
+                    <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                      {isCombined && <button onClick={e => { e.stopPropagation(); setShowCombined(true) }} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: 9, fontWeight: 800, letterSpacing: '0.1em', color: '#a78bfa', textTransform: 'uppercase' }}>combinada ›</button>}
+                      {bet.source === 'ai_extract' && <span style={{ fontSize: 9, fontWeight: 700, color: '#c084fc' }}>✦ IA</span>}
+                    </div>
+                  )}
+                </div>
+                <button
+                  title="Alterar resultado"
+                  onClick={e => { e.stopPropagation(); setPickerAnchor(e.currentTarget.getBoundingClientRect()); setShowResultPicker(v => !v) }}
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}
+                >
+                  <ResultBadge result={bet.result} />
+                  {updatingResult && <span style={{ fontSize: 9, color: '#a78bfa', animation: 'pulse 1s infinite' }}>⟳</span>}
+                </button>
+              </div>
+
+              {/* Grade de números */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '7px 10px', marginTop: 9 }}>
+                <div>
+                  <p style={cellLabel}>Data</p>
+                  <p style={{ margin: 0, fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{fmtDate(bet.date)}</p>
+                </div>
+                <div>
+                  <p style={cellLabel}>Casa</p>
+                  <span style={{ display: 'inline-block', padding: '1px 7px', borderRadius: 5, background: `${bet.bookmaker.color ?? '#6d28d9'}18`, border: `1px solid ${bet.bookmaker.color ?? '#6d28d9'}33`, color: bet.bookmaker.color ?? '#a78bfa', fontSize: 11, fontWeight: 700 }}>{bet.bookmaker.name}</span>
+                </div>
+                <div>
+                  <p style={cellLabel}>Odd</p>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 700, fontFamily: 'monospace', color: '#eab308' }}>{bet.odds != null ? bet.odds.toFixed(2) : '—'}</p>
+                </div>
+                <div>
+                  <p style={cellLabel}>Apostado</p>
+                  <p style={{ margin: 0, fontSize: 12, fontFamily: 'monospace', color: 'var(--text-primary)' }}>{fmtMoney(bet.amountWagered)}</p>
+                </div>
+                <div>
+                  <p style={cellLabel}>Retorno</p>
+                  <p style={{ margin: 0, fontSize: 12, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{fmtMoney(bet.payout)}</p>
+                </div>
+                <div>
+                  <p style={cellLabel}>Lucro</p>
+                  <p style={{ margin: 0, fontSize: 12, fontWeight: 800, fontFamily: 'monospace', color: bet.profit > 0 ? '#22c55e' : bet.profit < 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                    {bet.profit > 0 ? '+' : bet.profit < 0 ? '−' : ''}{bet.profit !== 0 ? fmtMoney(Math.abs(bet.profit)) : '—'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Ações */}
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+                <button onClick={e => { e.stopPropagation(); onDuplicate(bet) }} title="Duplicar" style={actBtn('#34d399', 'rgba(16,185,129,0.10)', 'rgba(16,185,129,0.25)')}>⎘</button>
+                <button onClick={() => onShare(bet)} title="Compartilhar" style={actBtn('#38bdf8', 'rgba(14,165,233,0.10)', 'rgba(14,165,233,0.25)')}>⤴</button>
+                <button onClick={() => onEdit(bet)} title="Editar" style={actBtn('#a78bfa', 'rgba(124,58,237,0.12)', 'rgba(124,58,237,0.3)')}>✎</button>
+                <button onClick={() => onDelete(bet)} title="Excluir" style={actBtn('#ef4444', 'rgba(239,68,68,0.10)', 'rgba(239,68,68,0.25)')}>✕</button>
+              </div>
+            </div>
+          </td>
+        </tr>
+      </>
     )
   }
 
@@ -824,50 +994,20 @@ function BetRow({ bet, odd, selected, onToggle, onEdit, onDelete, onShare, onUpd
 
         {/* ── Cashout dialog ── */}
         {cashoutDialog.open && (
-          <div
-            style={{ position: 'fixed', inset: 0, zIndex: 99999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            onMouseDown={e => { if (e.target === e.currentTarget) setCashoutDialog({ open: false, value: '' }) }}
-          >
-            <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(59,130,246,0.4)', borderRadius: 14, padding: '24px 28px', minWidth: 300, boxShadow: '0 8px 40px rgba(0,0,0,0.6)' }}>
-              <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Valor do Cashout</p>
-              <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>Apostado: R$ {bet.amountWagered.toFixed(2)}</p>
-              <input
-                autoFocus
-                type="number"
-                step="0.01"
-                min="0"
-                value={cashoutDialog.value}
-                onChange={e => setCashoutDialog(d => ({ ...d, value: e.target.value }))}
-                onKeyDown={async e => {
-                  if (e.key === 'Enter') {
-                    const v = parseFloat(cashoutDialog.value)
-                    if (isNaN(v) || v < 0) return
-                    setCashoutDialog({ open: false, value: '' })
-                    setUpdatingResult(true)
-                    await onUpdateResult(bet.id, 'cashout', v)
-                    setUpdatingResult(false)
-                  }
-                  if (e.key === 'Escape') setCashoutDialog({ open: false, value: '' })
-                }}
-                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(59,130,246,0.4)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }}
-                placeholder="Ex: 12.50"
-              />
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                <button onClick={() => setCashoutDialog({ open: false, value: '' })} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
-                <button
-                  onClick={async () => {
-                    const v = parseFloat(cashoutDialog.value)
-                    if (isNaN(v) || v < 0) return
-                    setCashoutDialog({ open: false, value: '' })
-                    setUpdatingResult(true)
-                    await onUpdateResult(bet.id, 'cashout', v)
-                    setUpdatingResult(false)
-                  }}
-                  style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                >Confirmar</button>
-              </div>
-            </div>
-          </div>
+          <CashoutDialog
+            amountWagered={bet.amountWagered}
+            value={cashoutDialog.value}
+            onChange={v => setCashoutDialog(d => ({ ...d, value: v }))}
+            onCancel={() => setCashoutDialog({ open: false, value: '' })}
+            onConfirm={async () => {
+              const v = parseFloat(cashoutDialog.value)
+              if (isNaN(v) || v < 0) return
+              setCashoutDialog({ open: false, value: '' })
+              setUpdatingResult(true)
+              await onUpdateResult(bet.id, 'cashout', v)
+              setUpdatingResult(false)
+            }}
+          />
         )}
       </td>
       <td style={{
@@ -977,7 +1117,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   const [page,       setPage]       = useState(1)
   const [perPage,    setPerPage]    = useState(10)
   const [showFilters, setShowFilters] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey>('date')
+  const [sortKey, setSortKey] = useState<SortKey>('smart')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [viewMode, setViewMode] = useState<'grouped' | 'paginated'>('grouped')
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
@@ -1138,6 +1278,38 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
 
   const sorted = useMemo(() => {
     const rows = [...bets]
+
+    // Jogos (match) que ainda têm pelo menos uma aposta pendente → sobem ao topo.
+    const pendingMatches = new Set(
+      bets.filter(b => b.result === 'pending').map(b => (b.match ?? '').toLowerCase())
+    )
+
+    // Agrupamento por jogo → mercado → status (usado no modo smart e como desempate).
+    const groupCompare = (a: Bet, b: Bet): number => {
+      const ma = (a.match ?? '').toLowerCase()
+      const mb = (b.match ?? '').toLowerCase()
+      if (ma < mb) return -1
+      if (ma > mb) return 1
+      const mk = (a.market ?? '').localeCompare(b.market ?? '')
+      if (mk !== 0) return mk
+      return (RESULT_PRIORITY[a.result] ?? 9) - (RESULT_PRIORITY[b.result] ?? 9)
+    }
+
+    if (sortKey === 'smart') {
+      rows.sort((a, b) => {
+        // 1) jogos com apostas pendentes primeiro
+        const ap = pendingMatches.has((a.match ?? '').toLowerCase()) ? 0 : 1
+        const bp = pendingMatches.has((b.match ?? '').toLowerCase()) ? 0 : 1
+        if (ap !== bp) return ap - bp
+        // 2) nome → mercado → status
+        const g = groupCompare(a, b)
+        if (g !== 0) return g
+        // 3) desempate por data (mais recente primeiro)
+        return b.date.localeCompare(a.date)
+      })
+      return rows
+    }
+
     const primary = (a: Bet, b: Bet): number => {
       let va: string | number, vb: string | number
       if (sortKey === 'description') { va = a.market; vb = b.market }
@@ -1151,12 +1323,8 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
       const p = primary(a, b)
       if (p !== 0) return p
       // Escada: empate no critério principal (ex.: mesma data) → mantém apostas
-      // do mesmo jogo adjacentes, ordenadas por mercado para formar a sequência.
-      const ma = (a.match ?? '').toLowerCase()
-      const mb = (b.match ?? '').toLowerCase()
-      if (ma < mb) return -1
-      if (ma > mb) return 1
-      return (a.market ?? '').localeCompare(b.market ?? '')
+      // do mesmo jogo adjacentes (nome → mercado → status).
+      return groupCompare(a, b)
     })
     return rows
   }, [bets, sortKey, sortDir])
@@ -1200,6 +1368,102 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   const thSortable: React.CSSProperties = { ...thBase, cursor: 'pointer' }
 
   const selCount = selectedIds.size
+
+  // ── Controles reaproveitados (desktop inline / mobile dentro do popup) ──
+  const RESULT_CHIP_OPTS: { value: BetResult | ''; label: string; color: string }[] = [
+    { value: '',        label: 'Todos',      color: '#6d5a9a' },
+    { value: 'won',     label: '✓ Ganhou',   color: '#22c55e' },
+    { value: 'lost',    label: '✗ Perdeu',   color: '#ef4444' },
+    { value: 'pending', label: '◷ Pendente', color: '#eab308' },
+    { value: 'void',    label: '∅ Void',     color: '#7070a0' },
+    { value: 'cashout', label: '↩ Cashout',  color: '#3b82f6' },
+  ]
+  const resultChips = (
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {RESULT_CHIP_OPTS.map(opt => (
+        <button
+          key={opt.value}
+          onClick={() => { setResultF(opt.value); setPage(1) }}
+          style={{
+            padding: '5px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+            cursor: 'pointer', transition: 'all 0.15s',
+            background: resultF === opt.value ? `${opt.color}18` : 'var(--bg-card)',
+            border: `1px solid ${resultF === opt.value ? opt.color + '55' : 'var(--border)'}`,
+            color: resultF === opt.value ? opt.color : 'var(--text-muted)',
+            boxShadow: resultF === opt.value ? `0 0 10px ${opt.color}22` : 'none',
+          }}
+        >{opt.label}</button>
+      ))}
+    </div>
+  )
+  const agruparBtn = (
+    <button
+      onClick={() => { setSortKey('smart'); setSortDir('desc') }}
+      title="Agrupar por jogo (pendentes no topo, depois nome, mercado e status)"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+        cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+        background: sortKey === 'smart' ? `${accentColor}20` : 'var(--bg-card)',
+        border: `1px solid ${sortKey === 'smart' ? accentColor + '60' : 'var(--border)'}`,
+        color: sortKey === 'smart' ? accentColor : 'var(--text-secondary)',
+      }}
+    >⤵ Agrupar jogos</button>
+  )
+  const exportBtn = (
+    <button
+      onClick={exportExcel}
+      disabled={sorted.length === 0}
+      title="Exportar Excel (.xlsx)"
+      style={{
+        display: 'flex', alignItems: 'center', gap: 6,
+        padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+        cursor: sorted.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.15s', whiteSpace: 'nowrap',
+        background: 'var(--bg-card)', border: '1px solid var(--border)',
+        color: 'var(--text-secondary)', opacity: sorted.length === 0 ? 0.4 : 1,
+      }}
+    >↓ Excel</button>
+  )
+  const filtrosBtn = (
+    <button
+      onClick={() => setShowFilters(v => !v)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
+        cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+        background: showFilters ? `${accentColor}20` : 'var(--bg-card)',
+        border: `1px solid ${showFilters ? accentColor + '60' : 'var(--border)'}`,
+        color: showFilters ? accentColor : 'var(--text-secondary)',
+      }}
+    >⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}</button>
+  )
+  const filtersFields = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px' }}>
+        <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Busca</label>
+        <input style={inputStyle} placeholder="Descrição..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} />
+      </div>
+      {[
+        { label: 'Resultado', node: <select style={inputStyle} value={resultF} onChange={e => { setResultF(e.target.value as BetResult | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="won">Ganhou</option><option value="lost">Perdeu</option><option value="pending">Pendente</option><option value="void">Void</option><option value="cashout">Cashout</option></select> },
+        { label: 'Tipo', node: <select style={inputStyle} value={betTypeF} onChange={e => { setBetTypeF(e.target.value as BetType | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="simple">Simples</option><option value="combined">Combinada</option></select> },
+        { label: 'Esporte', node: <select style={inputStyle} value={sportIdF} onChange={e => { setSportIdF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
+        { label: 'Casa', node: <select style={inputStyle} value={bookmakerF} onChange={e => { setBookmakerF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todas</option>{bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select> },
+        { label: 'Perfil', node: <select style={inputStyle} value={profileF} onChange={e => { setProfileF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{profiles.filter((p: any) => p.active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select> },
+        { label: 'Odd mín.', node: <input type="number" step="0.01" min="1" placeholder="1.50" style={inputStyle} value={oddsMinF} onChange={e => { setOddsMinF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+        { label: 'Odd máx.', node: <input type="number" step="0.01" min="1" placeholder="3.00" style={inputStyle} value={oddsMaxF} onChange={e => { setOddsMaxF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+        { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+        { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
+      ].map(({ label, node }) => (
+        <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
+          <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
+          {node}
+        </div>
+      ))}
+      {hasFilters && (
+        <button onClick={resetFilters} style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444', cursor: 'pointer', alignSelf: 'flex-end' }}>✕ Limpar</button>
+      )}
+    </div>
+  )
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: selCount > 0 ? 80 : 0 }}>
@@ -1297,92 +1561,48 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
         </div>
 
         <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={exportExcel}
-            disabled={sorted.length === 0}
-            title="Exportar Excel (.xlsx)"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              cursor: sorted.length > 0 ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-              background: 'var(--bg-card)', border: '1px solid var(--border)',
-              color: 'var(--text-secondary)', opacity: sorted.length === 0 ? 0.4 : 1,
-            }}
-            onMouseEnter={e => { if (sorted.length > 0) { e.currentTarget.style.borderColor = '#34d399'; e.currentTarget.style.color = '#34d399' } }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
-          >
-            {isMobile ? '↓' : '↓ Excel'}
-          </button>
-          <button
-            onClick={() => setShowFilters(v => !v)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              padding: '7px 13px', borderRadius: 8, fontSize: 12, fontWeight: 600,
-              cursor: 'pointer', transition: 'all 0.15s',
-              background: showFilters ? `${accentColor}20` : 'var(--bg-card)',
-              border: `1px solid ${showFilters ? accentColor + '60' : 'var(--border)'}`,
-              color: showFilters ? accentColor : 'var(--text-secondary)',
-            }}
-          >
-            ⊟ Filtros {hasFilters && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accentColor }} />}
-          </button>
+          {!isMobile && agruparBtn}
+          {!isMobile && exportBtn}
+          {filtrosBtn}
         </div>
       </div>
 
-      {/* Quick result filters */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {([
-          { value: '' as BetResult | '', label: 'Todos', color: '#6d5a9a' },
-          { value: 'won' as BetResult, label: '✓ Ganhou', color: '#22c55e' },
-          { value: 'lost' as BetResult, label: '✗ Perdeu', color: '#ef4444' },
-          { value: 'pending' as BetResult, label: '◷ Pendente', color: '#eab308' },
-          { value: 'void' as BetResult, label: '∅ Void', color: '#7070a0' },
-          { value: 'cashout' as BetResult, label: '↩ Cashout', color: '#3b82f6' },
-        ]).map(opt => (
-          <button
-            key={opt.value}
-            onClick={() => { setResultF(opt.value as BetResult | ''); setPage(1) }}
-            style={{
-              padding: '5px 13px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-              cursor: 'pointer', transition: 'all 0.15s',
-              background: resultF === opt.value ? `${opt.color}18` : 'var(--bg-card)',
-              border: `1px solid ${resultF === opt.value ? opt.color + '55' : 'var(--border)'}`,
-              color: resultF === opt.value ? opt.color : 'var(--text-muted)',
-              boxShadow: resultF === opt.value ? `0 0 10px ${opt.color}22` : 'none',
-            }}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {/* Quick result filters — só desktop (no mobile vão pro popup de filtros) */}
+      {!isMobile && resultChips}
 
-      {/* Filtros */}
-      {showFilters && (
+      {/* Filtros — inline no desktop */}
+      {showFilters && !isMobile && (
         <div className="anim-slide-up" style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 18px' }}>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 160px' }}>
-              <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Busca</label>
-              <input style={inputStyle} placeholder="Descrição..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} />
+          {filtersFields}
+        </div>
+      )}
+
+      {/* Filtros — popup (bottom sheet) no mobile */}
+      {showFilters && isMobile && (
+        <div
+          onMouseDown={e => { if (e.target === e.currentTarget) setShowFilters(false) }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'flex-end' }}
+        >
+          <div style={{ width: '100%', maxHeight: '88vh', overflowY: 'auto', background: '#0a0a14', borderTop: '1px solid #2d1f5e', borderRadius: '18px 18px 0 0', padding: '16px 16px 24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' }}>Filtros</p>
+              <button onClick={() => setShowFilters(false)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}>×</button>
             </div>
-            {[
-              { label: 'Resultado', node: <select style={inputStyle} value={resultF} onChange={e => { setResultF(e.target.value as BetResult | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="won">Ganhou</option><option value="lost">Perdeu</option><option value="pending">Pendente</option><option value="void">Void</option><option value="cashout">Cashout</option></select> },
-              { label: 'Tipo', node: <select style={inputStyle} value={betTypeF} onChange={e => { setBetTypeF(e.target.value as BetType | ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option><option value="simple">Simples</option><option value="combined">Combinada</option></select> },
-              { label: 'Esporte', node: <select style={inputStyle} value={sportIdF} onChange={e => { setSportIdF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{sports.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select> },
-              { label: 'Casa', node: <select style={inputStyle} value={bookmakerF} onChange={e => { setBookmakerF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todas</option>{bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select> },
-              { label: 'Perfil', node: <select style={inputStyle} value={profileF} onChange={e => { setProfileF(e.target.value ? Number(e.target.value) : ''); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}><option value="">Todos</option>{profiles.filter((p: any) => p.active).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}</select> },
-              { label: 'Odd mín.', node: <input type="number" step="0.01" min="1" placeholder="1.50" style={inputStyle} value={oddsMinF} onChange={e => { setOddsMinF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
-              { label: 'Odd máx.', node: <input type="number" step="0.01" min="1" placeholder="3.00" style={inputStyle} value={oddsMaxF} onChange={e => { setOddsMaxF(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
-              { label: 'De', node: <input type="date" style={inputStyle} value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
-              { label: 'Até', node: <input type="date" style={inputStyle} value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1) }} onFocus={e => e.currentTarget.style.borderColor = accentColor} onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'} /> },
-            ].map(({ label, node }) => (
-              <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: '1 1 140px' }}>
-                <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{label}</label>
-                {node}
-              </div>
-            ))}
-            {hasFilters && (
-              <button onClick={resetFilters} style={{ padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)', color: '#ef4444', cursor: 'pointer', alignSelf: 'flex-end' }}>✕ Limpar</button>
-            )}
+
+            <p style={{ margin: '0 0 7px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Resultado</p>
+            {resultChips}
+
+            <div style={{ display: 'flex', gap: 8, margin: '16px 0', flexWrap: 'wrap' }}>
+              {agruparBtn}
+              {exportBtn}
+            </div>
+
+            {filtersFields}
+
+            <button
+              onClick={() => setShowFilters(false)}
+              style={{ width: '100%', marginTop: 18, padding: '12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6d28d9, #7c3aed)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            >Ver resultados</button>
           </div>
         </div>
       )}
@@ -1390,6 +1610,8 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
       {/* ── Tabela: thead gerado por mês (seleção escoped) ─────────────── */}
       {(() => {
         function makeThead(monthIds: number[]) {
+          // No mobile a planilha vira cards — sem cabeçalho de colunas.
+          if (isMobile) return null
           const allSel  = monthIds.length > 0 && monthIds.every(id => selectedIds.has(id))
           const someSel = monthIds.some(id => selectedIds.has(id))
           function toggle() {
@@ -1435,7 +1657,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
               {isLoading && (
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
                   <div style={{ overflowX: 'auto' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 0 : 920, tableLayout: isMobile ? 'fixed' : 'auto' }}>
                       {makeThead([])}
                       <tbody>{Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}</tbody>
                     </table>
@@ -1508,7 +1730,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                     {!collapsed && (
                       <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(124,58,237,0.15)', borderTop: 'none', borderRadius: '0 0 12px 12px', overflow: 'hidden' }}>
                         <div style={{ overflowX: 'auto' }}>
-                          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 0 : 920, tableLayout: isMobile ? 'fixed' : 'auto' }}>
                             {makeThead(monthBets.map((b: Bet) => b.id))}
                             <tbody>
                               {monthBets.map((bet: Bet, i: number) => (
@@ -1531,7 +1753,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
         <>
             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 16, overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 920 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: isMobile ? 0 : 920, tableLayout: isMobile ? 'fixed' : 'auto' }}>
                   {makeThead(allIdsOnPage)}
                   <tbody>
                     {isLoading && Array.from({ length: 6 }).map((_, i) => <SkeletonRow key={i} />)}
@@ -1547,7 +1769,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
                       <BetRow key={bet.id} bet={bet} odd={i % 2 === 1} selected={selectedIds.has(bet.id)} onToggle={toggleOne} onEdit={setEditingBet} onDelete={setDeletingBet} onShare={handleShare} onUpdateResult={handleUpdateResult} onDuplicate={handleDuplicate} isMobile={isMobile} />
                     ))}
                   </tbody>
-                  {summary && !isLoading && sorted.length > 0 && (
+                  {summary && !isLoading && sorted.length > 0 && !isMobile && (
                     <tfoot>
                       <tr style={{ borderTop: '2px solid var(--border-purple)' }}>
                         <td colSpan={5} style={{ padding: '10px 14px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(9,9,15,0.5)' }}>

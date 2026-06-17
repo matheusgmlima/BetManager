@@ -1,6 +1,6 @@
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middlewares/errorHandler'
-import { calculateProfit, calculateHitRate } from '../utils/calculations'
+import { betProfit, calculateHitRate } from '../utils/calculations'
 import {
   BetCreateInput as CreateBetInput,
   BetUpdateInput as UpdateBetInput,
@@ -33,10 +33,7 @@ const betSelect = {
 function formatBet(bet: any): BetWithRelations {
   const amount = Number(bet.amountWagered)
   const payout = Number(bet.payout)
-  const profit = bet.result === 'lost'    ? parseFloat((-amount).toFixed(2))
-               : bet.result === 'void'    ? 0
-               : bet.result === 'pending' ? 0
-               : calculateProfit(payout, amount)
+  const profit = betProfit(bet.result, payout, amount)
   // Serializa date como YYYY-MM-DD evitando shift de timezone UTC->local
   const dateStr = bet.date instanceof Date
     ? bet.date.toISOString().split('T')[0]

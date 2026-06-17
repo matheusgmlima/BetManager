@@ -1,5 +1,5 @@
 import { prisma } from '../lib/prisma'
-import { calculateProfit, calculateHitRate, calculateRoi } from '../utils/calculations'
+import { betProfit, calculateHitRate, calculateRoi } from '../utils/calculations'
 import { SportStat, BookmakerStat, BetTypeStat, MonthlyStats } from '../types/dashboard.types'
 
 interface DateFilter { dateFrom?: string; dateTo?: string }
@@ -40,7 +40,7 @@ export async function getStatsBySport(userId: number, filters: DateFilter): Prom
     const totalWagered = sb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = sb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       sport: sport.name,
@@ -76,7 +76,7 @@ export async function getStatsByBookmaker(userId: number, filters: DateFilter): 
     const totalWagered = bb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = bb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       bookmaker: bookmaker.name,
@@ -104,7 +104,7 @@ export async function getStatsByBetType(userId: number, filters: DateFilter): Pr
     const totalWagered = typeBets.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit = typeBets.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       betType,
@@ -166,7 +166,7 @@ export async function getStatsByProfile(userId: number, filters: DateFilter) {
     const lost = resolved.filter((b) => b.result === 'lost').length
     const cashout = resolved.filter((b) => b.result === 'cashout').length
     const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
-    const totalProfit = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit = resolved.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
     return {
       profile: name,
       profileId: profile?.id ?? null,
@@ -248,7 +248,7 @@ export async function getProfileDetail(userId: number, profileIdParam: string | 
     const totalWagered = rb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit  = rb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     const oddsVals = rb.filter(b => b.odds != null)
     const avgOdds = oddsVals.length > 0
@@ -276,7 +276,7 @@ export async function getProfileDetail(userId: number, profileIdParam: string | 
     const tw = tb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const tp = tb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       total: tb.length, won: w, lost: l,
@@ -316,7 +316,7 @@ export async function getProfileDetail(userId: number, profileIdParam: string | 
 
   const withProfit = bets.map(b => {
     const a = Number(b.amountWagered)
-    const profit = b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a)
+    const profit = betProfit(b.result, Number(b.payout), a)
     return { ...b, profit }
   })
 
@@ -400,7 +400,7 @@ export async function getTipsterDetail(userId: number, tipsterIdParam: string | 
     const totalWagered = rb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit  = rb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     const oddsVals = rb.filter(b => b.odds != null)
     const avgOdds = oddsVals.length > 0
@@ -424,7 +424,7 @@ export async function getTipsterDetail(userId: number, tipsterIdParam: string | 
     const tw = tb.reduce((s, b) => s + Number(b.amountWagered), 0)
     const tp = tb.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       total: tb.length, won: w, lost: l,
@@ -455,7 +455,7 @@ export async function getTipsterDetail(userId: number, tipsterIdParam: string | 
 
   const withProfit = bets.map(b => {
     const a = Number(b.amountWagered)
-    const profit = b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a)
+    const profit = betProfit(b.result, Number(b.payout), a)
     return { ...b, profit }
   })
 
@@ -498,7 +498,7 @@ export async function getMonthlyStats(userId: number): Promise<MonthlyStats[]> {
     const won = mb.filter((b) => b.result === 'won').length
     const lost = mb.filter((b) => b.result === 'lost').length
     const cashout = mb.filter((b) => b.result === 'cashout').length
-    const totalProfit = mb.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit = mb.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
     return {
       month,
       totalBets: mb.length,
@@ -531,7 +531,7 @@ export async function getHeatmap(userId: number) {
     const totalWagered = db.reduce((s, b) => s + Number(b.amountWagered), 0)
     const totalProfit  = db.reduce((s, b) => {
       const a = Number(b.amountWagered)
-      return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
+      return s + betProfit(b.result, Number(b.payout), a)
     }, 0)
     return {
       day, label,
@@ -587,7 +587,7 @@ export async function getStatsByTipster(userId: number, filters: DateFilter) {
     const lost = resolved.filter((b) => b.result === 'lost').length
     const cashout = resolved.filter((b) => b.result === 'cashout').length
     const totalWagered = total.reduce((s, b) => s + Number(b.amountWagered), 0)
-    const totalProfit  = resolved.reduce((s, b) => s + calculateProfit(Number(b.payout), Number(b.amountWagered)), 0)
+    const totalProfit  = resolved.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
     return {
       tipster: name,
       tipsterId: tipster?.id ?? null,
@@ -632,10 +632,7 @@ export async function getPeriodSummary(userId: number, dateFrom?: string, dateTo
   const pending  = bets.filter(b => b.result === 'pending').length
 
   const totalWagered = resolved.reduce((s, b) => s + Number(b.amountWagered), 0)
-  const totalProfit  = resolved.reduce((s, b) => {
-    const a = Number(b.amountWagered)
-    return s + (b.result === 'lost' ? -a : b.result === 'void' ? 0 : calculateProfit(Number(b.payout), a))
-  }, 0)
+  const totalProfit  = resolved.reduce((s, b) => s + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0)
 
   const oddsArr = resolved.filter(b => b.odds).map(b => Number(b.odds))
   const avgOdds = oddsArr.length > 0 ? oddsArr.reduce((s, v) => s + v, 0) / oddsArr.length : null

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { Request } from 'express'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middlewares/errorHandler'
+import { betProfit } from '../utils/calculations'
 
 const router = Router()
 
@@ -12,7 +13,7 @@ router.get('/', async (req: Request, res, next) => {
     const [entries, bets] = await Promise.all([
       prisma.bankrollEntry.findMany({ where: { userId }, orderBy: { date: 'desc' } }),
       prisma.bet.findMany({
-        where: { userId, result: { in: ['won', 'lost', 'void'] } },
+        where: { userId, result: { not: 'pending' } },
         select: { amountWagered: true, payout: true, result: true },
       }),
     ])
@@ -20,13 +21,10 @@ router.get('/', async (req: Request, res, next) => {
       const amt = Number(e.amount)
       return e.type === 'withdrawal' ? sum - amt : sum + amt
     }, 0)
-    const totalProfit = bets.reduce((sum, b) => {
-      const wagered = Number(b.amountWagered)
-      const payout  = Number(b.payout)
-      if (b.result === 'lost') return sum - wagered
-      if (b.result === 'void') return sum  // void: payout = wagered, net 0
-      return sum + (payout - wagered)      // won
-    }, 0)
+    // Inclui cashout (e trata lost/void) via helper canônico — antes cashout era ignorado.
+    const totalProfit = bets.reduce(
+      (sum, b) => sum + betProfit(b.result, Number(b.payout), Number(b.amountWagered)), 0
+    )
     const estimatedBalance = parseFloat((balance + totalProfit).toFixed(2))
     res.json({
       data: entries.map(e => ({ ...e, amount: Number(e.amount) })),

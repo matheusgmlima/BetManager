@@ -7,6 +7,21 @@ export function calculateProfit(payout: number, amountWagered: number): number {
 }
 
 /**
+ * Lucro CANÔNICO de uma aposta considerando o resultado.
+ * Fonte única da verdade — use em qualquer agregação de lucro.
+ *   perdeu        → -stake
+ *   void/pendente → 0
+ *   ganhou/cashout→ payout - stake
+ * Evita contar "payout fantasma" salvo em apostas perdidas (ex.: retorno
+ * potencial vindo de import/IA), que inflava o lucro em alguns relatórios.
+ */
+export function betProfit(result: string, payout: number, amountWagered: number): number {
+  if (result === 'lost') return parseFloat((-amountWagered).toFixed(2))
+  if (result === 'void' || result === 'pending') return 0
+  return calculateProfit(payout, amountWagered)
+}
+
+/**
  * Calcula o retorno total a partir da odd
  * payout = amountWagered * odds
  */
