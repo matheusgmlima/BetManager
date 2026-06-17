@@ -6,6 +6,7 @@ export interface DashboardSummary {
   lost: number
   void: number
   pending: number
+  cashout: number
   simpleCount: number
   combinedCount: number
   hitRatePct: number | null
