@@ -968,6 +968,8 @@ function AiTab() {
   const [bulkTipsterId,   setBulkTipsterId]   = useState('')
   const [bulkProfileId,   setBulkProfileId]   = useState('')
   const [bulkSportId,     setBulkSportId]     = useState('')
+  const [bulkDateEdit,    setBulkDateEdit]    = useState('')
+  const [bulkSheetOpen,   setBulkSheetOpen]   = useState(false)
   const [bulkBarHidden,   setBulkBarHidden]   = useState(false)
   const [quickCreate, setQuickCreate] = useState<{ type: QuickCreateType; applyFn: (id: number) => void } | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -1031,6 +1033,7 @@ function AiTab() {
       if (!b.selected) return b
       return {
         ...b,
+        ...(bulkDateEdit    ? { dateEdit:    bulkDateEdit            } : {}),
         ...(bulkBookmakerId ? { bookmakerId: Number(bulkBookmakerId) } : {}),
         ...(bulkTipsterId   ? { tipsterId:   Number(bulkTipsterId)   } : {}),
         ...(bulkProfileId   ? { bettingProfileId: Number(bulkProfileId) } : {}),
@@ -1038,6 +1041,47 @@ function AiTab() {
       }
     }))
   }
+
+  const resetBulkInputs = () => {
+    setBulkDateEdit(''); setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId('')
+  }
+  const clearBulkSelection = () => {
+    setBets(p => p.map(b => ({ ...b, selected: false }))); setBulkBarHidden(false); setBulkSheetOpen(false)
+  }
+
+  // Campos da edição em lote — reutilizados na barra (desktop) e no bottom-sheet (mobile)
+  const bulkFieldsGrid = (cols: number) => (
+    <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${cols}, 1fr)`, gap: 8 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <label style={{ fontSize: 9, fontWeight: 700, color: bulkDateEdit ? '#a78bfa' : '#4b3a6e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Data</label>
+        <input type="date" value={bulkDateEdit} onChange={e => setBulkDateEdit(e.target.value)} style={{
+          ...inp, padding: '7px 10px', fontSize: 12,
+          background: bulkDateEdit ? 'rgba(109,40,217,0.18)' : 'rgba(255,255,255,0.04)',
+          borderColor: bulkDateEdit ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)',
+          color: bulkDateEdit ? '#e9d5ff' : 'var(--text-muted)',
+        }} />
+      </div>
+      {[
+        { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
+        { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
+        { label: 'Perfil',          value: bulkProfileId,   set: setBulkProfileId,   opts: profiles.filter(p => p.active).map(p => ({ id: p.id, name: p.name })) },
+        { label: 'Esporte',         value: bulkSportId,     set: setBulkSportId,     opts: sports.filter(s => s.active).map(s => ({ id: s.id, name: s.icon ? `${s.icon} ${s.name}` : s.name })) },
+      ].map(({ label, value, set, opts }) => (
+        <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <label style={{ fontSize: 9, fontWeight: 700, color: value ? '#a78bfa' : '#4b3a6e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
+          <select value={value} onChange={e => set(e.target.value)} style={{
+            ...inp, padding: '7px 10px', fontSize: 12,
+            background: value ? 'rgba(109,40,217,0.18)' : 'rgba(255,255,255,0.04)',
+            borderColor: value ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)',
+            color: value ? '#e9d5ff' : 'var(--text-muted)',
+          }}>
+            <option value="">— manter —</option>
+            {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+          </select>
+        </div>
+      ))}
+    </div>
+  )
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault(); setDragging(false)
@@ -1290,7 +1334,8 @@ function AiTab() {
             )}
           </div>
 
-          {/* ── Bulk edit bottom bar ─────────────────────────────── */}
+          {/* ── Edição em lote — desktop: barra fixa ── */}
+          {!isMobile && (<>
           <div style={{
             position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 200,
             transform: selectedBets.length >= 2 && !bulkBarHidden ? 'translateY(0)' : 'translateY(100%)',
@@ -1322,30 +1367,8 @@ function AiTab() {
               {/* Divider */}
               {!isMobile && <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />}
 
-              {/* Selects */}
-              <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 8 }}>
-                {[
-                  { label: 'Casa de Apostas', value: bulkBookmakerId, set: setBulkBookmakerId, opts: bookmakers.filter(b => b.active).map(b => ({ id: b.id, name: b.name })) },
-                  { label: 'Tipster / VIP',   value: bulkTipsterId,   set: setBulkTipsterId,   opts: tipsters.filter(t => t.active).map(t => ({ id: t.id, name: t.name })) },
-                  { label: 'Perfil',          value: bulkProfileId,   set: setBulkProfileId,   opts: profiles.filter(p => p.active).map(p => ({ id: p.id, name: p.name })) },
-                  { label: 'Esporte',         value: bulkSportId,     set: setBulkSportId,     opts: sports.filter(s => s.active).map(s => ({ id: s.id, name: s.icon ? `${s.icon} ${s.name}` : s.name })) },
-                ].map(({ label, value, set, opts }) => (
-                  <div key={label} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <label style={{ fontSize: 9, fontWeight: 700, color: value ? '#a78bfa' : '#4b3a6e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
-                    <select value={value} onChange={e => set(e.target.value)} style={{
-                      ...inp,
-                      padding: '7px 10px',
-                      fontSize: 12,
-                      background: value ? 'rgba(109,40,217,0.18)' : 'rgba(255,255,255,0.04)',
-                      borderColor: value ? 'rgba(124,58,237,0.6)' : 'rgba(255,255,255,0.08)',
-                      color: value ? '#e9d5ff' : 'var(--text-muted)',
-                    }}>
-                      <option value="">— manter —</option>
-                      {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
+              {/* Campos */}
+              {bulkFieldsGrid(5)}
 
               {/* Divider */}
               {!isMobile && <div style={{ width: 1, height: 32, background: 'rgba(124,58,237,0.25)', flexShrink: 0 }} />}
@@ -1361,7 +1384,7 @@ function AiTab() {
                 </button>
                 <button type="button" onClick={() => {
                   applyBulkEdit()
-                  setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId(''); setBulkBarHidden(false)
+                  setBulkDateEdit(''); setBulkBookmakerId(''); setBulkTipsterId(''); setBulkProfileId(''); setBulkSportId(''); setBulkBarHidden(false)
                 }} style={{
                   padding: '9px 20px', borderRadius: 10, border: 'none',
                   background: 'linear-gradient(135deg, #6d28d9, #7c3aed)',
@@ -1410,6 +1433,25 @@ function AiTab() {
               Edição em lote ↑
             </button>
           </div>
+          </>)}
+
+          {/* ── Edição em lote — mobile: bottom-sheet (gatilho fica na barra de confirmar) ── */}
+          {isMobile && bulkSheetOpen && selectedBets.length >= 2 && (
+            <div onMouseDown={e => { if (e.target === e.currentTarget) setBulkSheetOpen(false) }} style={{ position: 'fixed', inset: 0, zIndex: 300, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'flex-end' }}>
+              <div style={{ width: '100%', maxHeight: '85vh', overflowY: 'auto', background: '#0a0a14', borderTop: '1px solid #2d1f5e', borderRadius: '18px 18px 0 0', padding: '16px 16px 24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#fff' }}>Edição em lote · {selectedBets.length}</p>
+                  <button type="button" onClick={() => setBulkSheetOpen(false)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer' }}>×</button>
+                </div>
+                <p style={{ margin: '0 0 16px', fontSize: 12, color: 'var(--text-muted)' }}>Só os campos preenchidos são aplicados às selecionadas.</p>
+                {bulkFieldsGrid(2)}
+                <div style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+                  <button type="button" onClick={clearBulkSelection} style={{ padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Desmarcar</button>
+                  <button type="button" onClick={() => { applyBulkEdit(); resetBulkInputs(); setBulkSheetOpen(false) }} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #6d28d9, #7c3aed)', color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', boxShadow: '0 0 18px rgba(124,58,237,0.45)' }}>Aplicar a {selectedBets.length}</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Bet cards */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1596,12 +1638,18 @@ function AiTab() {
                       </div>
 
                       {/* Numeric fields */}
-                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
                         <Field label="Data">
                           <input type="date" value={bet.dateEdit}
                             onChange={e => updateBet(i, { dateEdit: e.target.value })}
                             onFocus={focus} onBlur={blur}
                             style={inp}
+                          />
+                        </Field>
+                        <Field label="Odd">
+                          <input type="number" min="1" step="0.01" placeholder="1.80" value={bet.oddsEdit}
+                            onChange={e => updateBet(i, { oddsEdit: e.target.value })}
+                            onFocus={focus} onBlur={blur} style={inp}
                           />
                         </Field>
                         <Field label="Apostado (R$)">
@@ -1663,6 +1711,14 @@ function AiTab() {
               }}>
                 Selec. todas
               </button>
+              {isMobile && selectedBets.length >= 2 && (
+                <button type="button" onClick={() => setBulkSheetOpen(true)} style={{
+                  padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(124,58,237,0.5)',
+                  background: 'rgba(124,58,237,0.15)', color: '#a78bfa', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}>
+                  ✎ Editar em lote
+                </button>
+              )}
             </div>
             <button type="button" onClick={handleConfirm} disabled={selectedBets.length === 0 || createBatch.isLoading}
               style={{

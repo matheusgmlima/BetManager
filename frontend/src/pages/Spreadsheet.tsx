@@ -242,7 +242,7 @@ function EditModal({ bet, onClose }: { bet: Bet; onClose: () => void }) {
     payout:          String(bet.payout),
     result:          bet.result as BetResult,
     notes:           bet.notes ?? '',
-    bettingProfileId: String((bet as any).bettingProfileId ?? ''),
+    bettingProfileId: String(bet.bettingProfile?.id ?? (bet as any).bettingProfileId ?? ''),
     tipsterId:        String(bet.tipster?.id ?? ''),
   })
   const [saving, setSaving] = useState(false)
@@ -636,6 +636,145 @@ function BulkDeleteConfirm({ count, onClose, onConfirm, loading }: { count: numb
           <button onClick={onConfirm} disabled={loading} style={{ padding: '9px 20px', borderRadius: 8, background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444', fontSize: 13, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1 }}>
             {loading ? 'Excluindo…' : 'Excluir tudo'}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Bulk Edit Modal ──────────────────────────────────────────────────────────
+
+function BulkEditModal({ bets, onClose, onApplied }: { bets: Bet[]; onClose: () => void; onApplied: () => void }) {
+  const { data: sports     = [] } = useSports()
+  const { data: bookmakers = [] } = useBookmakers()
+  const { data: profiles   = [] } = useProfiles()
+  const { data: tipsters   = [] } = useTipsters()
+  const updateBet = useUpdateBet()
+
+  const [date,        setDate]        = useState('')
+  const [sportId,     setSportId]     = useState('')
+  const [bookmakerId, setBookmakerId] = useState('')
+  const [tipsterId,   setTipsterId]   = useState('')
+  const [profileId,   setProfileId]   = useState('')
+  const [result,      setResult]      = useState<BetResult | ''>('')
+  const [saving,      setSaving]      = useState(false)
+
+  const inp: React.CSSProperties = {
+    width: '100%', background: '#0d0d1a', border: '1px solid #2d1f5e',
+    borderRadius: 8, padding: '8px 11px', color: '#e0e0ff', fontSize: 13,
+    outline: 'none', transition: 'border-color 0.15s', boxSizing: 'border-box',
+  }
+  const lbl: React.CSSProperties = {
+    fontSize: 10, fontWeight: 700, letterSpacing: '0.1em',
+    textTransform: 'uppercase', color: '#6d5a9a', marginBottom: 4, display: 'block',
+  }
+
+  const nothingSet = !date && !sportId && !bookmakerId && !tipsterId && !profileId && !result
+  const count = bets.length
+
+  const handleApply = async () => {
+    if (nothingSet || count === 0) return
+    setSaving(true)
+    try {
+      await Promise.all(bets.map(b => {
+        const data: any = {}
+        if (date)        data.date = date
+        if (sportId)     data.sportId = Number(sportId)
+        if (bookmakerId) data.bookmakerId = Number(bookmakerId)
+        if (tipsterId)   data.tipsterId = Number(tipsterId)
+        if (profileId)   data.bettingProfileId = Number(profileId)
+        if (result) {
+          data.result = result
+          // Recalcula o retorno por aposta conforme o resultado escolhido
+          data.payout = result === 'won'  ? parseFloat((b.amountWagered * (b.odds ?? 1)).toFixed(2))
+                      : result === 'void' ? b.amountWagered
+                      : 0
+        }
+        return updateBet.mutateAsync({ id: b.id, data })
+      }))
+      sonnerToast.success(`${count} aposta${count !== 1 ? 's' : ''} atualizada${count !== 1 ? 's' : ''}!`)
+      onApplied()
+      onClose()
+    } catch {
+      sonnerToast.error('Erro ao atualizar apostas.')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ width: '100%', maxWidth: 520, background: '#0a0a14', border: '1px solid #2d1f5e', borderRadius: 20, padding: '26px 26px 22px', boxShadow: '0 0 60px rgba(124,58,237,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0 }}>Editar {count} aposta{count !== 1 ? 's' : ''}</p>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6d5a9a', fontSize: 20, cursor: 'pointer', padding: 4, lineHeight: 1 }}>✕</button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 20px' }}>Só os campos preenchidos são alterados — o resto fica como está.</p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            <label style={lbl}>Data</label>
+            <input type="date" style={inp} value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+          <div>
+            <label style={lbl}>Resultado</label>
+            <select style={inp} value={result} onChange={e => setResult(e.target.value as BetResult | '')}>
+              <option value="">— manter —</option>
+              <option value="won">Ganhou</option>
+              <option value="lost">Perdeu</option>
+              <option value="void">Void</option>
+              <option value="pending">Pendente</option>
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Casa</label>
+            <select style={inp} value={bookmakerId} onChange={e => setBookmakerId(e.target.value)}>
+              <option value="">— manter —</option>
+              {bookmakers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Esporte</label>
+            <select style={inp} value={sportId} onChange={e => setSportId(e.target.value)}>
+              <option value="">— manter —</option>
+              {sports.map(s => <option key={s.id} value={s.id}>{s.icon} {s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Tipster / VIP</label>
+            <select style={inp} value={tipsterId} onChange={e => setTipsterId(e.target.value)}>
+              <option value="">— manter —</option>
+              {tipsters.filter(t => t.active).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={lbl}>Perfil</label>
+            <select style={inp} value={profileId} onChange={e => setProfileId(e.target.value)}>
+              <option value="">— manter —</option>
+              {profiles.filter(p => p.active).map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+        </div>
+
+        {result && (
+          <p style={{ fontSize: 11, color: '#eab308', margin: '14px 0 0' }}>
+            ⚠ Ao definir o resultado, o retorno de cada aposta é recalculado (ganhou = apostado × odd, void = apostado, perdeu/pendente = 0).
+          </p>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 22, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 8, background: 'none', border: '1px solid #2d1f5e', color: '#6d5a9a', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+          <button
+            onClick={handleApply}
+            disabled={saving || nothingSet}
+            style={{
+              padding: '9px 24px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+              background: nothingSet ? 'rgba(124,58,237,0.3)' : 'linear-gradient(135deg, #6d28d9, #7c3aed)',
+              border: '1px solid #7c3aed', color: '#fff', cursor: saving || nothingSet ? 'not-allowed' : 'pointer',
+              opacity: saving ? 0.7 : 1, transition: 'opacity 0.15s',
+            }}
+          >{saving ? 'Aplicando…' : `Aplicar a ${count}`}</button>
         </div>
       </div>
     </div>
@@ -1117,7 +1256,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   const [page,       setPage]       = useState(1)
   const [perPage,    setPerPage]    = useState(10)
   const [showFilters, setShowFilters] = useState(false)
-  const [sortKey, setSortKey] = useState<SortKey>('smart')
+  const [sortKey, setSortKey] = useState<SortKey>('date')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [viewMode, setViewMode] = useState<'grouped' | 'paginated'>('grouped')
   const [collapsedMonths, setCollapsedMonths] = useState<Set<string>>(new Set())
@@ -1125,6 +1264,7 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   const [deletingBet, setDeletingBet] = useState<Bet | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkEditing, setBulkEditing] = useState(false)
   const [bulkLoading, setBulkLoading] = useState(false)
   const deleteBet = useDeleteBet()
   const updateResult = useUpdateBetResult()
@@ -1468,6 +1608,13 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, paddingBottom: selCount > 0 ? 80 : 0 }}>
       {editingBet && <EditModal bet={editingBet} onClose={() => setEditingBet(null)} />}
+      {bulkEditing && (
+        <BulkEditModal
+          bets={bets.filter((b: Bet) => selectedIds.has(b.id))}
+          onClose={() => setBulkEditing(false)}
+          onApplied={() => setSelectedIds(new Set())}
+        />
+      )}
       {deletingBet && (
         <DeleteConfirm
           bet={deletingBet}
@@ -1510,6 +1657,17 @@ function BetTable({ tipsterId, accentColor, isMobile = false }: { tipsterId: num
             onClick={() => setSelectedIds(new Set())}
             style={{ padding: '8px 16px', borderRadius: 8, background: 'none', border: '1px solid rgba(255,255,255,0.12)', color: '#a0a0c0', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
           >Desmarcar</button>
+          <button
+            onClick={() => setBulkEditing(true)}
+            style={{
+              padding: '8px 20px', borderRadius: 8, fontSize: 12, fontWeight: 700,
+              background: 'rgba(124,58,237,0.15)', border: '1px solid rgba(124,58,237,0.5)',
+              color: '#a78bfa', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.28)'; e.currentTarget.style.borderColor = '#7c3aed' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(124,58,237,0.15)'; e.currentTarget.style.borderColor = 'rgba(124,58,237,0.5)' }}
+          >✎ Editar {selCount}</button>
           <button
             onClick={() => setBulkDeleting(true)}
             style={{
