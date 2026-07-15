@@ -1012,7 +1012,7 @@ function AiTab() {
             oddsEdit: String(b.odds ?? ''), payoutEdit: String(b.payout ?? ''),
             resultEdit: b.result ?? 'pending' as BetResult,
             bookmakerId: b.bookmakerId, bettingProfileId: null,
-            tipsterId: defaultTipster?.id ?? null, sportId: null,
+            tipsterId: defaultTipster?.id ?? null, sportId: b.sportId ?? null,
           }))
         ])
       } catch {

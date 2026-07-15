@@ -102,6 +102,8 @@ export interface AiExtractedBet {
   market: string | null
   bookmaker: string | null
   bookmakerId: number | null
+  sport: string | null
+  sportId: number | null
   amountWagered: number | null
   odds: number | null
   payout: number | null

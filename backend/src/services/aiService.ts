@@ -4,6 +4,57 @@ import { parseDDMM } from '../utils/dateUtils'
 import { prepareBetImages } from '../utils/imagePrep'
 import { AiExtractedBet, AiExtractionResponse } from '../types/api.types'
 
+// ── Perfis das casas em foco: assinatura visual (p/ detecção) + regras de extração ──
+// Para refinar as regras posicionais de cada casa, adicione detalhes vindos de prints reais.
+interface BookmakerProfile { key: string; signature: string; rules: string }
+
+const BOOKMAKER_PROFILES: BookmakerProfile[] = [
+  {
+    key: 'Bet365',
+    signature: 'Cor predominante VERDE (accent verde-escuro/teal). Botão de ação "Encerrar Aposta" em verde. Termos típicos: "Criar Aposta", "Super Aumentada", "Reutilizar Seleções", "Retornos" (no plural), "Encerrar Aposta". Menu inferior com Esportes / Ao-Vivo / Apostas / Cassino.',
+    rules: 'A odd total costuma aparecer no CABEÇALHO do bilhete (ex.: "CRIAR APOSTA 1.61"). "Aposta R$X" = valor apostado; "Retornos R$Y" = retorno total. "Criar Aposta"/"Super Aumentada" = combinada do MESMO jogo (same game multi).',
+  },
+  {
+    key: 'Superbet',
+    signature: 'Tema ESCURO com barra colorida na lateral esquerda do card (verde=ganho, vermelho=perda). Rótulos em CAIXA ALTA: "ODDS TOTAIS", "APOSTA", "PRÊMIO", "STATUS". Status escrito "Ganhou"/"Perdido". ID alfanumérico com hífen (ex.: "8901-QI2HDS"). Data no formato "14 DE JUL. DE 2026 — 13:22". Pode conter "DICAS DE APOSTA" e "TÁ PAGO!".',
+    rules: [
+      'valor_apostado = campo "APOSTA" (ex.: "15,00 R$" → 15.00).',
+      'odd = "ODDS TOTAIS"; se houver odd riscada + odd em negrito (ex.: "1.75 1.21"), use a FINAL em negrito (1.21).',
+      'retorno_total = "PRÊMIO". ATENÇÃO: o "PRÊMIO" SÓ aparece quando Ganhou/cashout. Quando o STATUS é "Perdido" NÃO existe PRÊMIO → retorno_total=0 e a odd DEVE vir de "ODDS TOTAIS" (NUNCA deduza odd a partir de retorno ausente).',
+      'resultado pelo STATUS: "Ganhou"=won, "Perdido"=lost.',
+      'jogo = times no topo do print (ex.: "França x Espanha"). Seleção marcada "Anulada" = void dentro da combinada.',
+      'data: converta "14 DE JUL. DE 2026" para "14/07" (JAN=01 … DEZ=12).',
+    ].join(' '),
+  },
+  {
+    key: 'Betano',
+    signature: 'Tema CLARO (fundo branco). Link "Criar Aposta" em AZUL. Rótulo de retorno = "Ganhos R$X". Badge de status (pílula contornada) no canto SUPERIOR DIREITO: "Ganhou" (verde), "Perdida" (vermelho) ou "Cash Out" (azul). Canto SUPERIOR ESQUERDO mostra tipo + valor apostado juntos (ex.: "Simples R$16,43"). ID numérico longo "ID: 20635904287" com ícone de copiar. Rodapé com "Compartilhar" / "Ai Cards".',
+    rules: [
+      'valor_apostado = valor no topo esquerdo, junto do tipo (ex.: "Simples R$16,43" → 16.43).',
+      'odd = o DECIMAL à DIREITA do cabeçalho "Criar Aposta"/mercado (ex.: "2.61", "1.67"). Se houver dois números (riscado + negrito, ex.: "2.18 2.61"), use SEMPRE o EM NEGRITO/final (2.61). NUNCA use os "1+"/"52+"/"Mais de X" das seleções (são limites, não odds) nem a "Pontuação X-Y" (placar). Confira: apostado × odd ≈ "Ganhos" quando a aposta foi ganha.',
+      'jogo no formato "Time A - Time B" (ex.: "França - Espanha") → converta para "Time A x Time B".',
+      'retorno_total = "Ganhos R$X,XX" (aparece em TODOS os status; será R$0,00 quando Perdida).',
+      'resultado pelo badge do topo direito: "Ganhou"=won, "Perdida"=lost, "Cash Out"=cashout; seleção "Anulada/Anulado"=void.',
+      '"CA"/"Criar Aposta" = combinada do MESMO jogo. Data já vem em DD/MM/YYYY.',
+    ].join(' '),
+  },
+]
+
+function buildBookmakerSections(): string {
+  const detect = BOOKMAKER_PROFILES.map(p => `  • ${p.key}: ${p.signature}`).join('\n')
+  const rules  = BOOKMAKER_PROFILES.map(p => `  • ${p.key}: ${p.rules}`).join('\n')
+  return `════ IDENTIFICAÇÃO DA CASA (FAÇA ISTO ANTES DE EXTRAIR) ════
+NÃO assuma que é Bet365. Primeiro IDENTIFIQUE a casa pela APARÊNCIA (cor predominante, logo, botões e termos):
+${detect}
+Defina o campo "casa" com o nome identificado. Se não corresponder a nenhuma das três acima, identifique pelo logo/nome escrito na tela e use esse nome — não force para Bet365.
+
+════ REGRAS DE EXTRAÇÃO POR CASA ════
+Depois de identificar a casa, aplique as regras específicas dela:
+${rules}
+
+`
+}
+
 function buildPrompt(bookmakerNames: string[]): string {
   const casasList = bookmakerNames.length > 0
     ? bookmakerNames.join(', ')
@@ -19,7 +70,7 @@ A imagem pode ter sido DIVIDIDA em várias partes horizontais (de cima para baix
 - Trate TODAS as partes como a MESMA tela contínua, na ordem em que aparecem.
 - NÃO duplique uma aposta que apareça repetida na borda entre duas partes — conte-a UMA única vez.
 
-════ REGRA FUNDAMENTAL ════
+${buildBookmakerSections()}════ REGRA FUNDAMENTAL ════
 Uma aposta COMBINADA (múltipla) com várias seleções é UMA ÚNICA aposta, não várias.
 Identifique pela presença de múltiplas seleções dentro do mesmo bilhete/ticket.
 
@@ -37,6 +88,7 @@ Identifique CADA jogo e CADA seleção separadamente, mesmo que apareçam em se�
       "mercado": "Seleção escolhida (simples) | 'Jogo1 {Seleção1}; Jogo2 {Seleção2}; Jogo3 {Seleção3}' (combinada — OBRIGATÓRIO incluir o nome do jogo antes de cada {} )",
       "valor_apostado": 20.00,
       "casa": "nome da casa ou null",
+      "esporte": "Futebol|Basquete|Tênis|Vôlei|MMA/UFC|Futebol Americano|... ou null",
       "odd": 2.08,
       "odds_multiplas": [1.85, 1.60],
       "retorno_total": 41.67,
@@ -44,6 +96,25 @@ Identifique CADA jogo e CADA seleção separadamente, mesmo que apareçam em se�
     }
   ]
 }
+
+════ ESPORTE (INFERIR SEMPRE) ════
+Deduza o "esporte" a partir dos times, do MERCADO e principalmente da COMPETIÇÃO no topo do print. A competição é a pista mais forte:
+- Copa do Mundo, Champions/Liga dos Campeões, Brasileirão, Premier League, Libertadores, Eurocopa, nomes de seleções/clubes de futebol → "Futebol"
+- NBA, NBB, EuroLeague → "Basquete"
+- VNL, Liga das Nações (vôlei), Superliga → "Vôlei"
+- ATP, WTA, Grand Slam, Roland Garros, Wimbledon, US Open, Australian Open → "Tênis"
+- UFC, MMA → "MMA/UFC"
+- NFL → "Futebol Americano"
+- NHL → "Hóquei"
+Pelo MERCADO também dá: "gols/escanteios/chutes/desarmes/cartões" → Futebol; "pontos/rebotes/assistências" → Basquete; "aces/games/sets" → Tênis; "kills/ataques/bloqueios" → Vôlei.
+Preencha "esporte" com o nome. Só use null se realmente não houver pista alguma.
+
+════ COERÊNCIA DA ODD (VALIDE!) ════
+A odd tem que ser um DECIMAL ≥ 1.00 (ex.: 1.67, 2.61). NUNCA confunda com:
+- thresholds de seleção ("1+", "52+", "Mais de 1.5", "Sim/Não"),
+- placar/pontuação ("Pontuação 0-2", "2-1"),
+- IDs, datas ou o valor apostado.
+Quando a aposta foi GANHA (há retorno), confira: valor_apostado × odd deve ≈ retorno_total. Se não bater (fora do arredondamento), você pegou o número ERRADO — reveja a odd na imagem.
 
 ════ EXEMPLO DE COMBINADA ════
 Bilhete com seleções de jogos diferentes:
@@ -242,6 +313,9 @@ export async function extractBetsFromImage(
   const bookmakers = await prisma.bookmaker.findMany({
     where: { active: true, OR: [{ isDefault: true }, { userId }] },
   })
+  const sports = await prisma.sport.findMany({
+    where: { active: true, OR: [{ isDefault: true }, { userId }] },
+  })
   const EXTRACT_PROMPT = buildPrompt(bookmakers.map(b => b.name))
 
   // Pré-processa: normaliza e fatia prints muito altos (celular) em partes
@@ -321,6 +395,15 @@ export async function extractBetsFromImage(
     if (!foundBookmaker && a.casa) {
       warnings.push(`Aposta ${i + 1}: casa "${a.casa}" não encontrada no cadastro`)
     }
+
+    // Esporte: casa o nome inferido pela IA com um esporte cadastrado (ignora acentos/caixa).
+    // NFD separa o acento em marca combinante; o replace abaixo remove tudo que não é a-z0-9.
+    const norm = (x: string) => x.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '')
+    const esporteRaw = norm(a.esporte ?? '')
+    const foundSport = esporteRaw
+      ? (sports.find(s => norm(s.name) === esporteRaw)
+         ?? sports.find(s => { const sn = norm(s.name); return sn.includes(esporteRaw) || esporteRaw.includes(sn) }))
+      : undefined
 
     const nullCount = [a.data, a.mercado, a.valor_apostado, a.retorno_total].filter(
       (v) => v === null || v === undefined
@@ -430,6 +513,8 @@ export async function extractBetsFromImage(
       market,
       bookmaker:     a.casa ?? null,
       bookmakerId:   foundBookmaker?.id ?? null,
+      sport:         a.esporte ?? null,
+      sportId:       foundSport?.id ?? null,
       amountWagered: a.valor_apostado ?? null,
       odds:          odd,
       payout:        a.retorno_total ?? null,
